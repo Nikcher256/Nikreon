@@ -18,6 +18,7 @@ add_executable(NikreonEngine
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp
+    src/Engine/Renderer/Vulkan/VulkanContext.cpp
     src/main.cpp
 )
 
@@ -87,6 +88,4 @@ if(TARGET Jolt::Jolt)
     target_compile_definitions(NikreonEngine PRIVATE NIKREON_HAS_JOLT=1)
 endif()
 
-target_compile_definitions(NikreonEngine PRIVATE
-    GLFW_INCLUDE_VULKAN
-)
+target_compile_definitions(NikreonEngine PRIVATE GLFW_INCLUDE_NONE)

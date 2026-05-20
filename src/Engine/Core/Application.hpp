@@ -3,6 +3,7 @@
 #include "Engine/Core/Input.hpp"
 #include "Engine/Core/Time.hpp"
 #include "Engine/Core/Window.hpp"
+#include "Engine/Renderer/Vulkan/VulkanContext.hpp"
 
 namespace Engine {
 
@@ -29,6 +30,7 @@ private:
     Window m_window;
     Input m_input;
     Time m_time;
+    VulkanContext m_vulkanContext;
     unsigned int m_frameCount{0};
 };
 

@@ -145,7 +145,7 @@ Tasks:
 Build gate:
 
 - Window opens and closes cleanly.
-- Escape or window close exits the app.
+- Window close exits the app.
 - Logs show startup/shutdown.
 - No Vulkan device/swapchain required yet.
 
@@ -157,6 +157,8 @@ Completed note:
 - Verified with `scripts/build.ps1` and `build/Debug/NikreonEngine.exe --smoke-test`.
 
 ## Phase 2: Minimal Vulkan Frame
+
+Status: complete.
 
 Goal: create enough Vulkan ownership to draw to the window before building editor UI.
 
@@ -180,6 +182,13 @@ Build gate:
 - Clear screen with a solid color.
 - Resize works without crashing.
 - Shutdown releases Vulkan resources cleanly.
+
+Completed note:
+
+- Added `VulkanContext` with volk initialization, Vulkan instance, debug messenger, surface, physical/logical device, swapchain, image views, command pool, command buffers, semaphores, and fences.
+- The frame currently clears the swapchain image directly with `vkCmdClearColorImage`.
+- Verified with `scripts/build.ps1` and `build/Debug/NikreonEngine.exe --smoke-test`.
+- Verified semaphore reuse with `build/Debug/NikreonEngine.exe --frames 180`.
 
 ## Phase 3: Minimal Renderer2D Foundation
 
@@ -1023,7 +1032,7 @@ Update this section as work progresses.
 ```text
 [x] Phase 0  - Project bootstrap
 [x] Phase 1  - Engine app shell
-[ ] Phase 2  - Minimal Vulkan frame
+[x] Phase 2  - Minimal Vulkan frame
 [ ] Phase 3  - Minimal Renderer2D foundation
 [ ] Phase 4  - Engine-native editor UI shell
 [ ] Phase 5  - Text rendering

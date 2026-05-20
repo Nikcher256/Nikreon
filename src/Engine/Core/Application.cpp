@@ -1,6 +1,5 @@
 #include "Engine/Core/Application.hpp"
 
-#include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
 namespace Engine {
@@ -12,10 +11,10 @@ Application::Application()
           .height = 720,
       })
     , m_input(m_window)
+    , m_vulkanContext(m_window)
 {
     m_time.reset();
     spdlog::info("Application created.");
-    spdlog::info("Vulkan runtime support: {}", glfwVulkanSupported() == GLFW_TRUE ? "available" : "unavailable");
 }
 
 Application::~Application()
@@ -46,12 +45,11 @@ void Application::run(const RunOptions& options)
 void Application::update(const float deltaTime)
 {
     (void)deltaTime;
-
 }
 
 void Application::render()
 {
-    // Phase 2 will attach the Vulkan frame renderer here.
+    m_vulkanContext.drawFrame();
 }
 
 } // namespace Engine

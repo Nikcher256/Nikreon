@@ -1,6 +1,7 @@
 #include "Engine/Core/Application.hpp"
 #include "Engine/Core/Log.hpp"
 
+#include <cstdlib>
 #include <cstring>
 #include <exception>
 
@@ -15,6 +16,9 @@ int main(int argc, char** argv)
         for (int index = 1; index < argc; ++index) {
             if (std::strcmp(argv[index], "--smoke-test") == 0) {
                 runOptions.maxFrames = 1;
+            } else if (std::strcmp(argv[index], "--frames") == 0 && index + 1 < argc) {
+                runOptions.maxFrames = static_cast<unsigned int>(std::strtoul(argv[index + 1], nullptr, 10));
+                ++index;
             }
         }
 

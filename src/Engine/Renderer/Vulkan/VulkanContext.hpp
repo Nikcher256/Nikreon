@@ -1,0 +1,102 @@
+#pragma once
+
+#include <cstdint>
+#include <vector>
+
+#include <volk.h>
+
+namespace Engine {
+
+class Window;
+
+class VulkanContext {
+public:
+    explicit VulkanContext(Window& window);
+    ~VulkanContext();
+
+    VulkanContext(const VulkanContext&) = delete;
+    VulkanContext& operator=(const VulkanContext&) = delete;
+    VulkanContext(VulkanContext&&) = delete;
+    VulkanContext& operator=(VulkanContext&&) = delete;
+
+    void drawFrame();
+    void waitIdle() const;
+
+private:
+    struct QueueFamilyIndices {
+        std::uint32_t graphicsFamily{UINT32_MAX};
+        std::uint32_t presentFamily{UINT32_MAX};
+
+        [[nodiscard]] bool complete() const;
+    };
+
+    struct SwapchainSupportDetails {
+        VkSurfaceCapabilitiesKHR capabilities{};
+        std::vector<VkSurfaceFormatKHR> formats;
+        std::vector<VkPresentModeKHR> presentModes;
+    };
+
+    void initialize();
+    void shutdown();
+
+    void createInstance();
+    void setupDebugMessenger();
+    void createSurface();
+    void pickPhysicalDevice();
+    void createLogicalDevice();
+    void createSwapchain();
+    void createImageViews();
+    void createCommandPool();
+    void createCommandBuffers();
+    void createSyncObjects();
+    void createRenderFinishedSemaphores();
+    void destroyRenderFinishedSemaphores();
+
+    void cleanupSwapchain();
+    void recreateSwapchain();
+
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
+
+    [[nodiscard]] QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
+    [[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
+    [[nodiscard]] bool checkDeviceExtensionSupport(VkPhysicalDevice device) const;
+    [[nodiscard]] SwapchainSupportDetails querySwapchainSupport(VkPhysicalDevice device) const;
+    [[nodiscard]] VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats) const;
+    [[nodiscard]] VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes) const;
+    [[nodiscard]] VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) const;
+
+    [[nodiscard]] bool validationLayersAvailable() const;
+    [[nodiscard]] std::vector<const char*> requiredInstanceExtensions() const;
+
+public:
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+        VkDebugUtilsMessageTypeFlagsEXT type,
+        const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+        void* userData);
+
+private:
+    Window& m_window;
+
+    VkInstance m_instance{VK_NULL_HANDLE};
+    VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
+    VkSurfaceKHR m_surface{VK_NULL_HANDLE};
+    VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
+    VkDevice m_device{VK_NULL_HANDLE};
+    VkQueue m_graphicsQueue{VK_NULL_HANDLE};
+    VkQueue m_presentQueue{VK_NULL_HANDLE};
+    VkSwapchainKHR m_swapchain{VK_NULL_HANDLE};
+    VkFormat m_swapchainImageFormat{VK_FORMAT_UNDEFINED};
+    VkExtent2D m_swapchainExtent{};
+    std::vector<VkImage> m_swapchainImages;
+    std::vector<VkImageView> m_swapchainImageViews;
+    std::vector<VkImageLayout> m_swapchainImageLayouts;
+    VkCommandPool m_commandPool{VK_NULL_HANDLE};
+    std::vector<VkCommandBuffer> m_commandBuffers;
+    std::vector<VkSemaphore> m_imageAvailableSemaphores;
+    std::vector<VkSemaphore> m_renderFinishedSemaphores;
+    std::vector<VkFence> m_inFlightFences;
+    std::uint32_t m_currentFrame{0};
+};
+
+} // namespace Engine
