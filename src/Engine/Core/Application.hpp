@@ -35,6 +35,7 @@ private:
     EditorLayer m_editorLayer;
     unsigned int m_frameCount{0};
     bool m_fullscreenToggleWasPressed{false};
+    bool m_renderingFrame = false;
 };
 
 } // namespace Engine

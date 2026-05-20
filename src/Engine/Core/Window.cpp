@@ -80,6 +80,11 @@ bool Window::consumeFramebufferResized()
     return resized;
 }
 
+void Window::setRefreshCallback(RefreshCallback callback)
+{
+    m_refreshCallback = std::move(callback);
+}
+
 bool Window::shouldClose() const
 {
     return m_handle == nullptr || glfwWindowShouldClose(m_handle) == GLFW_TRUE;
@@ -143,6 +148,17 @@ void Window::create(const WindowProps& props)
         self->m_width = width > 0 ? static_cast<std::uint32_t>(width) : 0U;
         self->m_height = height > 0 ? static_cast<std::uint32_t>(height) : 0U;
         self->m_framebufferResized = true;
+    });
+
+    glfwSetWindowRefreshCallback(m_handle, [](GLFWwindow* window) {
+        auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        if (self == nullptr) {
+            return;
+        }
+
+        if (self->m_refreshCallback) {
+            self->m_refreshCallback();
+        }
     });
 
     spdlog::info("Window created: '{}' ({}x{})", props.title, m_width, m_height);

@@ -15,6 +15,11 @@ Application::Application()
     , m_renderer(m_window)
 {
     m_time.reset();
+
+    m_window.setRefreshCallback([this]() {
+        render();
+    });
+
     spdlog::info("Application created.");
 }
 
@@ -63,12 +68,18 @@ void Application::update(const float deltaTime)
 
 void Application::render()
 {
-    if (!m_renderer.beginFrame()) {
+    if (m_renderingFrame) {
         return;
     }
 
-    m_editorLayer.render(m_renderer.renderer2D(), m_renderer.viewportSize());
-    m_renderer.endFrame();
+    m_renderingFrame = true;
+
+    if (m_renderer.beginFrame()) {
+        m_editorLayer.render(m_renderer.renderer2D(), m_renderer.viewportSize());
+        m_renderer.endFrame();
+    }
+
+    m_renderingFrame = false;
 }
 
 } // namespace Engine

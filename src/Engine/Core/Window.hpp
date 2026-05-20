@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <functional>
 
 struct GLFWwindow;
 
@@ -26,7 +27,10 @@ public:
     void pollEvents() const;
     void requestClose();
     void toggleFullscreen();
+    using RefreshCallback = std::function<void()>;
+    void setRefreshCallback(RefreshCallback callback);
     [[nodiscard]] bool consumeFramebufferResized();
+    
 
     [[nodiscard]] bool shouldClose() const;
     [[nodiscard]] bool isKeyPressed(int key) const;
@@ -48,6 +52,7 @@ private:
     std::uint32_t m_windowedHeight{720};
     bool m_fullscreen{false};
     bool m_framebufferResized{false};
+    RefreshCallback m_refreshCallback;
 };
 
 } // namespace Engine
