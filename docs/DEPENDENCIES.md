@@ -24,6 +24,8 @@ The local `external/vcpkg` checkout is ignored by git. Recreate it with:
 make deps
 ```
 
+See `docs/BUILDING.md` for Windows, Linux, and macOS build instructions.
+
 On Windows, install Visual Studio Build Tools or Visual Studio with the C++ workload before building. For Vulkan development, install the Vulkan SDK when possible. This repo also includes `volk` so the engine can use dynamic Vulkan function loading instead of depending on vcpkg building `vulkan-loader`.
 
 `vulkan-loader` is intentionally not in the manifest because some Windows Device Guard policies block one of the temporary executables used by that port during build.

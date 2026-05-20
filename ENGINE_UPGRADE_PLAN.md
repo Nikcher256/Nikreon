@@ -4,6 +4,19 @@ This document is the working roadmap for upgrading the C++ Vulkan engine into a 
 
 The main target is a renderer and engine architecture that can load Blender-exported GLB/glTF assets with proper materials, textures, lighting, transparency, shadows, and later animation, while also supporting a real GPU-driven 2D/UI/HUD pipeline.
 
+## Current Starting Point
+
+The repository now has the project bootstrap in place:
+
+- Git repository initialized.
+- CMake project created.
+- `Makefile` and platform scripts added for Windows, Linux, and macOS.
+- `vcpkg.json` dependency manifest added.
+- Core external libraries selected: GLFW, GLM, Vulkan headers, volk, stb, tinygltf, FreeType, OpenAL Soft, miniaudio, EnTT, spdlog, nlohmann-json, and Jolt Physics.
+- Minimal `src/main.cpp` builds and runs.
+
+The next work should not jump directly into complex PBR rendering. The safer path is to build a small engine skeleton first, add minimal Vulkan ownership, build an engine-native 2D/UI layer for editor controls, then add the main viewport and 3D renderer.
+
 ## Guiding Rules
 
 - Keep existing working code unless a change is needed for the current phase.
@@ -11,7 +24,7 @@ The main target is a renderer and engine architecture that can load Blender-expo
 - Every phase should build before moving on.
 - Prefer glTF/GLB as the primary Blender import path.
 - HUD, menus, text, sprites, debug overlays, and editor overlays are not random 3D objects. They render through the 2D/UI/debug systems after the 3D world and post-processing.
-- ImGui may be used for editor/debug tools if already present, but final in-game HUD should be engine-native and GPU-rendered.
+- Do not use ImGui. Editor UI, game HUD, menus, debug panels, and tools should be engine-native and GPU-rendered through the engine UI stack.
 - Avoid recreating Vulkan pipelines, descriptor sets, textures, static buffers, or model resources every frame.
 - Organize shaders by purpose and material style so realistic PBR, unlit, toon, debug, sprite, text, shadow, skybox, and post-process passes can coexist.
 
@@ -85,12 +98,203 @@ Engine/
     Script
     NativeScriptSystem
   Editor/
+    EditorLayer
+    EditorUI
+    EditorPanels
     Gizmos
     Picking
     Selection
 ```
 
-## Phase 1: Clean Render Architecture
+## Phase 0: Project Bootstrap
+
+Status: complete.
+
+Completed:
+
+- Add CMake project.
+- Add vcpkg manifest.
+- Add Makefile and platform scripts.
+- Add build documentation.
+- Verify the bootstrap executable builds and runs on Windows.
+
+Build gate:
+
+- `scripts/build.ps1` succeeds.
+- `scripts/run.ps1` succeeds.
+- `make deps`, `make build`, and `make run` are documented for all platforms.
+
+## Phase 1: Engine App Shell
+
+Goal: replace the single-file bootstrap with a small engine/editor application loop that still does not own complex rendering.
+
+Tasks:
+
+- Create basic folders under `src/Engine`.
+- Add `Engine::Application`.
+- Add `Engine::Window` using GLFW.
+- Add `Engine::Time` for delta time.
+- Add `Engine::Input` wrapper for keyboard/mouse polling.
+- Add `Engine::Log` wrapper around spdlog.
+- Move startup/shutdown logic out of `main.cpp`.
+- Keep the app loop simple: create window, poll events, update, render stub, shutdown.
+- Prepare an `EditorLayer` placeholder, but do not render UI yet.
+
+Build gate:
+
+- Window opens and closes cleanly.
+- Escape or window close exits the app.
+- Logs show startup/shutdown.
+- No Vulkan device/swapchain required yet.
+
+## Phase 2: Minimal Vulkan Frame
+
+Goal: create enough Vulkan ownership to draw to the window before building editor UI.
+
+Tasks:
+
+- Add `Renderer/Vulkan/VulkanContext`.
+- Initialize volk.
+- Create Vulkan instance.
+- Create GLFW Vulkan surface.
+- Select physical device.
+- Create logical device and queues.
+- Add debug messenger in debug builds if validation layers are available.
+- Add `Swapchain` wrapper.
+- Add command pool and command buffers.
+- Add per-frame synchronization objects.
+- Handle window resize with safe swapchain recreation.
+
+Build gate:
+
+- App opens a Vulkan-backed window.
+- Clear screen with a solid color.
+- Resize works without crashing.
+- Shutdown releases Vulkan resources cleanly.
+
+## Phase 3: Minimal Renderer2D Foundation
+
+Goal: build the first engine-native rendering path for editor UI primitives.
+
+Scope:
+
+- This is not the full game/UI renderer yet.
+- Start with the smallest useful Vulkan 2D pipeline.
+- Colored quads are enough for the first build gate.
+- Textured quads, batching limits, atlases, and text come next.
+
+Tasks:
+
+- Add `Renderer2D`.
+- Add a simple quad pipeline.
+- Add orthographic screen-space projection.
+- Add dynamic vertex/index buffer or a simple first-pass upload path.
+- Draw filled rectangles.
+- Draw rectangle outlines if cheap.
+- Add basic z/layer ordering.
+- Add alpha blending.
+- Add `begin`, `drawQuad`, `drawRect`, and `end`.
+
+Build gate:
+
+- Engine can draw multiple colored quads on screen.
+- UI-like rectangles render in screen coordinates.
+- Resize updates projection correctly.
+- No one-draw-call-per-widget architecture is baked in.
+
+## Phase 4: Engine-Native Editor UI Shell
+
+Goal: create editor controls first, using the engine's own 2D/UI renderer.
+
+Important:
+
+- This is the first real UI users can play with.
+- Keep UI logic separate from `Renderer2D`.
+- `Renderer2D` draws primitives only.
+- `EditorUI` handles layout, state, input, and widgets.
+
+Tasks:
+
+- Add `UIRenderer` or `UIContext`.
+- Add `Editor/EditorLayer`.
+- Add `Editor/EditorUI`.
+- Add immediate-mode or retained-mode UI decision note after a small prototype.
+- Add panels/windows drawn as quads.
+- Add buttons.
+- Add checkboxes/toggles.
+- Add sliders.
+- Add text input boxes, even if text rendering starts with placeholder rectangles/caret.
+- Add simple layout: rows, columns, padding, margin.
+- Add hover, active, focused, clicked states.
+- Add basic theme colors.
+- Add top toolbar with Play, Pause, Stop buttons.
+- Add left hierarchy placeholder panel.
+- Add right inspector placeholder panel.
+- Add bottom console/log placeholder panel.
+- Add center viewport placeholder panel.
+
+Build gate:
+
+- User can click buttons.
+- User can toggle checkboxes.
+- User can drag sliders.
+- User can type into an input box once text support exists, or see a clear placeholder until text is implemented.
+- Panels resize with the window.
+- Center viewport placeholder exists but does not need to render 3D yet.
+
+## Phase 5: Text Rendering
+
+Goal: add font atlas text so editor UI, HUD, labels, and debug text can show real strings.
+
+Required features:
+
+- Load TTF/OTF fonts if possible.
+- Generate and cache font atlases.
+- Cache glyph metrics.
+- Draw screen-space text.
+- Support font size, color, opacity, alignment, line spacing, and text measurement.
+- Prepare word wrapping and MSDF support later.
+
+Suggested API:
+
+```cpp
+textRenderer.loadFont("default", "assets/fonts/Roboto.ttf", size);
+textRenderer.drawText("HP: 100", position, size, color);
+glm::vec2 size = textRenderer.measureText("Inventory");
+```
+
+Recommended libraries:
+
+- FreeType for robust font loading, or
+- `stb_truetype` for a simpler first version.
+
+Build gate:
+
+- Text renders as glyph quads.
+- Glyph metrics and atlas texture are cached.
+- Buttons, labels, input fields, console, and debug text can display strings.
+
+## Phase 6: Editor Viewport Integration
+
+Goal: make the editor viewport panel the place where the engine will render the game/editor scene.
+
+Tasks:
+
+- Add a viewport render target abstraction.
+- Render the Vulkan clear color or test scene into the viewport panel.
+- Track viewport size and mouse position.
+- Add viewport focus/hover state.
+- Add editor camera placeholder controls.
+- Prepare picking coordinates from viewport-local mouse position.
+- Keep menu/panels independent from viewport rendering.
+
+Build gate:
+
+- Main editor window has UI panels plus a working viewport panel.
+- Viewport resizes without breaking the swapchain/render target.
+- Editor UI remains interactive while the viewport updates.
+
+## Phase 7: Clean Render Architecture
 
 Goal: introduce the architecture and render pass order without breaking existing rendering.
 
@@ -104,13 +308,13 @@ Tasks:
 
 Build gate:
 
-- Existing scene still renders.
+- Existing editor UI and viewport placeholder still render.
 - New modules compile even if most are placeholders.
 - No Vulkan resources are leaked or recreated per frame unnecessarily.
 
-## Phase 2: Renderer2D, Sprites, and Quads
+## Phase 8: Full Renderer2D, Sprites, and Quads
 
-Goal: add a real batched GPU 2D renderer.
+Goal: expand the minimal 2D renderer into a real batched GPU 2D renderer.
 
 Required features:
 
@@ -169,41 +373,9 @@ Build gate:
 - Many sprites render in batches.
 - Resize and orthographic projection work correctly.
 
-## Phase 3: Text Rendering
+## Phase 9: Game UI and HUD Layer
 
-Goal: render GPU text through font atlas glyph quads.
-
-Required features:
-
-- Load TTF/OTF fonts if possible.
-- Generate and cache font atlases.
-- Cache glyph metrics.
-- Draw screen-space text.
-- Support font size, color, opacity, alignment, line spacing, and text measurement.
-- Prepare word wrapping and MSDF support later.
-
-Suggested API:
-
-```cpp
-textRenderer.loadFont("default", "assets/fonts/Roboto.ttf", size);
-textRenderer.drawText("HP: 100", position, size, color);
-glm::vec2 size = textRenderer.measureText("Inventory");
-```
-
-Recommended libraries:
-
-- FreeType for robust font loading, or
-- `stb_truetype` for a simpler first version.
-
-Build gate:
-
-- Text renders as glyph quads.
-- Glyph metrics and atlas texture are cached.
-- Text can be drawn in HUD/debug space.
-
-## Phase 4: UI and HUD Layer
-
-Goal: build engine-native UI on top of `Renderer2D` and `TextRenderer`.
+Goal: reuse and harden the engine-native UI stack for in-game HUD and menus.
 
 Required widgets:
 
@@ -242,9 +414,9 @@ Build gate:
 
 - HUD renders after 3D/post-process.
 - Basic interactive button state works.
-- Crosshair, health bar, and text can be drawn without ImGui.
+- Crosshair, health bar, and text are drawn with engine-native UI.
 
-## Phase 5: Debug Renderer, Editor Overlays, and Gizmo Prep
+## Phase 10: Debug Renderer, Editor Overlays, and Gizmo Prep
 
 Goal: add GPU-rendered debug and editor overlay primitives.
 
@@ -277,7 +449,25 @@ Build gate:
 - Debug labels render through text.
 - Debug pass does not interfere with game HUD.
 
-## Phase 6: Modern Model Loading
+## Phase 11: Resource Management Foundation
+
+Goal: add asset/resource ownership before serious model and texture loading.
+
+Tasks:
+
+- Add `ResourceManager`.
+- Add typed handles or shared ownership rules for textures, meshes, models, materials, shaders, fonts, and audio clips.
+- Add fallback resources: missing texture, default material, default font, default mesh.
+- Add path-based caching.
+- Add clear cleanup order for CPU and GPU resources.
+
+Build gate:
+
+- Loading the same logical resource twice returns the cached resource.
+- Missing resources return fallbacks.
+- Shutdown does not leak resource-owned objects.
+
+## Phase 12: Modern Model Loading
 
 Goal: load Blender-exported GLB/glTF models correctly.
 
@@ -307,7 +497,7 @@ Build gate:
 - Each submesh keeps its material reference.
 - Missing data falls back cleanly.
 
-## Phase 7: Material System and PBR Basics
+## Phase 13: Material System and PBR Basics
 
 Goal: preserve glTF PBR materials and render them correctly enough for real assets.
 
@@ -345,7 +535,7 @@ Build gate:
 - Metallic/roughness values affect shading.
 - Transparent materials are routed to a transparent pass.
 
-## Phase 8: Lighting System
+## Phase 14: Lighting System
 
 Goal: add physically reasonable lighting for PBR materials.
 
@@ -372,7 +562,7 @@ Build gate:
 - Directional, point, and spot lights affect PBR materials.
 - Point/spot attenuation behaves reasonably.
 
-## Phase 9: Shadows
+## Phase 15: Shadows
 
 Goal: start with directional light shadows.
 
@@ -398,7 +588,7 @@ Build gate:
 - Meshes can opt in/out of casting and receiving shadows.
 - Shadow artifacts are managed with basic bias.
 
-## Phase 10: Post-Processing
+## Phase 16: Post-Processing
 
 Goal: render the 3D world to an offscreen framebuffer before HUD/UI.
 
@@ -424,7 +614,7 @@ Build gate:
 - HUD/UI renders after post-process.
 - Resize recreates offscreen resources safely.
 
-## Phase 11: Scene, Entity, and Component Cleanup
+## Phase 17: Scene, Entity, and Component Cleanup
 
 Goal: establish a clean object model without overcomplicating ECS.
 
@@ -462,7 +652,7 @@ Build gate:
 - Objects can be created, deleted, moved, rendered, and assigned components.
 - Active camera and lights can come from scene components.
 
-## Phase 12: Physics, Raycasting, and Picking Preparation
+## Phase 18: Physics, Raycasting, and Picking Preparation
 
 Goal: prepare physics and editor selection.
 
@@ -497,7 +687,7 @@ Build gate:
 - Debug renderer can visualize rays and colliders.
 - Editor picking path is prepared.
 
-## Phase 13: Audio and 3D Audio
+## Phase 19: Audio and 3D Audio
 
 Goal: add audio objects tied to engine transforms.
 
@@ -531,7 +721,7 @@ Build gate:
 - 3D sound position follows an entity transform.
 - Listener follows camera/player transform.
 
-## Phase 14: Scripting Preparation
+## Phase 20: Scripting Preparation
 
 Goal: start with native C++ scripts and keep the door open for Lua/C# later.
 
@@ -560,7 +750,7 @@ Build gate:
 - Script component can attach a native script.
 - `onCreate`, `onUpdate`, and `onDestroy` are called at the right times.
 
-## Phase 15: Editor Gizmos and Overlays
+## Phase 21: Editor Gizmos and Overlays
 
 Goal: prepare editor rendering and selection tools.
 
@@ -580,7 +770,7 @@ Build gate:
 - Gizmo/debug overlay pass renders after the scene.
 - Picking API can identify objects or is cleanly stubbed.
 
-## Phase 16: Animation and Bones Preparation
+## Phase 22: Animation and Bones Preparation
 
 Goal: do not implement a fake animation system, but preserve the right data.
 
@@ -606,7 +796,7 @@ Build gate:
 - Static model loading is not broken.
 - Skeleton/animation metadata can be represented without being rendered yet.
 
-## Phase 17: Resource Management
+## Phase 23: Resource Management Completion
 
 Goal: centralize resource ownership and avoid duplicate loading.
 
@@ -634,7 +824,7 @@ Build gate:
 - Missing assets render with clear fallbacks.
 - Shutdown cleans resources without validation errors.
 
-## Phase 18: Scene Saving and Loading
+## Phase 24: Scene Saving and Loading
 
 Goal: prepare project and scene serialization.
 
@@ -658,7 +848,7 @@ Build gate:
 - A simple scene can be serialized and restored.
 - Asset references are stored as paths/ids.
 
-## Phase 19: Multiple Render Styles
+## Phase 25: Multiple Render Styles
 
 Goal: keep renderer and material design flexible.
 
@@ -684,7 +874,7 @@ Build gate:
 - Materials can select or imply a shader/style path.
 - Adding an unlit or toon shader later does not require rewriting the renderer.
 
-## Phase 20: Shader Organization
+## Phase 26: Shader Organization
 
 Goal: keep shader code discoverable and aligned with engine structures.
 
@@ -731,7 +921,7 @@ Build gate:
 - Shader inputs match C++ structures.
 - Recompilation/build scripts remain simple.
 
-## Phase 21: Performance Rules
+## Phase 27: Performance Rules and Audit
 
 These rules apply throughout implementation, not only at the end.
 
@@ -790,48 +980,66 @@ The upgraded engine should be able to:
 
 ## Recommended Implementation Order
 
-1. Clean renderer architecture and render pass order.
-2. Renderer2D with batched quads and sprites.
-3. TextRenderer with font atlas.
-4. UI/HUD layer using Renderer2D/TextRenderer.
-5. DebugRenderer for lines, boxes, and labels.
-6. Upgrade model loading for GLB/glTF multiple meshes/materials.
-7. Material system and PBR shader basics.
-8. Lighting system.
-9. Shadows.
-10. Post-processing.
-11. Scene/entity/component cleanup.
-12. Physics/raycast/picking preparation.
-13. Audio/3D audio.
-14. Scripting preparation.
-15. Editor gizmos and overlays.
+1. Finish project hygiene: README, build docs, dependency docs, and clean git state.
+2. Build the engine app shell: `Application`, `Window`, `Time`, `Input`, and `Log`.
+3. Add minimal Vulkan frame: instance, surface, device, swapchain, command buffers, frame sync, clear color.
+4. Add minimal Renderer2D foundation for colored UI rectangles.
+5. Add engine-native editor UI shell: panels, buttons, toggles, sliders, inputs, toolbar, hierarchy, inspector, console, viewport placeholder.
+6. Add TextRenderer with font atlas so editor UI has real labels and input text.
+7. Add editor viewport integration inside the native UI layout.
+8. Add clean renderer architecture and render pass order.
+9. Expand Renderer2D into a full batched sprite/quad renderer.
+10. Reuse/harden the UI stack for in-game HUD and menus.
+11. Add DebugRenderer for lines, boxes, and labels.
+12. Add ResourceManager foundation before complex asset loading.
+13. Upgrade model loading for GLB/glTF multiple meshes/materials.
+14. Add material system and PBR shader basics.
+15. Add lighting system.
+16. Add shadows.
+17. Add post-processing.
+18. Add scene/entity/component cleanup.
+19. Add physics/raycast/picking preparation.
+20. Add audio/3D audio.
+21. Add scripting preparation.
+22. Add editor gizmos and overlays.
+23. Add animation/bones preparation.
+24. Add scene serialization.
+25. Add multiple render style support.
+26. Complete shader organization and performance audit.
 
 ## Current Phase Tracker
 
 Update this section as work progresses.
 
 ```text
-[ ] Phase 1  - Clean render architecture
-[ ] Phase 2  - Renderer2D batching
-[ ] Phase 3  - Text rendering
-[ ] Phase 4  - UI/HUD system
-[ ] Phase 5  - Debug renderer
-[ ] Phase 6  - GLB/glTF model loading
-[ ] Phase 7  - Material/PBR system
-[ ] Phase 8  - Lighting
-[ ] Phase 9  - Shadows
-[ ] Phase 10 - Post-processing
-[ ] Phase 11 - Scene/components
-[ ] Phase 12 - Physics/raycast/picking
-[ ] Phase 13 - Audio/3D audio
-[ ] Phase 14 - Scripting
-[ ] Phase 15 - Editor gizmos/overlays
-[ ] Phase 16 - Animation preparation
-[ ] Phase 17 - Resource management
-[ ] Phase 18 - Scene serialization
-[ ] Phase 19 - Multiple render styles
-[ ] Phase 20 - Shader organization
-[ ] Phase 21 - Performance audit
+[x] Phase 0  - Project bootstrap
+[ ] Phase 1  - Engine app shell
+[ ] Phase 2  - Minimal Vulkan frame
+[ ] Phase 3  - Minimal Renderer2D foundation
+[ ] Phase 4  - Engine-native editor UI shell
+[ ] Phase 5  - Text rendering
+[ ] Phase 6  - Editor viewport integration
+[ ] Phase 7  - Clean render architecture
+[ ] Phase 8  - Full Renderer2D batching/sprites
+[ ] Phase 9  - Game UI/HUD system
+[ ] Phase 10 - Debug renderer
+[ ] Phase 11 - Resource management foundation
+[ ] Phase 12 - GLB/glTF model loading
+[ ] Phase 13 - Material/PBR system
+[ ] Phase 14 - Lighting
+[ ] Phase 15 - Shadows
+[ ] Phase 16 - Post-processing
+[ ] Phase 17 - Scene/components
+[ ] Phase 18 - Physics/raycast/picking
+[ ] Phase 19 - Audio/3D audio
+[ ] Phase 20 - Scripting
+[ ] Phase 21 - Editor gizmos/overlays
+[ ] Phase 22 - Animation preparation
+[ ] Phase 23 - Resource management completion
+[ ] Phase 24 - Scene serialization
+[ ] Phase 25 - Multiple render styles
+[ ] Phase 26 - Shader organization
+[ ] Phase 27 - Performance audit
 ```
 
 ## Notes for Future Edits
