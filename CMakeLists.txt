@@ -13,6 +13,11 @@ else()
 endif()
 
 add_executable(NikreonEngine
+    src/Engine/Core/Application.cpp
+    src/Engine/Core/Input.cpp
+    src/Engine/Core/Log.cpp
+    src/Engine/Core/Time.cpp
+    src/Engine/Core/Window.cpp
     src/main.cpp
 )
 

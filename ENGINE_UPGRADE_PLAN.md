@@ -126,6 +126,8 @@ Build gate:
 
 ## Phase 1: Engine App Shell
 
+Status: complete.
+
 Goal: replace the single-file bootstrap with a small engine/editor application loop that still does not own complex rendering.
 
 Tasks:
@@ -146,6 +148,13 @@ Build gate:
 - Escape or window close exits the app.
 - Logs show startup/shutdown.
 - No Vulkan device/swapchain required yet.
+
+Completed note:
+
+- Added `Application`, `Window`, `Time`, `Input`, and `Log`.
+- `main.cpp` now creates and runs `Engine::Application`.
+- Added `--smoke-test` mode for one-frame startup/shutdown verification.
+- Verified with `scripts/build.ps1` and `build/Debug/NikreonEngine.exe --smoke-test`.
 
 ## Phase 2: Minimal Vulkan Frame
 
@@ -1013,7 +1022,7 @@ Update this section as work progresses.
 
 ```text
 [x] Phase 0  - Project bootstrap
-[ ] Phase 1  - Engine app shell
+[x] Phase 1  - Engine app shell
 [ ] Phase 2  - Minimal Vulkan frame
 [ ] Phase 3  - Minimal Renderer2D foundation
 [ ] Phase 4  - Engine-native editor UI shell
