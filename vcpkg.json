@@ -1,0 +1,20 @@
+{
+  "name": "nikreon-engine",
+  "version-string": "0.1.0",
+  "description": "Modern C++ Vulkan game engine dependencies.",
+  "dependencies": [
+    "vulkan-headers",
+    "glfw3",
+    "glm",
+    "stb",
+    "tinygltf",
+    "freetype",
+    "miniaudio",
+    "openal-soft",
+    "entt",
+    "spdlog",
+    "nlohmann-json",
+    "joltphysics",
+    "volk"
+  ]
+}
