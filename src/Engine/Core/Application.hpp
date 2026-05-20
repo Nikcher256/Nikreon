@@ -1,9 +1,10 @@
 #pragma once
 
+#include "Engine/Editor/EditorLayer.hpp"
 #include "Engine/Core/Input.hpp"
 #include "Engine/Core/Time.hpp"
 #include "Engine/Core/Window.hpp"
-#include "Engine/Renderer/Vulkan/VulkanContext.hpp"
+#include "Engine/Renderer/Renderer.hpp"
 
 namespace Engine {
 
@@ -30,8 +31,10 @@ private:
     Window m_window;
     Input m_input;
     Time m_time;
-    VulkanContext m_vulkanContext;
+    Renderer m_renderer;
+    EditorLayer m_editorLayer;
     unsigned int m_frameCount{0};
+    bool m_fullscreenToggleWasPressed{false};
 };
 
 } // namespace Engine

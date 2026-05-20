@@ -12,15 +12,52 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/Bin")
+if(NOT GLSLC_EXECUTABLE)
+    message(FATAL_ERROR "glslc was not found. Install the Vulkan SDK so engine shaders can be compiled.")
+endif()
+
+set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+set(RENDERER2D_VERTEX_SHADER "${SHADER_OUTPUT_DIR}/renderer2d_quad.vert.spv")
+set(RENDERER2D_FRAGMENT_SHADER "${SHADER_OUTPUT_DIR}/renderer2d_quad.frag.spv")
+
+add_custom_command(
+    OUTPUT "${RENDERER2D_VERTEX_SHADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_OUTPUT_DIR}"
+    COMMAND "${GLSLC_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/renderer2d_quad.vert" -o "${RENDERER2D_VERTEX_SHADER}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/renderer2d_quad.vert"
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT "${RENDERER2D_FRAGMENT_SHADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${SHADER_OUTPUT_DIR}"
+    COMMAND "${GLSLC_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/renderer2d_quad.frag" -o "${RENDERER2D_FRAGMENT_SHADER}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/renderer2d_quad.frag"
+    VERBATIM
+)
+
+add_custom_target(NikreonShaders
+    DEPENDS
+        "${RENDERER2D_VERTEX_SHADER}"
+        "${RENDERER2D_FRAGMENT_SHADER}"
+)
+
 add_executable(NikreonEngine
+    src/Engine/Editor/EditorLayer.cpp
+    src/Engine/Editor/EditorUI.cpp
     src/Engine/Core/Application.cpp
     src/Engine/Core/Input.cpp
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp
+    src/Engine/Renderer/Renderer.cpp
     src/Engine/Renderer/Vulkan/VulkanContext.cpp
+    src/Engine/Renderer/Vulkan/VulkanRenderer2D.cpp
     src/main.cpp
 )
+
+add_dependencies(NikreonEngine NikreonShaders)
 
 find_package(Vulkan QUIET)
 find_package(VulkanHeaders CONFIG QUIET)
@@ -88,4 +125,7 @@ if(TARGET Jolt::Jolt)
     target_compile_definitions(NikreonEngine PRIVATE NIKREON_HAS_JOLT=1)
 endif()
 
-target_compile_definitions(NikreonEngine PRIVATE GLFW_INCLUDE_NONE)
+target_compile_definitions(NikreonEngine PRIVATE
+    GLFW_INCLUDE_NONE
+    NIKREON_SHADER_DIR="${SHADER_OUTPUT_DIR}"
+)

@@ -5,6 +5,7 @@ build_dir="${1:-build}"
 config="${2:-Debug}"
 triplet="${3:-x64-linux}"
 vcpkg_root="${4:-external/vcpkg}"
+shift 4 || true
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
@@ -21,4 +22,4 @@ if [ ! -x "$exe" ]; then
     exit 1
 fi
 
-"$exe"
+"$exe" "$@"

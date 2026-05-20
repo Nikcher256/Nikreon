@@ -3,14 +3,21 @@
 #include <cstdint>
 #include <vector>
 
+#include <glm/vec2.hpp>
 #include <volk.h>
 
 namespace Engine {
 
+class VulkanRenderer2D;
 class Window;
 
 class VulkanContext {
 public:
+    enum class FrameResult {
+        Rendered,
+        RecreateSwapchain,
+    };
+
     explicit VulkanContext(Window& window);
     ~VulkanContext();
 
@@ -19,8 +26,16 @@ public:
     VulkanContext(VulkanContext&&) = delete;
     VulkanContext& operator=(VulkanContext&&) = delete;
 
-    void drawFrame();
+    FrameResult drawFrame(VulkanRenderer2D& renderer2D);
     void waitIdle() const;
+    void recreateSwapchain();
+
+    [[nodiscard]] bool isDrawable() const;
+    [[nodiscard]] bool shouldRecreateSwapchain();
+    [[nodiscard]] VkDevice device() const;
+    [[nodiscard]] VkPhysicalDevice physicalDevice() const;
+    [[nodiscard]] VkRenderPass renderPass() const;
+    [[nodiscard]] glm::uvec2 swapchainSize() const;
 
 private:
     struct QueueFamilyIndices {
@@ -46,6 +61,8 @@ private:
     void createLogicalDevice();
     void createSwapchain();
     void createImageViews();
+    void createRenderPass();
+    void createFramebuffers();
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();
@@ -53,9 +70,8 @@ private:
     void destroyRenderFinishedSemaphores();
 
     void cleanupSwapchain();
-    void recreateSwapchain();
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex, VulkanRenderer2D& renderer2D);
 
     [[nodiscard]] QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
@@ -90,7 +106,8 @@ private:
     VkExtent2D m_swapchainExtent{};
     std::vector<VkImage> m_swapchainImages;
     std::vector<VkImageView> m_swapchainImageViews;
-    std::vector<VkImageLayout> m_swapchainImageLayouts;
+    VkRenderPass m_renderPass{VK_NULL_HANDLE};
+    std::vector<VkFramebuffer> m_swapchainFramebuffers;
     VkCommandPool m_commandPool{VK_NULL_HANDLE};
     std::vector<VkCommandBuffer> m_commandBuffers;
     std::vector<VkSemaphore> m_imageAvailableSemaphores;

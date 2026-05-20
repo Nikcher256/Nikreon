@@ -25,9 +25,12 @@ public:
 
     void pollEvents() const;
     void requestClose();
+    void toggleFullscreen();
+    [[nodiscard]] bool consumeFramebufferResized();
 
     [[nodiscard]] bool shouldClose() const;
     [[nodiscard]] bool isKeyPressed(int key) const;
+    [[nodiscard]] bool isFullscreen() const;
     [[nodiscard]] std::uint32_t width() const;
     [[nodiscard]] std::uint32_t height() const;
     [[nodiscard]] GLFWwindow* nativeHandle() const;
@@ -39,6 +42,12 @@ private:
     GLFWwindow* m_handle{nullptr};
     std::uint32_t m_width{0};
     std::uint32_t m_height{0};
+    int m_windowedX{100};
+    int m_windowedY{100};
+    std::uint32_t m_windowedWidth{1280};
+    std::uint32_t m_windowedHeight{720};
+    bool m_fullscreen{false};
+    bool m_framebufferResized{false};
 };
 
 } // namespace Engine

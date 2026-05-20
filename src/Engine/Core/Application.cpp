@@ -1,5 +1,6 @@
 #include "Engine/Core/Application.hpp"
 
+#include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
 namespace Engine {
@@ -11,7 +12,7 @@ Application::Application()
           .height = 720,
       })
     , m_input(m_window)
-    , m_vulkanContext(m_window)
+    , m_renderer(m_window)
 {
     m_time.reset();
     spdlog::info("Application created.");
@@ -45,11 +46,29 @@ void Application::run(const RunOptions& options)
 void Application::update(const float deltaTime)
 {
     (void)deltaTime;
+
+    const bool altPressed =
+        m_input.isKeyPressed(GLFW_KEY_LEFT_ALT) ||
+        m_input.isKeyPressed(GLFW_KEY_RIGHT_ALT);
+    const bool fullscreenTogglePressed =
+        m_input.isKeyPressed(GLFW_KEY_F11) ||
+        (altPressed && m_input.isKeyPressed(GLFW_KEY_ENTER));
+
+    if (fullscreenTogglePressed && !m_fullscreenToggleWasPressed) {
+        m_window.toggleFullscreen();
+    }
+
+    m_fullscreenToggleWasPressed = fullscreenTogglePressed;
 }
 
 void Application::render()
 {
-    m_vulkanContext.drawFrame();
+    if (!m_renderer.beginFrame()) {
+        return;
+    }
+
+    m_editorLayer.render(m_renderer.renderer2D(), m_renderer.viewportSize());
+    m_renderer.endFrame();
 }
 
 } // namespace Engine

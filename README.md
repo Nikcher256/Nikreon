@@ -64,6 +64,17 @@ Run:
 make run
 ```
 
+Pass engine arguments through `RUN_ARGS`:
+
+```sh
+make run RUN_ARGS="--frames 180"
+```
+
+On Windows, `make run` builds the executable and then launches it from the build
+folder. If Windows Application Control blocks `NikreonEngine.exe`, the build is
+still valid, but the machine policy must allow unsigned local debug builds,
+allowlist the output folder, or run the project from an approved developer path.
+
 ## Windows Without `make`
 
 If `make` is not installed on Windows, use the PowerShell scripts directly:

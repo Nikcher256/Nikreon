@@ -29,6 +29,57 @@ void Window::requestClose()
     }
 }
 
+void Window::toggleFullscreen()
+{
+    if (m_handle == nullptr) {
+        return;
+    }
+
+    if (!m_fullscreen) {
+        int x = 0;
+        int y = 0;
+        int width = 0;
+        int height = 0;
+        glfwGetWindowPos(m_handle, &x, &y);
+        glfwGetWindowSize(m_handle, &width, &height);
+
+        m_windowedX = x;
+        m_windowedY = y;
+        m_windowedWidth = width > 0 ? static_cast<std::uint32_t>(width) : m_width;
+        m_windowedHeight = height > 0 ? static_cast<std::uint32_t>(height) : m_height;
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = monitor != nullptr ? glfwGetVideoMode(monitor) : nullptr;
+        if (monitor == nullptr || mode == nullptr) {
+            return;
+        }
+
+        glfwSetWindowMonitor(m_handle, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        m_fullscreen = true;
+        spdlog::info("Window switched to fullscreen ({}x{}).", mode->width, mode->height);
+    } else {
+        glfwSetWindowMonitor(
+            m_handle,
+            nullptr,
+            m_windowedX,
+            m_windowedY,
+            static_cast<int>(m_windowedWidth),
+            static_cast<int>(m_windowedHeight),
+            0);
+        m_fullscreen = false;
+        spdlog::info("Window restored to windowed mode ({}x{}).", m_windowedWidth, m_windowedHeight);
+    }
+
+    m_framebufferResized = true;
+}
+
+bool Window::consumeFramebufferResized()
+{
+    const bool resized = m_framebufferResized;
+    m_framebufferResized = false;
+    return resized;
+}
+
 bool Window::shouldClose() const
 {
     return m_handle == nullptr || glfwWindowShouldClose(m_handle) == GLFW_TRUE;
@@ -37,6 +88,11 @@ bool Window::shouldClose() const
 bool Window::isKeyPressed(const int key) const
 {
     return m_handle != nullptr && glfwGetKey(m_handle, key) == GLFW_PRESS;
+}
+
+bool Window::isFullscreen() const
+{
+    return m_fullscreen;
 }
 
 std::uint32_t Window::width() const
@@ -86,6 +142,7 @@ void Window::create(const WindowProps& props)
 
         self->m_width = width > 0 ? static_cast<std::uint32_t>(width) : 0U;
         self->m_height = height > 0 ? static_cast<std::uint32_t>(height) : 0U;
+        self->m_framebufferResized = true;
     });
 
     spdlog::info("Window created: '{}' ({}x{})", props.title, m_width, m_height);

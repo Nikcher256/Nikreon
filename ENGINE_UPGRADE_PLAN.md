@@ -192,6 +192,8 @@ Completed note:
 
 ## Phase 3: Minimal Renderer2D Foundation
 
+Status: complete.
+
 Goal: build the first engine-native rendering path for editor UI primitives.
 
 Scope:
@@ -220,7 +222,19 @@ Build gate:
 - Resize updates projection correctly.
 - No one-draw-call-per-widget architecture is baked in.
 
+Completed note:
+
+- Added shader compilation through CMake using `glslc`.
+- Added an API-neutral `Renderer2D` interface and a Vulkan-specific `VulkanRenderer2D` implementation.
+- Added `Renderer` as the high-level renderer orchestrator above the active backend.
+- Added a simple colored-quad Vulkan graphics pipeline.
+- Added swapchain render pass and framebuffers.
+- The current frame batches editor shell quads into draw calls through the renderer abstraction.
+- Verified with `scripts/build.ps1` and `build/Debug/NikreonEngine.exe --frames 180`.
+
 ## Phase 4: Engine-Native Editor UI Shell
+
+Status: in progress.
 
 Goal: create editor controls first, using the engine's own 2D/UI renderer.
 
@@ -259,6 +273,12 @@ Build gate:
 - User can type into an input box once text support exists, or see a clear placeholder until text is implemented.
 - Panels resize with the window.
 - Center viewport placeholder exists but does not need to render 3D yet.
+
+Started note:
+
+- Added `EditorLayer` and `EditorUI`.
+- The editor shell now draws native toolbar, hierarchy, inspector, console, and viewport-placeholder panels through `Renderer2D`.
+- Widget input, text labels, and real controls are still pending.
 
 ## Phase 5: Text Rendering
 
@@ -1033,7 +1053,7 @@ Update this section as work progresses.
 [x] Phase 0  - Project bootstrap
 [x] Phase 1  - Engine app shell
 [x] Phase 2  - Minimal Vulkan frame
-[ ] Phase 3  - Minimal Renderer2D foundation
+[x] Phase 3  - Minimal Renderer2D foundation
 [ ] Phase 4  - Engine-native editor UI shell
 [ ] Phase 5  - Text rendering
 [ ] Phase 6  - Editor viewport integration

@@ -11,7 +11,7 @@ TRIPLET ?= x64-windows
 DEPS_CMD := powershell -ExecutionPolicy Bypass -File scripts/bootstrap-deps.ps1 -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)"
 CONFIGURE_CMD := powershell -ExecutionPolicy Bypass -File scripts/configure.ps1 -BuildDir "$(BUILD_DIR)" -Config "$(CONFIG)" -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)"
 BUILD_CMD := powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -BuildDir "$(BUILD_DIR)" -Config "$(CONFIG)" -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)"
-RUN_CMD := powershell -ExecutionPolicy Bypass -File scripts/run.ps1 -BuildDir "$(BUILD_DIR)" -Config "$(CONFIG)" -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)"
+RUN_CMD := powershell -ExecutionPolicy Bypass -File scripts/run.ps1 -BuildDir "$(BUILD_DIR)" -Config "$(CONFIG)" -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)" $(RUN_ARGS)
 CLEAN_CMD := powershell -NoProfile -Command "if (Test-Path '$(BUILD_DIR)') { Remove-Item -Recurse -Force '$(BUILD_DIR)' }"
 DISTCLEAN_CMD := powershell -NoProfile -Command "if (Test-Path '$(VCPKG_ROOT)') { Remove-Item -Recurse -Force '$(VCPKG_ROOT)' }"
 else
@@ -37,7 +37,7 @@ endif
 DEPS_CMD := sh scripts/bootstrap-deps.sh "$(TRIPLET)" "$(VCPKG_ROOT)"
 CONFIGURE_CMD := sh scripts/configure.sh "$(BUILD_DIR)" "$(CONFIG)" "$(TRIPLET)" "$(VCPKG_ROOT)"
 BUILD_CMD := sh scripts/build.sh "$(BUILD_DIR)" "$(CONFIG)" "$(TRIPLET)" "$(VCPKG_ROOT)"
-RUN_CMD := sh scripts/run.sh "$(BUILD_DIR)" "$(CONFIG)" "$(TRIPLET)" "$(VCPKG_ROOT)"
+RUN_CMD := sh scripts/run.sh "$(BUILD_DIR)" "$(CONFIG)" "$(TRIPLET)" "$(VCPKG_ROOT)" $(RUN_ARGS)
 CLEAN_CMD := rm -rf "$(BUILD_DIR)"
 DISTCLEAN_CMD := rm -rf "$(VCPKG_ROOT)"
 endif
