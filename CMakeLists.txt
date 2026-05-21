@@ -46,8 +46,11 @@ add_custom_target(NikreonShaders
 add_executable(NikreonEngine
     src/Engine/Editor/EditorLayer.cpp
     src/Engine/Editor/EditorUI.cpp
+    src/Engine/Editor/UIContext.cpp
     src/Engine/Core/Application.cpp
     src/Engine/Core/Input.cpp
+    src/Engine/Core/Layer.cpp
+    src/Engine/Core/LayerStack.cpp
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Engine/Editor/EditorLayer.hpp"
 #include "Engine/Core/Input.hpp"
+#include "Engine/Core/LayerStack.hpp"
 #include "Engine/Core/Time.hpp"
 #include "Engine/Core/Window.hpp"
 #include "Engine/Renderer/Renderer.hpp"
@@ -32,7 +32,7 @@ private:
     Input m_input;
     Time m_time;
     Renderer m_renderer;
-    EditorLayer m_editorLayer;
+    LayerStack m_layers;
     unsigned int m_frameCount{0};
     bool m_fullscreenToggleWasPressed{false};
     bool m_renderingFrame = false;

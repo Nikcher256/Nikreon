@@ -22,6 +22,7 @@ void Window::pollEvents() const
     glfwPollEvents();
 }
 
+// Requests that GLFW close the window on the next loop check.
 void Window::requestClose()
 {
     if (m_handle != nullptr) {
@@ -29,6 +30,7 @@ void Window::requestClose()
     }
 }
 
+// Switches between normal windowed mode and fullscreen primary-monitor mode.
 void Window::toggleFullscreen()
 {
     if (m_handle == nullptr) {
@@ -73,6 +75,7 @@ void Window::toggleFullscreen()
     m_framebufferResized = true;
 }
 
+// Returns and clears the resize flag raised by GLFW callbacks.
 bool Window::consumeFramebufferResized()
 {
     const bool resized = m_framebufferResized;
@@ -80,21 +83,65 @@ bool Window::consumeFramebufferResized()
     return resized;
 }
 
+// Installs a callback used by GLFW when the OS asks the window to refresh.
 void Window::setRefreshCallback(RefreshCallback callback)
 {
     m_refreshCallback = std::move(callback);
 }
 
+// Reports whether the window should shut down.
 bool Window::shouldClose() const
 {
     return m_handle == nullptr || glfwWindowShouldClose(m_handle) == GLFW_TRUE;
 }
 
+// Reads the current keyboard state for a GLFW key code.
 bool Window::isKeyPressed(const int key) const
 {
     return m_handle != nullptr && glfwGetKey(m_handle, key) == GLFW_PRESS;
 }
 
+// Reads the current mouse state for a GLFW mouse button code.
+bool Window::isMouseButtonPressed(const int button) const
+{
+    return m_handle != nullptr && glfwGetMouseButton(m_handle, button) == GLFW_PRESS;
+}
+
+// Returns the current cursor x coordinate scaled into framebuffer space.
+double Window::mouseX() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    if (m_handle != nullptr) {
+        glfwGetCursorPos(m_handle, &x, &y);
+        int windowWidth = 0;
+        int windowHeight = 0;
+        glfwGetWindowSize(m_handle, &windowWidth, &windowHeight);
+        if (windowWidth > 0) {
+            x *= static_cast<double>(m_width) / static_cast<double>(windowWidth);
+        }
+    }
+    return x;
+}
+
+// Returns the current cursor y coordinate scaled into framebuffer space.
+double Window::mouseY() const
+{
+    double x = 0.0;
+    double y = 0.0;
+    if (m_handle != nullptr) {
+        glfwGetCursorPos(m_handle, &x, &y);
+        int windowWidth = 0;
+        int windowHeight = 0;
+        glfwGetWindowSize(m_handle, &windowWidth, &windowHeight);
+        if (windowHeight > 0) {
+            y *= static_cast<double>(m_height) / static_cast<double>(windowHeight);
+        }
+    }
+    return y;
+}
+
+// Reports whether this window is currently fullscreen.
 bool Window::isFullscreen() const
 {
     return m_fullscreen;

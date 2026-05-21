@@ -26,7 +26,26 @@ The next work should not jump directly into complex PBR rendering. The safer pat
 - HUD, menus, text, sprites, debug overlays, and editor overlays are not random 3D objects. They render through the 2D/UI/debug systems after the 3D world and post-processing.
 - Do not use ImGui. Editor UI, game HUD, menus, debug panels, and tools should be engine-native and GPU-rendered through the engine UI stack.
 - Avoid recreating Vulkan pipelines, descriptor sets, textures, static buffers, or model resources every frame.
-- Organize shaders by purpose and material style so realistic PBR, unlit, toon, debug, sprite, text, shadow, skybox, and post-process passes can coexist.
+- Organize shaders by purpose and rendering feature so PBR, unlit, stylized, debug, sprite, text, shadow, skybox, outline, voxel/block, and post-process passes can coexist without forcing the whole engine into one predefined art style.
+
+## Renderer Art Direction Goal
+
+The engine should not have a hardcoded "style selector" that limits games to a few named looks. The renderer should provide flexible building blocks so a project can create whatever visual direction it needs:
+
+- Modern realistic or AAA-like scenes with PBR materials, normal maps, lighting, shadows, reflections, transparency, HDR, and post-processing.
+- Stylized or anime-like scenes using custom shader paths, ramp textures, outlines, rim lighting, flat colors, emissive accents, or hand-authored material parameters.
+- Low-poly games with simple materials, flat shading options, vertex colors, low-cost lighting, and minimal post-processing.
+- Block/voxel/Minecraft-like tests using atlased textures, chunk meshes, crisp sampling, simple lighting, and optional block-outline/debug tools.
+- Editor/debug rendering with wireframes, IDs, selection outlines, gizmos, collision shapes, raycasts, and labels.
+
+This means the 3D renderer should be data-driven and extensible:
+
+- Models keep their real mesh/submesh/material structure.
+- Materials describe properties and shader features, not just one fixed PBR layout.
+- Render passes are modular: opaque, transparent, shadows, skybox, post-process, outlines, debug, and editor overlays can be enabled as needed.
+- Shaders are registered by purpose/features, so new looks can be added without rewriting `Renderer3D`.
+- glTF/GLB import should preserve standard data, and engine-specific extras can optionally add custom material/render hints later.
+- Blender-specific viewport/render tricks should not be assumed to transfer automatically; the engine should recreate those looks through explicit renderer features such as outlines, custom shaders, ramps, post-process, and material parameters.
 
 ## Target Render Order
 
@@ -278,7 +297,11 @@ Started note:
 
 - Added `EditorLayer` and `EditorUI`.
 - The editor shell now draws native toolbar, hierarchy, inspector, console, and viewport-placeholder panels through `Renderer2D`.
-- Widget input, text labels, and real controls are still pending.
+- Added `UIContext` with mouse position, hover, active, click, checkbox, and slider interaction state.
+- Toolbar buttons, hierarchy row selection, inspector checkbox/slider placeholders, and viewport focus are now interactive.
+- Added a core `Layer` and `LayerStack` so application update/render flow can support editor layers, game layers, UI overlays, debug overlays, and future tool layers.
+- Current visual feedback is rectangle/icon based until the text renderer exists: toolbar state, selected hierarchy rows, viewport focus, grid toggle, and brightness slider should visibly change.
+- Text labels and typed input are still pending.
 
 ## Phase 5: Text Rendering
 
@@ -555,15 +578,15 @@ Material properties:
 - UV scale/offset if practical
 - Clearcoat/transmission placeholders
 
-Material styles to prepare:
+Material/shader flexibility to prepare:
 
-- PBR
-- Unlit
-- Toon later
-- Debug
-- Skybox
-- Sprite
-- Text
+- PBR materials for standard glTF/GLB assets.
+- Unlit materials for UI-like 3D, icons, flat props, emissive props, and stylized assets.
+- Custom material parameters so projects can add ramps, thresholds, rim light, outline settings, vertex-color use, texture atlases, or other look-specific controls.
+- Material feature flags instead of one hardcoded material type.
+- Shader variants or shader programs selected from material features and render pass needs.
+- Debug/editor materials for selection, IDs, wireframes, gizmos, and physics visualization.
+- Skybox, sprite, text, shadow, post-process, and outline shaders as separate renderer tools rather than global art-style choices.
 
 Build gate:
 
@@ -572,6 +595,7 @@ Build gate:
 - Normal maps affect lighting.
 - Metallic/roughness values affect shading.
 - Transparent materials are routed to a transparent pass.
+- Materials can carry extra renderer hints without breaking standard glTF loading.
 
 ## Phase 14: Lighting System
 
@@ -886,31 +910,33 @@ Build gate:
 - A simple scene can be serialized and restored.
 - Asset references are stored as paths/ids.
 
-## Phase 25: Multiple Render Styles
+## Phase 25: Flexible Render Features
 
-Goal: keep renderer and material design flexible.
+Goal: keep renderer and material design open-ended so projects can create many visual directions without the engine forcing a fixed style list.
 
-Supported or prepared styles:
+Renderer features to support or prepare:
 
-- Realistic PBR
-- Unlit
-- Debug
-- Stylized
-- Anime/cel-shaded later
-- Toon outlines later
+- Standard PBR shading for realistic assets.
+- Unlit and flat-shaded materials.
+- Vertex color support.
+- Texture atlas workflows for sprites, low-poly props, voxel/block games, and stylized assets.
+- Optional outline rendering for characters, selected objects, interactables, debug overlays, or stylized effects.
+- Optional ramp/threshold shading support through material parameters and shader variants.
+- Optional rim light, emissive accents, and custom material constants.
+- Debug/editor rendering paths for IDs, wireframes, gizmos, physics shapes, and object picking.
+- Post-process hooks for tone mapping, bloom, color grading, pixelation, posterization, or other project-specific effects.
 
-Toon roadmap:
+Important:
 
-- Toon ramp lighting
-- Outline pass
-- Flat colors
-- Rim light
-- Stylized shadows
+- Do not build a global "style selector" into the engine.
+- Do not make `Renderer3D` assume one art direction.
+- Treat looks as combinations of material data, shader features, mesh data, render passes, lighting, and post-processing.
+- New visual directions should be added by registering materials/shaders/passes, not by rewriting the renderer core.
 
 Build gate:
 
-- Materials can select or imply a shader/style path.
-- Adding an unlit or toon shader later does not require rewriting the renderer.
+- Materials can request shader features without hardcoding a project style.
+- Adding an outline, unlit, ramp, voxel/block, or custom shader path later does not require rewriting `Renderer3D`.
 
 ## Phase 26: Shader Organization
 
@@ -919,14 +945,16 @@ Goal: keep shader code discoverable and aligned with engine structures.
 Needed shaders:
 
 - PBR mesh shader
-- Unlit mesh shader
+- Unlit/flat mesh shader
+- Custom material shader variants
 - Sprite/quad shader
 - Text shader
 - Debug line shader
 - Skybox shader
 - Shadow depth shader
 - Post-process shader
-- Outline/toon later
+- Optional outline shader/pass
+- Optional ramp/threshold shading variant
 
 PBR shader inputs:
 
@@ -1042,7 +1070,7 @@ The upgraded engine should be able to:
 22. Add editor gizmos and overlays.
 23. Add animation/bones preparation.
 24. Add scene serialization.
-25. Add multiple render style support.
+25. Add flexible render feature support.
 26. Complete shader organization and performance audit.
 
 ## Current Phase Tracker
@@ -1075,7 +1103,7 @@ Update this section as work progresses.
 [ ] Phase 22 - Animation preparation
 [ ] Phase 23 - Resource management completion
 [ ] Phase 24 - Scene serialization
-[ ] Phase 25 - Multiple render styles
+[ ] Phase 25 - Flexible render features
 [ ] Phase 26 - Shader organization
 [ ] Phase 27 - Performance audit
 ```

@@ -1,14 +1,17 @@
 #pragma once
 
+#include "Engine/Core/Layer.hpp"
 #include "Engine/Editor/EditorUI.hpp"
 
 namespace Engine {
 
+class Input;
 class Renderer2D;
 
-class EditorLayer {
+class EditorLayer : public Layer {
 public:
-    void render(Renderer2D& renderer2D, const glm::uvec2& viewportSize);
+    void onUpdate(float deltaTime, const Input& input) override;
+    void onRender(Renderer2D& renderer2D, const glm::uvec2& viewportSize, const Input& input) override;
 
 private:
     EditorUI m_ui;

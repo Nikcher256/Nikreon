@@ -1,5 +1,9 @@
 #include "Engine/Core/Application.hpp"
 
+#include "Engine/Editor/EditorLayer.hpp"
+
+#include <memory>
+
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
@@ -15,6 +19,7 @@ Application::Application()
     , m_renderer(m_window)
 {
     m_time.reset();
+    m_layers.pushLayer(std::make_unique<EditorLayer>());
 
     m_window.setRefreshCallback([this]() {
         render();
@@ -28,6 +33,7 @@ Application::~Application()
     spdlog::info("Application destroyed.");
 }
 
+// Runs the main engine loop until the window closes or a frame cap is reached.
 void Application::run(const RunOptions& options)
 {
     spdlog::info("Application loop started.");
@@ -48,6 +54,7 @@ void Application::run(const RunOptions& options)
     spdlog::info("Application loop stopped after {:.2f}s.", m_time.elapsedSeconds());
 }
 
+// Updates application-level input shortcuts and future game/editor systems.
 void Application::update(const float deltaTime)
 {
     (void)deltaTime;
@@ -64,8 +71,10 @@ void Application::update(const float deltaTime)
     }
 
     m_fullscreenToggleWasPressed = fullscreenTogglePressed;
+    m_layers.update(deltaTime, m_input);
 }
 
+// Records and presents one editor frame if the swapchain is drawable.
 void Application::render()
 {
     if (m_renderingFrame) {
@@ -75,7 +84,7 @@ void Application::render()
     m_renderingFrame = true;
 
     if (m_renderer.beginFrame()) {
-        m_editorLayer.render(m_renderer.renderer2D(), m_renderer.viewportSize());
+        m_layers.render(m_renderer.renderer2D(), m_renderer.viewportSize(), m_input);
         m_renderer.endFrame();
     }
 

@@ -311,9 +311,10 @@ glm::vec2 VulkanRenderer2D::toNdc(const glm::vec2& pixelPosition) const
     const float width = static_cast<float>(std::max(m_viewportSize.x, 1U));
     const float height = static_cast<float>(std::max(m_viewportSize.y, 1U));
 
+    // Vulkan's viewport transform makes this mapping line up with top-left UI coordinates.
     return {
         (pixelPosition.x / width) * 2.0f - 1.0f,
-        1.0f - (pixelPosition.y / height) * 2.0f,
+        (pixelPosition.y / height) * 2.0f - 1.0f,
     };
 }
 

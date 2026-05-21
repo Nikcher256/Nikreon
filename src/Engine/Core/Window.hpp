@@ -34,6 +34,9 @@ public:
 
     [[nodiscard]] bool shouldClose() const;
     [[nodiscard]] bool isKeyPressed(int key) const;
+    [[nodiscard]] bool isMouseButtonPressed(int button) const;
+    [[nodiscard]] double mouseX() const;
+    [[nodiscard]] double mouseY() const;
     [[nodiscard]] bool isFullscreen() const;
     [[nodiscard]] std::uint32_t width() const;
     [[nodiscard]] std::uint32_t height() const;
