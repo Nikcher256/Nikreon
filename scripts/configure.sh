@@ -8,6 +8,7 @@ vcpkg_root="${4:-external/vcpkg}"
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+sh "$script_dir/ensure-submodules.sh"
 cmake=$("$script_dir/find-cmake.sh")
 toolchain="$repo_root/$vcpkg_root/scripts/buildsystems/vcpkg.cmake"
 build_path="$repo_root/$build_dir"

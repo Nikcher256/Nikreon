@@ -9,7 +9,9 @@
 namespace Engine {
 
 class Renderer2D;
+class TextRenderer;
 class VulkanRenderer2D;
+class VulkanTextRenderer;
 class Window;
 
 class Renderer {
@@ -26,6 +28,7 @@ public:
     void endFrame();
 
     [[nodiscard]] Renderer2D& renderer2D();
+    [[nodiscard]] TextRenderer& textRenderer();
     [[nodiscard]] glm::uvec2 viewportSize() const;
 
 private:
@@ -34,6 +37,7 @@ private:
 
     VulkanContext m_context;
     std::unique_ptr<VulkanRenderer2D> m_renderer2D;
+    std::unique_ptr<VulkanTextRenderer> m_textRenderer;
 };
 
 } // namespace Engine

@@ -1,0 +1,104 @@
+/*
+ * Nikreon UI supports a deliberately small CSS-like subset.
+ * Colors use normalized RGBA components and padding uses horizontal, vertical.
+ */
+
+ui {
+    spacing: 8;
+    toolbar-height-min: 42;
+    toolbar-height-max: 52;
+}
+
+toolbar {
+    fill: 0.10, 0.11, 0.14, 1.0;
+    border-color: 0.20, 0.23, 0.29, 1.0;
+}
+
+panel {
+    fill: 0.095, 0.105, 0.13, 1.0;
+    border-color: 0.20, 0.23, 0.29, 1.0;
+    border-width: 1;
+    border-radius: 6;
+    padding: 12, 12;
+}
+
+field {
+    fill: 0.13, 0.145, 0.18, 1.0;
+    border-color: 0.22, 0.26, 0.32, 1.0;
+    border-width: 1;
+    border-radius: 4;
+    padding: 8, 5;
+}
+
+button.toolbar {
+    fill: 0.14, 0.16, 0.21, 1.0;
+    border-color: 0.26, 0.30, 0.38, 1.0;
+    border-width: 1;
+    border-radius: 10;
+    hover-fill: 0.22, 0.25, 0.33, 1.0;
+    pressed-fill: 0.10, 0.14, 0.20, 1.0;
+    selected-fill: 0.24, 0.52, 0.86, 1.0;
+    selected-border-color: 0.44, 0.70, 1.0, 1.0;
+}
+
+button.toolbar#toolbar.stop {
+    selected-fill: 0.64, 0.28, 0.32, 1.0;
+    selected-border-color: 0.96, 0.52, 0.58, 1.0;
+}
+
+button.hierarchy-row {
+    fill: 0.15, 0.17, 0.21, 1.0;
+    border-color: 0.15, 0.17, 0.21, 1.0;
+    border-width: 1;
+    border-radius: 4;
+    hover-fill: 0.17, 0.19, 0.24, 1.0;
+    selected-fill: 0.20, 0.32, 0.48, 1.0;
+    selected-border-color: 0.32, 0.52, 0.78, 1.0;
+    accent: 0.44, 0.70, 1.0, 1.0;
+}
+
+slider.inspector {
+    fill: 0.13, 0.145, 0.18, 1.0;
+    border-color: 0.24, 0.29, 0.36, 1.0;
+    border-width: 1;
+    border-radius: 4;
+    hover-fill: 0.18, 0.21, 0.27, 1.0;
+    accent: 0.36, 0.58, 0.82, 1.0;
+    knob-color: 0.86, 0.92, 1.0, 1.0;
+}
+
+text {
+    color: 0.66, 0.72, 0.82, 1.0;
+    font: default;
+    font-scale: 1;
+    opacity: 1;
+    text-align: left;
+    vertical-align: top;
+    offset: 0, 0;
+}
+
+text.heading {
+    color: 0.78, 0.84, 0.94, 1.0;
+    font-scale: 1;
+    offset: 0, 0;
+}
+
+text.muted {
+    color: 0.48, 0.55, 0.66, 1.0;
+    font-scale: 0.86;
+}
+
+text.hierarchy-row {
+    font-scale: 0.82;
+    vertical-align: center;
+    offset: 8, 0;
+}
+
+text.control-label {
+    vertical-align: center;
+}
+
+text.muted#viewport-title {
+    color: 0.56, 0.70, 0.88, 1.0;
+    text-align: right;
+}

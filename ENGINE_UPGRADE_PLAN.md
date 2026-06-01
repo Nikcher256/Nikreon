@@ -251,38 +251,49 @@ Completed note:
 - The current frame batches editor shell quads into draw calls through the renderer abstraction.
 - Verified with `scripts/build.ps1` and `build/Debug/NikreonEngine.exe --frames 180`.
 
-## Phase 4: Engine-Native Editor UI Shell
+## Phase 4: Engine-Native UI Foundation and Editor Shell
 
 Status: in progress.
 
-Goal: create editor controls first, using the engine's own 2D/UI renderer.
+Goal: create reusable native UI controls first, using the engine's own 2D/UI renderer.
 
 Important:
 
 - This is the first real UI users can play with.
 - Keep UI logic separate from `Renderer2D`.
-- `Renderer2D` draws primitives only.
-- `EditorUI` handles layout, state, input, and widgets.
+- `Renderer2D` draws primitives only; widgets should not know Vulkan.
+- `Engine/UI` owns reusable UI primitives that will later move with text rendering into a separate `NikreonUI` GitHub project.
+- `EditorUI` handles editor layout/composition and editor-specific panels.
+- Prefer a small retained widget model for editor UI instead of piling everything into immediate-mode helper calls.
 
 Tasks:
 
-- Add `UIRenderer` or `UIContext`.
+- Add `UIContext`.
+- Add retained `Widget` base class.
+- Add `Button`, `Checkbox`, and `Slider`.
+- Add callbacks such as `onClick` and `onValueChanged`.
+- Add `UIStyle` and box/widget style structs.
+- Add per-widget style overrides.
+- Add reusable style classes.
+- Add SDF styled-box rendering so radius/border style values are real.
 - Add `Editor/EditorLayer`.
 - Add `Editor/EditorUI`.
-- Add immediate-mode or retained-mode UI decision note after a small prototype.
-- Add panels/windows drawn as quads.
+- Add panels/windows drawn as styled boxes.
 - Add buttons.
 - Add checkboxes/toggles.
 - Add sliders.
 - Add text input boxes, even if text rendering starts with placeholder rectangles/caret.
 - Add simple layout: rows, columns, padding, margin.
 - Add hover, active, focused, clicked states.
-- Add basic theme colors.
+- Add basic theme colors and widget-state colors.
 - Add top toolbar with Play, Pause, Stop buttons.
 - Add left hierarchy placeholder panel.
 - Add right inspector placeholder panel.
 - Add bottom console/log placeholder panel.
 - Add center viewport placeholder panel.
+- Add a CSS-like style file parser later for the subset of style properties the engine supports.
+- Add scrollable panel content when controls do not fit vertically.
+- Add responsive panel visibility rules so low-height or narrow windows can collapse/hide secondary panels while preserving a usable viewport.
 
 Build gate:
 
@@ -291,9 +302,12 @@ Build gate:
 - User can drag sliders.
 - User can type into an input box once text support exists, or see a clear placeholder until text is implemented.
 - Panels resize with the window.
+- Panels with overflowing content can scroll after clipping support exists.
+- Panels can collapse or hide responsively when the window becomes too small.
 - Center viewport placeholder exists but does not need to render 3D yet.
+- Styled boxes visibly respect border width and border radius.
 
-Started note:
+Completed/started note:
 
 - Added `EditorLayer` and `EditorUI`.
 - The editor shell now draws native toolbar, hierarchy, inspector, console, and viewport-placeholder panels through `Renderer2D`.
@@ -301,9 +315,36 @@ Started note:
 - Toolbar buttons, hierarchy row selection, inspector checkbox/slider placeholders, and viewport focus are now interactive.
 - Added a core `Layer` and `LayerStack` so application update/render flow can support editor layers, game layers, UI overlays, debug overlays, and future tool layers.
 - Current visual feedback is rectangle/icon based until the text renderer exists: toolbar state, selected hierarchy rows, viewport focus, grid toggle, and brightness slider should visibly change.
-- Text labels and typed input are still pending.
+- Refactored UI toward retained widgets: `Widget`, `Button`, `Checkbox`, and `Slider` now own interaction state and callbacks such as `onClick` and `onValueChanged`.
+- Added `UIStyle` and box/widget style structs for colors, borders, spacing, padding, and future border-radius rendering.
+- Added per-widget style overrides and reusable style classes so individual widgets can opt into custom visuals without changing every widget of that type.
+- Added a Vulkan SDF rectangle path for styled UI boxes so `borderRadius`, `borderWidth`, fill, and border colors now render through the GPU instead of being only style data.
+- Refactored SDF rectangle rendering to use a static quad vertex buffer plus one instance record per box, with flat shader inputs for per-rectangle style data.
+- `EditorUI` now composes widgets and lays them out instead of hardcoding all widget logic inline.
+- Current SDF UI boxes are batched with instancing: one shared quad, one instance per box.
+- Added reusable UI layout containers under `Engine/UI`: row, column, stack, dock/fill, padding, gap, cross-axis alignment, and anchors.
+- Refactored `EditorUI` to use the layout containers for the panel shell, toolbar buttons, hierarchy rows, and inspector controls.
+- Added a deliberately small CSS-like style parser for supported UI properties and style classes.
+- Added `assets/styles/editor.ui.css` and moved the editor shell's style-class overrides out of C++.
+- Added stylesheet text classes with color, font, scale, opacity, horizontal alignment, vertical alignment, and offset properties.
+- Replaced editor label magic offsets with measured bounds-based text placement and reserved panel-header spacing.
+- Added CSS-like selector support for `type`, `type.class`, `type#id`, and `type.class#id`.
+- Widget and text ID selectors now override reusable classes; class-plus-ID selectors inherit the reusable class before applying ID-specific properties.
+- Raw mouse coordinate debug logs were removed; useful widget action logs remain.
+- Text labels, typed input, and proper icons are still pending.
+
+Next UI foundation tasks:
+
+- Add text labels once `TextRenderer` exists.
+- Add text input widget after text rendering and keyboard text events exist.
+- Add scroll containers with mouse-wheel offsets, clipped panel content, and sensible scroll limits after text metrics and renderer clipping exist.
+- Add responsive panel rules: preserve the viewport first, then collapse or hide secondary panels when available width or height falls below their minimum usable size.
+- Do not implement full browser CSS: no cascade complexity, media queries, full selector engine, or DOM model.
+- Keep `Engine/UI` and text APIs independent from Vulkan so they can be extracted into a reusable `NikreonUI` GitHub project.
 
 ## Phase 5: Text Rendering
+
+Status: in progress.
 
 Goal: add font atlas text so editor UI, HUD, labels, and debug text can show real strings.
 
@@ -334,6 +375,65 @@ Build gate:
 - Text renders as glyph quads.
 - Glyph metrics and atlas texture are cached.
 - Buttons, labels, input fields, console, and debug text can display strings.
+
+Completed/started note:
+
+- Added an API-neutral `TextRenderer` interface and Vulkan-specific `VulkanTextRenderer` backend.
+- Added FreeType TTF loading for printable ASCII glyphs, cached glyph metrics, text measurement, scaling, color, opacity, alignment, and multi-line positioning.
+- Added one-time staging-buffer upload for a cached single-channel Vulkan font atlas.
+- Added a Vulkan text pipeline with descriptor-backed atlas sampling and batched dynamic glyph vertices.
+- Added `text.vert` and `text.frag` shader compilation through CMake.
+- Renderer orchestration now records text after 2D UI shapes so editor labels remain crisp and visible.
+- Added real editor labels for panels, hierarchy rows, inspector controls, and the console placeholder.
+- Editor labels now resolve typography from CSS-like text classes and align measured text within explicit UI rectangles.
+- The first pass searches common system font locations and currently loads `C:/Windows/Fonts/segoeui.ttf` on the Windows development machine.
+- Verified with `scripts/build.ps1`, `build/Debug/NikreonEngine.exe --smoke-test`, and `build/Debug/NikreonEngine.exe --frames 180`.
+
+Remaining text tasks:
+
+- Bundle or configure a redistributable default font asset before extracting `NikreonUI`.
+- Add broader Unicode glyph loading and atlas growth or multiple atlas pages.
+- Add configurable line spacing, word wrapping, and richer text layout.
+- Add keyboard text events, caret rendering, selection, and the retained text-input widget.
+
+## NikreonUI Extraction Milestone
+
+Status: in progress.
+
+Goal: move reusable UI and text code into its own GitHub project after the first `TextRenderer` pass works, so the library can be versioned independently and reused by other games and tools.
+
+Important:
+
+- Create a separate `NikreonUI` GitHub repository with its own CMake library target.
+- Move reusable widgets, layouts, style parsing, text layout, font-atlas ownership, and shared UI assets/shaders into `NikreonUI`.
+- Keep editor-specific composition such as hierarchy, inspector, console, and viewport panels inside `NikreonEngine`.
+- Keep Vulkan-specific engine ownership behind a narrow rendering adapter. `NikreonUI` should submit styled boxes, clipped regions, sprites, and glyph quads without owning the engine swapchain or frame lifecycle.
+- Pin the dependency revision from `NikreonEngine` so UI updates are intentional and reproducible.
+- Do this extraction after basic text rendering works and before finishing the remaining UI polish tasks, avoiding churn while the first font-atlas path is still taking shape.
+
+Build gate:
+
+- `NikreonUI` builds as a standalone library repository.
+- `NikreonEngine` consumes a pinned `NikreonUI` revision through CMake.
+- Another small sample target can render a styled panel and text without depending on editor code.
+- UI and text changes can be released independently from the engine.
+
+Completed/started note:
+
+- Extracted reusable widgets, layouts, style parsing, renderer interfaces, Vulkan 2D/text backends, and shared shaders into `external/NikreonUI`.
+- Added a standalone `NikreonUI` CMake project, `NikreonUI::NikreonUI` library target, vcpkg manifest, README, and ignore file.
+- Removed the UI library's dependency on engine input and GLFW; consumers now pass a small `UIInputState` snapshot.
+- Removed the UI library's dependency on the engine logger.
+- Updated `NikreonEngine` to link `NikreonUI::NikreonUI` through configurable `NIKREON_UI_SOURCE_DIR`.
+- Initialized the standalone local git repository and committed baseline revision `3ee0eaa61efcc07795365be8cbfccd0212f644c9`.
+- Published the standalone public repository at `https://github.com/Nikcher256/NikreonUI`.
+- Registered `external/NikreonUI` as a Git submodule pinned to baseline revision `3ee0eaa61efcc07795365be8cbfccd0212f644c9`.
+- Added build preflight scripts that initialize a missing `external/NikreonUI` submodule checkout before CMake runs.
+- Verified both the integrated engine build and standalone `NikreonUI` build.
+
+Remaining extraction tasks:
+
+- Add a small standalone sample executable that renders one styled panel and text.
 
 ## Phase 6: Editor Viewport Integration
 
@@ -377,10 +477,17 @@ Build gate:
 
 Goal: expand the minimal 2D renderer into a real batched GPU 2D renderer.
 
+Current note:
+
+- Renderer2D already has colored quads and an SDF styled-rectangle path.
+- SDF rectangles are drawn efficiently with instancing: one static quad vertex buffer and one per-rectangle instance buffer.
+- The remaining large missing piece for UI/HUD is textured quads/sprites, which unlocks icons, image buttons, font atlases, thumbnails, and game sprites.
+
 Required features:
 
 - Batched colored quads
 - Batched textured quads
+- Batched SDF styled rectangles
 - Sprites and sprite sheets
 - Texture atlas support
 - UV coordinates
@@ -409,6 +516,7 @@ Implementation notes:
 
 - Use dynamic vertex/index buffers or a ring buffer.
 - Use one shared quad index pattern.
+- For repeated rectangle-like primitives, prefer instancing where the shape is shared and per-object data varies.
 - Flush when max quads are reached.
 - Flush when texture slots are full.
 - Group by texture where reasonable.
@@ -430,6 +538,7 @@ struct QuadVertex {
 Build gate:
 
 - Colored quads render.
+- SDF rounded rectangles render with border radius and border width.
 - Textured sprites render.
 - Many sprites render in batches.
 - Resize and orthographic projection work correctly.
@@ -938,7 +1047,72 @@ Build gate:
 - Materials can request shader features without hardcoding a project style.
 - Adding an outline, unlit, ramp, voxel/block, or custom shader path later does not require rewriting `Renderer3D`.
 
-## Phase 26: Shader Organization
+## Phase 26: AI Editor Assistant Support
+
+Goal: add an optional editor tool that can turn prompts into structured, validated engine data and editor commands.
+
+This is an editor/productivity feature, not part of the Vulkan renderer core.
+
+Possible AI-assisted actions:
+
+- Create scene objects from prompts.
+- Add or configure components.
+- Suggest material overrides.
+- Create light setups.
+- Generate UI layout descriptions.
+- Fill script-template parameters.
+- Suggest debug/editor setup changes.
+- Produce scene diffs for review.
+
+Important rules:
+
+- AI must not directly control Vulkan resources, pipelines, buffers, descriptor sets, render passes, or renderer internals.
+- AI output must be structured data or explicit editor commands, not arbitrary engine mutation.
+- AI output must be validated against scene schemas, component schemas, asset registries, and project settings before applying.
+- The editor must show a preview/diff before applying AI changes.
+- AI should use available asset lists and scene schemas so it does not invent invalid asset paths or component names.
+- Raw generated code should not be compiled automatically without user review and sandboxing.
+- AI actions should be undoable through the normal editor command/undo system.
+- AI failures should leave the scene unchanged.
+
+Suggested architecture:
+
+- `AIEditorAssistant`
+- `AICommandSchema`
+- `AICommandValidator`
+- `AICommandPreview`
+- `AIApplyCommand`
+- integration with `Scene`, `ResourceManager`, asset browser, component registry, material system, and scripting templates
+
+Example command types:
+
+```json
+{
+  "type": "create_entity",
+  "name": "Key Light",
+  "components": [
+    {
+      "type": "TransformComponent",
+      "position": [0.0, 4.0, 2.0]
+    },
+    {
+      "type": "LightComponent",
+      "lightType": "directional",
+      "intensity": 3.0
+    }
+  ]
+}
+```
+
+Build gate:
+
+- AI can produce a validated command list without directly mutating renderer internals.
+- Editor shows preview/diff before apply.
+- Invalid asset paths or component names are rejected.
+- Applying accepted commands updates the scene through normal editor command paths.
+- Raw generated code is never compiled automatically.
+
+## Phase 27: Shader Organization
 
 Goal: keep shader code discoverable and aligned with engine structures.
 
@@ -987,7 +1161,7 @@ Build gate:
 - Shader inputs match C++ structures.
 - Recompilation/build scripts remain simple.
 
-## Phase 27: Performance Rules and Audit
+## Phase 28: Performance Rules and Audit
 
 These rules apply throughout implementation, not only at the end.
 
@@ -1050,28 +1224,31 @@ The upgraded engine should be able to:
 2. Build the engine app shell: `Application`, `Window`, `Time`, `Input`, and `Log`.
 3. Add minimal Vulkan frame: instance, surface, device, swapchain, command buffers, frame sync, clear color.
 4. Add minimal Renderer2D foundation for colored UI rectangles.
-5. Add engine-native editor UI shell: panels, buttons, toggles, sliders, inputs, toolbar, hierarchy, inspector, console, viewport placeholder.
-6. Add TextRenderer with font atlas so editor UI has real labels and input text.
-7. Add editor viewport integration inside the native UI layout.
-8. Add clean renderer architecture and render pass order.
-9. Expand Renderer2D into a full batched sprite/quad renderer.
-10. Reuse/harden the UI stack for in-game HUD and menus.
-11. Add DebugRenderer for lines, boxes, and labels.
-12. Add ResourceManager foundation before complex asset loading.
-13. Upgrade model loading for GLB/glTF multiple meshes/materials.
-14. Add material system and PBR shader basics.
-15. Add lighting system.
-16. Add shadows.
-17. Add post-processing.
-18. Add scene/entity/component cleanup.
-19. Add physics/raycast/picking preparation.
-20. Add audio/3D audio.
-21. Add scripting preparation.
-22. Add editor gizmos and overlays.
-23. Add animation/bones preparation.
-24. Add scene serialization.
-25. Add flexible render feature support.
-26. Complete shader organization and performance audit.
+5. Add engine-native UI foundation: layer stack, retained widgets, callbacks, style structs, style classes, per-widget overrides, SDF styled boxes, toolbar, hierarchy, inspector, console, viewport placeholder.
+6. Add `TextRenderer` with font atlas so editor UI has real labels and input text.
+7. Extract reusable UI and text code into the standalone `NikreonUI` GitHub project with a pinned CMake dependency.
+8. Finish UI foundation: labels, text input, scrollable clipped panels, and responsive panel collapse/hide rules.
+9. Add textured Renderer2D/sprite support for icons, image buttons, thumbnails, font atlases, and game sprites.
+10. Add editor viewport integration inside the native UI layout.
+11. Add clean renderer architecture and render pass order.
+12. Reuse/harden the UI stack for in-game HUD and menus.
+13. Add DebugRenderer for lines, boxes, and labels.
+14. Add ResourceManager foundation before complex asset loading.
+15. Upgrade model loading for GLB/glTF multiple meshes/materials.
+16. Add material system and PBR shader basics.
+17. Add lighting system.
+18. Add shadows.
+19. Add post-processing.
+20. Add scene/entity/component cleanup.
+21. Add physics/raycast/picking preparation.
+22. Add audio/3D audio.
+23. Add scripting preparation.
+24. Add editor gizmos and overlays.
+25. Add animation/bones preparation.
+26. Add scene serialization.
+27. Add flexible render feature support.
+28. Add optional AI editor assistant support using validated structured commands.
+29. Complete shader organization and performance audit.
 
 ## Current Phase Tracker
 
@@ -1082,8 +1259,8 @@ Update this section as work progresses.
 [x] Phase 1  - Engine app shell
 [x] Phase 2  - Minimal Vulkan frame
 [x] Phase 3  - Minimal Renderer2D foundation
-[ ] Phase 4  - Engine-native editor UI shell
-[ ] Phase 5  - Text rendering
+[ ] Phase 4  - Engine-native UI foundation/editor shell
+[~] Phase 5  - Text rendering
 [ ] Phase 6  - Editor viewport integration
 [ ] Phase 7  - Clean render architecture
 [ ] Phase 8  - Full Renderer2D batching/sprites
@@ -1104,8 +1281,9 @@ Update this section as work progresses.
 [ ] Phase 23 - Resource management completion
 [ ] Phase 24 - Scene serialization
 [ ] Phase 25 - Flexible render features
-[ ] Phase 26 - Shader organization
-[ ] Phase 27 - Performance audit
+[ ] Phase 26 - AI editor assistant
+[ ] Phase 27 - Shader organization
+[ ] Phase 28 - Performance audit
 ```
 
 ## Notes for Future Edits

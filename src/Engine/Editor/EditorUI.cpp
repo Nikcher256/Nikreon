@@ -1,182 +1,313 @@
 #include "Engine/Editor/EditorUI.hpp"
 
+#include "Engine/Core/Input.hpp"
 #include "Engine/Renderer/Renderer2D.hpp"
+#include "Engine/Renderer/TextRenderer.hpp"
+#include "Engine/UI/UIStyleParser.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <string>
+#include <string_view>
 
 #include <glm/vec4.hpp>
+#include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
 
 namespace Engine {
 
-// Builds the native editor shell and routes widget input through UIContext.
-void EditorUI::render(Renderer2D& renderer2D, const glm::uvec2& viewportSize, const Input& input)
+#ifndef NIKREON_ASSET_DIR
+#define NIKREON_ASSET_DIR "assets"
+#endif
+
+EditorUI::EditorUI()
+    : m_playButton("toolbar.play")
+    , m_pauseButton("toolbar.pause")
+    , m_stopButton("toolbar.stop")
+    , m_gridCheckbox("inspector.showGrid", true)
+    , m_exposureSlider("inspector.exposure", 0.65f, 0.0f, 1.0f)
 {
-    m_context.beginFrame(input);
+    std::string styleError;
+    if (!UIStyleParser::loadFile(NIKREON_ASSET_DIR "/styles/editor.ui.css", m_style, styleError)) {
+        spdlog::warn("Editor UI stylesheet was not loaded: {}", styleError);
+    }
 
-    const float width = static_cast<float>(std::max(viewportSize.x, 1U));
-    const float height = static_cast<float>(std::max(viewportSize.y, 1U));
+    m_hierarchyRows.reserve(5);
+    for (int index = 0; index < 5; ++index) {
+        m_hierarchyRows.emplace_back("hierarchy.row." + std::to_string(index));
+    }
 
-    constexpr float gap = 8.0f;
-    const float toolbarHeight = std::clamp(height * 0.07f, 42.0f, 52.0f);
-    const float consoleHeight = std::clamp(height * 0.18f, 96.0f, 180.0f);
-    const float availableWorkWidth = std::max(width - gap * 4.0f, 1.0f);
-    const float leftPanelWidth = std::clamp(width * 0.15f, 180.0f, 260.0f);
-    const float rightPanelWidth = std::clamp(width * 0.18f, 220.0f, 320.0f);
-    const float panelHeight = std::max(height - toolbarHeight - consoleHeight - gap * 3.0f, 1.0f);
-
-    renderer2D.drawQuad({0.0f, 0.0f}, {width, height}, {0.07f, 0.075f, 0.09f, 1.0f});
-    renderer2D.drawQuad({0.0f, 0.0f}, {width, toolbarHeight}, {0.10f, 0.11f, 0.14f, 1.0f});
-
-    float buttonX = 16.0f;
-    const glm::vec2 playButtonPosition{buttonX, 10.0f};
-    const glm::vec2 toolbarButtonSize{76.0f, 28.0f};
-    const UIInteraction playButton = m_context.interact("toolbar.play", playButtonPosition, toolbarButtonSize);
-    if (playButton.pressed) {
+    m_playButton.setOnClick([this]() {
         m_runState = RunState::Playing;
         spdlog::info("Editor UI: Play button clicked.");
-    }
-    drawButton(renderer2D, playButtonPosition, toolbarButtonSize, playButton, m_runState == RunState::Playing);
-    drawToolbarIcon(renderer2D, playButtonPosition, toolbarButtonSize, ToolbarIcon::Play, m_runState == RunState::Playing);
+    });
 
-    buttonX += 88.0f;
-    const glm::vec2 pauseButtonPosition{buttonX, 10.0f};
-    const UIInteraction pauseButton = m_context.interact("toolbar.pause", pauseButtonPosition, toolbarButtonSize);
-    if (pauseButton.pressed) {
+    m_pauseButton.setOnClick([this]() {
         m_runState = RunState::Paused;
         spdlog::info("Editor UI: Pause button clicked.");
-    }
-    drawButton(renderer2D, pauseButtonPosition, toolbarButtonSize, pauseButton, m_runState == RunState::Paused);
-    drawToolbarIcon(renderer2D, pauseButtonPosition, toolbarButtonSize, ToolbarIcon::Pause, m_runState == RunState::Paused);
+    });
 
-    buttonX += 88.0f;
-    const glm::vec2 stopButtonPosition{buttonX, 10.0f};
-    const UIInteraction stopButton = m_context.interact("toolbar.stop", stopButtonPosition, toolbarButtonSize);
-    if (stopButton.pressed) {
+    m_stopButton.setOnClick([this]() {
         m_runState = RunState::Stopped;
         m_viewportFocused = false;
         spdlog::info("Editor UI: Stop button clicked.");
+    });
+
+    m_gridCheckbox.setOnValueChanged([this](const bool enabled) {
+        m_showGrid = enabled;
+        spdlog::info("Editor UI: Viewport grid {}.", m_showGrid ? "enabled" : "disabled");
+    });
+
+    m_exposureSlider.setOnValueChanged([this](const float value) {
+        m_previewExposure = value;
+        if (std::abs(m_previewExposure - m_lastLoggedExposure) >= 0.05f) {
+            m_lastLoggedExposure = m_previewExposure;
+            spdlog::info("Editor UI: Preview brightness set to {:.2f}.", m_previewExposure);
+        }
+    });
+
+    m_playButton.setStyleClass("toolbar");
+    m_pauseButton.setStyleClass("toolbar");
+    m_stopButton.setStyleClass("toolbar");
+    m_exposureSlider.setStyleClass("inspector");
+
+    for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
+        m_hierarchyRows[index].setStyleClass("hierarchy-row");
+        m_hierarchyRows[index].setOnClick([this, index]() {
+            m_selectedHierarchyRow = static_cast<int>(index);
+            spdlog::info("Editor UI: Hierarchy row {} selected.", index);
+        });
     }
-    drawButton(renderer2D, stopButtonPosition, toolbarButtonSize, stopButton, m_runState == RunState::Stopped);
-    drawToolbarIcon(renderer2D, stopButtonPosition, toolbarButtonSize, ToolbarIcon::Stop, m_runState == RunState::Stopped);
+}
 
-    const glm::vec2 hierarchyPosition{gap, toolbarHeight + gap};
-    const glm::vec2 hierarchySize{std::min(leftPanelWidth, availableWorkWidth * 0.28f), panelHeight};
-    drawPanel(renderer2D, hierarchyPosition, hierarchySize);
+// Builds the native editor shell and lets widgets handle their own state.
+void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
+{
+    m_context.beginFrame({
+        input.mousePosition(),
+        input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT),
+    });
 
-    const glm::vec2 inspectorSize{std::min(rightPanelWidth, availableWorkWidth * 0.34f), panelHeight};
-    const glm::vec2 inspectorPosition{width - inspectorSize.x - gap, toolbarHeight + gap};
-    drawPanel(renderer2D, inspectorPosition, inspectorSize);
+    const float width = static_cast<float>(std::max(viewportSize.x, 1U));
+    const float height = static_cast<float>(std::max(viewportSize.y, 1U));
+    layoutWidgets(width, height);
+    updateWidgets();
 
-    const glm::vec2 consolePosition{gap, height - consoleHeight - gap};
-    const glm::vec2 consoleSize{width - gap * 2.0f, consoleHeight};
-    drawPanel(renderer2D, consolePosition, consoleSize);
+    renderer2D.drawQuad({0.0f, 0.0f}, {width, height}, m_style.windowBackground);
+    renderer2D.drawQuad({0.0f, 0.0f}, {width, m_toolbarHeight}, m_style.toolbar.fill);
 
-    const glm::vec2 viewportPosition{hierarchyPosition.x + hierarchySize.x + gap, toolbarHeight + gap};
-    const glm::vec2 viewportSizePixels{
-        inspectorPosition.x - viewportPosition.x - gap,
-        panelHeight,
-    };
+    drawPanel(renderer2D, m_hierarchyBounds);
+    drawPanel(renderer2D, m_inspectorBounds);
+    drawPanel(renderer2D, m_consoleBounds);
 
     const float viewportBrightness = 0.035f + m_previewExposure * 0.045f;
-    renderer2D.drawQuad(viewportPosition, viewportSizePixels, {viewportBrightness, viewportBrightness + 0.006f, viewportBrightness + 0.018f, 1.0f});
-    const UIInteraction viewportInteraction = m_context.interact("viewport.main", viewportPosition, viewportSizePixels);
+    renderer2D.drawQuad(
+        m_viewportBounds.position,
+        m_viewportBounds.size,
+        {viewportBrightness, viewportBrightness + 0.006f, viewportBrightness + 0.018f, 1.0f});
+
+    const UIInteraction viewportInteraction = m_context.interact("viewport.main", m_viewportBounds.position, m_viewportBounds.size);
     if (viewportInteraction.pressed) {
         m_viewportFocused = true;
         spdlog::info("Editor UI: Viewport focused.");
     }
 
     if (m_showGrid) {
-        drawViewportGrid(renderer2D, viewportPosition, viewportSizePixels);
+        drawViewportGrid(renderer2D, m_viewportBounds);
     }
 
-    const glm::vec4 viewportBorder = m_viewportFocused
-        ? glm::vec4{0.32f, 0.58f, 0.88f, 1.0f}
-        : glm::vec4{0.25f, 0.32f, 0.42f, 1.0f};
-    renderer2D.drawRect(viewportPosition, viewportSizePixels, viewportBorder, 2.0f);
+    const glm::vec4 viewportBorder = m_viewportFocused ? m_style.viewportFocusedBorder : m_style.viewportBorder;
+    renderer2D.drawRect(m_viewportBounds.position, m_viewportBounds.size, viewportBorder, 2.0f);
 
-    for (int index = 0; index < 5; ++index) {
-        const float rowY = hierarchyPosition.y + 20.0f + static_cast<float>(index) * 34.0f;
-        const glm::vec2 rowPosition{hierarchyPosition.x + 16.0f, rowY};
-        const glm::vec2 rowSize{hierarchySize.x - 32.0f, 22.0f};
-        const std::string rowId = "hierarchy.row." + std::to_string(index);
-        const UIInteraction row = m_context.interact(rowId, rowPosition, rowSize);
-        if (row.pressed) {
-            m_selectedHierarchyRow = index;
-            spdlog::info("Editor UI: Hierarchy row {} selected.", index);
-        }
-
-        const bool selected = m_selectedHierarchyRow == index;
-        const glm::vec4 rowColor = selected
-            ? glm::vec4{0.20f, 0.32f, 0.48f, 1.0f}
-            : row.hovered
-                ? glm::vec4{0.17f, 0.19f, 0.24f, 1.0f}
-                : glm::vec4{0.15f, 0.17f, 0.21f, 1.0f};
-        renderer2D.drawQuad(rowPosition, rowSize, rowColor);
-    }
-
-    const glm::vec2 checkboxPosition{inspectorPosition.x + 18.0f, inspectorPosition.y + 22.0f};
-    const glm::vec2 checkboxSize{22.0f, 22.0f};
-    const UIInteraction checkbox = m_context.interact("inspector.showGrid", checkboxPosition, checkboxSize);
-    if (checkbox.pressed) {
-        m_showGrid = !m_showGrid;
-        spdlog::info("Editor UI: Viewport grid {}.", m_showGrid ? "enabled" : "disabled");
-    }
-    drawCheckbox(renderer2D, checkboxPosition, checkboxSize, m_showGrid, checkbox);
-
-    const glm::vec2 sliderPosition{inspectorPosition.x + 18.0f, inspectorPosition.y + 64.0f};
-    const glm::vec2 sliderSize{inspectorSize.x - 36.0f, 24.0f};
-    const UIInteraction slider = m_context.interact("inspector.exposure", sliderPosition, sliderSize);
-    if (slider.held) {
-        const float t = std::clamp((m_context.mousePosition().x - sliderPosition.x) / std::max(sliderSize.x, 1.0f), 0.0f, 1.0f);
-        m_previewExposure = t;
-        if (std::abs(m_previewExposure - m_lastLoggedExposure) >= 0.05f) {
-            m_lastLoggedExposure = m_previewExposure;
-            spdlog::info("Editor UI: Preview brightness set to {:.2f}.", m_previewExposure);
-        }
-    }
-    drawSlider(renderer2D, sliderPosition, sliderSize, m_previewExposure, 0.0f, 1.0f, slider);
+    renderWidgets(renderer2D);
 
     for (int index = 0; index < 4; ++index) {
-        const float fieldY = inspectorPosition.y + 112.0f + static_cast<float>(index) * 42.0f;
-        renderer2D.drawQuad({inspectorPosition.x + 18.0f, fieldY}, {inspectorSize.x - 36.0f, 28.0f}, {0.13f, 0.145f, 0.18f, 1.0f});
-        renderer2D.drawRect({inspectorPosition.x + 18.0f, fieldY}, {inspectorSize.x - 36.0f, 28.0f}, {0.22f, 0.26f, 0.32f, 1.0f}, 1.0f);
+        const float fieldY = m_exposureSlider.position().y + m_exposureSlider.size().y + 24.0f + static_cast<float>(index) * 42.0f;
+        const glm::vec2 fieldPosition{m_inspectorBounds.position.x + 18.0f, fieldY};
+        const glm::vec2 fieldSize{m_inspectorBounds.size.x - 36.0f, 28.0f};
+        renderer2D.drawSdfRect(
+            fieldPosition,
+            fieldSize,
+            m_style.field.borderRadius,
+            m_style.field.fill,
+            m_style.field.border,
+            m_style.field.borderWidth);
     }
 
+    renderLabels(textRenderer);
     m_context.endFrame();
 }
 
-// Draws a flat editor panel background and border.
-void EditorUI::drawPanel(Renderer2D& renderer2D, const glm::vec2& position, const glm::vec2& size)
+// Computes responsive panel and widget bounds for the current framebuffer size.
+void EditorUI::layoutWidgets(const float width, const float height)
 {
-    renderer2D.drawQuad(position, size, {0.095f, 0.105f, 0.13f, 1.0f});
-    renderer2D.drawRect(position, size, {0.20f, 0.23f, 0.29f, 1.0f}, 1.0f);
+    const float gap = m_style.gap;
+    m_toolbarHeight = std::clamp(height * 0.07f, m_style.toolbarHeightMin, m_style.toolbarHeightMax);
+    m_consoleHeight = std::clamp(height * 0.18f, 96.0f, 180.0f);
+
+    const float availableWorkWidth = std::max(width - gap * 2.0f, 1.0f);
+    const float leftPanelWidth = std::clamp(width * 0.15f, 180.0f, 260.0f);
+    const float rightPanelWidth = std::clamp(width * 0.18f, 220.0f, 320.0f);
+
+    UIDockLayout shellLayout;
+    shellLayout.setBounds({{gap, m_toolbarHeight + gap}, {availableWorkWidth, std::max(0.0f, height - m_toolbarHeight - gap * 2.0f)}});
+    shellLayout.setGap(gap);
+    shellLayout.add(m_consoleBounds, UIDock::Bottom, m_consoleHeight);
+    shellLayout.add(m_hierarchyBounds, UIDock::Left, std::min(leftPanelWidth, availableWorkWidth * 0.28f));
+    shellLayout.add(m_inspectorBounds, UIDock::Right, std::min(rightPanelWidth, availableWorkWidth * 0.34f));
+    shellLayout.add(m_viewportBounds, UIDock::Fill);
+    shellLayout.layout();
+
+    UILinearLayout toolbarLayout(UILayoutAxis::Horizontal);
+    toolbarLayout.setBounds({{16.0f, 10.0f}, {std::max(0.0f, width - 32.0f), 28.0f}});
+    toolbarLayout.setGap(12.0f);
+    toolbarLayout.add(m_playButton, {76.0f, 28.0f});
+    toolbarLayout.add(m_pauseButton, {76.0f, 28.0f});
+    toolbarLayout.add(m_stopButton, {76.0f, 28.0f});
+    toolbarLayout.layout();
+
+    UILinearLayout hierarchyLayout(UILayoutAxis::Vertical);
+    hierarchyLayout.setBounds(m_hierarchyBounds);
+    hierarchyLayout.setPadding({16.0f, 38.0f, 16.0f, 20.0f});
+    hierarchyLayout.setGap(12.0f);
+    for (Button& row : m_hierarchyRows) {
+        hierarchyLayout.add(row, {0.0f, 22.0f});
+    }
+    hierarchyLayout.layout();
+
+    UIStackLayout inspectorLayout;
+    inspectorLayout.setBounds(m_inspectorBounds);
+    inspectorLayout.setPadding({18.0f, 42.0f, 18.0f, 0.0f});
+    inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, 0.0f}, {22.0f, 22.0f}));
+    inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(54.0f, 24.0f));
+    inspectorLayout.layout();
 }
 
-// Draws a button using interaction state from UIContext.
-void EditorUI::drawButton(
-    Renderer2D& renderer2D,
-    const glm::vec2& position,
-    const glm::vec2& size,
-    const UIInteraction& state,
-    const bool selected)
+// Updates every retained widget after layout has assigned its bounds.
+void EditorUI::updateWidgets()
 {
-    const glm::vec4 fill = selected
-        ? glm::vec4{0.20f, 0.48f, 0.82f, 1.0f}
-        : state.held
-            ? glm::vec4{0.10f, 0.14f, 0.20f, 1.0f}
-            : state.hovered
-                ? glm::vec4{0.20f, 0.23f, 0.30f, 1.0f}
-                : glm::vec4{0.16f, 0.18f, 0.23f, 1.0f};
-    const glm::vec4 border = selected ? glm::vec4{0.44f, 0.70f, 1.0f, 1.0f} : glm::vec4{0.26f, 0.30f, 0.38f, 1.0f};
-    renderer2D.drawQuad(position, size, fill);
-    renderer2D.drawRect(position, size, border, 1.0f);
+    m_playButton.setSelected(m_runState == RunState::Playing);
+    m_pauseButton.setSelected(m_runState == RunState::Paused);
+    m_stopButton.setSelected(m_runState == RunState::Stopped);
+    m_gridCheckbox.setChecked(m_showGrid);
+    m_exposureSlider.setValue(m_previewExposure);
 
-    if (selected) {
-        renderer2D.drawQuad({position.x, position.y + size.y - 4.0f}, {size.x, 4.0f}, {0.52f, 0.78f, 1.0f, 1.0f});
+    m_playButton.update(m_context);
+    m_pauseButton.update(m_context);
+    m_stopButton.update(m_context);
+
+    for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
+        m_hierarchyRows[index].setSelected(static_cast<int>(index) == m_selectedHierarchyRow);
+        m_hierarchyRows[index].update(m_context);
     }
+
+    m_gridCheckbox.update(m_context);
+    m_exposureSlider.update(m_context);
+}
+
+// Renders every retained widget and any editor-specific icon overlays.
+void EditorUI::renderWidgets(Renderer2D& renderer2D)
+{
+    m_playButton.render(renderer2D, m_style);
+    drawToolbarIcon(renderer2D, m_playButton.position(), m_playButton.size(), ToolbarIcon::Play, m_playButton.selected());
+    m_pauseButton.render(renderer2D, m_style);
+    drawToolbarIcon(renderer2D, m_pauseButton.position(), m_pauseButton.size(), ToolbarIcon::Pause, m_pauseButton.selected());
+    m_stopButton.render(renderer2D, m_style);
+    drawToolbarIcon(renderer2D, m_stopButton.position(), m_stopButton.size(), ToolbarIcon::Stop, m_stopButton.selected());
+
+    for (const auto& row : m_hierarchyRows) {
+        row.render(renderer2D, m_style);
+    }
+
+    m_gridCheckbox.render(renderer2D, m_style);
+    m_exposureSlider.render(renderer2D, m_style);
+}
+
+// Draws the first real editor labels through the cached font atlas.
+void EditorUI::renderLabels(TextRenderer& textRenderer)
+{
+    drawStyledText(textRenderer, "Hierarchy", {m_hierarchyBounds.position + glm::vec2{16.0f, 8.0f}, {m_hierarchyBounds.size.x - 32.0f, 18.0f}}, "heading");
+    drawStyledText(textRenderer, "Inspector", {m_inspectorBounds.position + glm::vec2{18.0f, 8.0f}, {m_inspectorBounds.size.x - 36.0f, 18.0f}}, "heading");
+    drawStyledText(textRenderer, "Console", {m_consoleBounds.position + glm::vec2{16.0f, 8.0f}, {m_consoleBounds.size.x - 32.0f, 18.0f}}, "heading");
+    drawStyledText(textRenderer, "Viewport", {m_viewportBounds.position + glm::vec2{12.0f, 8.0f}, {m_viewportBounds.size.x - 24.0f, 18.0f}}, "muted", "viewport-title");
+
+    constexpr std::array<std::string_view, 5> hierarchyNames = {
+        "Main Camera",
+        "Directional Light",
+        "Environment",
+        "Player",
+        "UI Canvas",
+    };
+
+    for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
+        drawStyledText(
+            textRenderer,
+            hierarchyNames[index],
+            {m_hierarchyRows[index].position(), m_hierarchyRows[index].size()},
+            "hierarchy-row");
+    }
+
+    drawStyledText(
+        textRenderer,
+        "Grid",
+        {{m_gridCheckbox.position().x + 32.0f, m_gridCheckbox.position().y}, {m_inspectorBounds.size.x - 68.0f, m_gridCheckbox.size().y}},
+        "control-label");
+    drawStyledText(
+        textRenderer,
+        "Exposure",
+        {{m_exposureSlider.position().x, m_exposureSlider.position().y - 22.0f}, {m_exposureSlider.size().x, 18.0f}},
+        "control-label");
+    drawStyledText(
+        textRenderer,
+        "Editor initialized. Text atlas rendering active.",
+        {m_consoleBounds.position + glm::vec2{16.0f, 34.0f}, {m_consoleBounds.size.x - 32.0f, 18.0f}},
+        "muted");
+}
+
+// Positions measured text inside a rectangle using the selected stylesheet class.
+void EditorUI::drawStyledText(
+    TextRenderer& textRenderer,
+    const std::string_view text,
+    const UIRect& bounds,
+    const std::string_view styleClass,
+    const std::string_view id)
+{
+    const UITextStyle& style = m_style.resolveText(styleClass, id);
+    if (style.scale <= 0.0f || bounds.size.x <= 0.0f || bounds.size.y <= 0.0f) {
+        return;
+    }
+
+    const glm::vec2 textSize = textRenderer.measureText(text, style.font, style.scale);
+    glm::vec2 position = bounds.position;
+
+    if (style.horizontalAlignment == UITextHorizontalAlignment::Center) {
+        position.x += (bounds.size.x - textSize.x) * 0.5f;
+    } else if (style.horizontalAlignment == UITextHorizontalAlignment::Right) {
+        position.x += bounds.size.x - textSize.x;
+    }
+
+    if (style.verticalAlignment == UITextVerticalAlignment::Center) {
+        position.y += (bounds.size.y - textSize.y) * 0.5f;
+    } else if (style.verticalAlignment == UITextVerticalAlignment::Bottom) {
+        position.y += bounds.size.y - textSize.y;
+    }
+
+    glm::vec4 color = style.color;
+    color.a *= std::clamp(style.opacity, 0.0f, 1.0f);
+    textRenderer.drawText(text, position + style.offset, color, style.font, style.scale);
+}
+
+// Draws a flat editor panel background and border.
+void EditorUI::drawPanel(Renderer2D& renderer2D, const UIRect& bounds)
+{
+    renderer2D.drawSdfRect(
+        bounds.position,
+        bounds.size,
+        m_style.panel.borderRadius,
+        m_style.panel.fill,
+        m_style.panel.border,
+        m_style.panel.borderWidth);
 }
 
 // Draws simple toolbar glyphs from rectangles until text/icon rendering exists.
@@ -187,67 +318,32 @@ void EditorUI::drawToolbarIcon(
     const ToolbarIcon icon,
     const bool selected)
 {
-    const glm::vec4 color = selected ? glm::vec4{0.92f, 0.98f, 1.0f, 1.0f} : glm::vec4{0.56f, 0.62f, 0.72f, 1.0f};
+    const glm::vec4 color = selected ? m_style.button.selectedIcon : m_style.button.icon;
     const glm::vec2 center{position.x + size.x * 0.5f, position.y + size.y * 0.5f};
 
     if (icon == ToolbarIcon::Play) {
-        renderer2D.drawQuad({center.x - 7.0f, center.y - 8.0f}, {6.0f, 16.0f}, color);
-        renderer2D.drawQuad({center.x - 1.0f, center.y - 5.0f}, {6.0f, 10.0f}, color);
-        renderer2D.drawQuad({center.x + 5.0f, center.y - 2.0f}, {5.0f, 4.0f}, color);
+        renderer2D.drawSdfRect({center.x - 7.0f, center.y - 8.0f}, {6.0f, 16.0f}, 1.5f, color, color, 0.0f);
+        renderer2D.drawSdfRect({center.x - 1.0f, center.y - 5.0f}, {6.0f, 10.0f}, 1.5f, color, color, 0.0f);
+        renderer2D.drawSdfRect({center.x + 5.0f, center.y - 2.0f}, {5.0f, 4.0f}, 1.5f, color, color, 0.0f);
     } else if (icon == ToolbarIcon::Pause) {
-        renderer2D.drawQuad({center.x - 8.0f, center.y - 8.0f}, {5.0f, 16.0f}, color);
-        renderer2D.drawQuad({center.x + 3.0f, center.y - 8.0f}, {5.0f, 16.0f}, color);
+        renderer2D.drawSdfRect({center.x - 8.0f, center.y - 8.0f}, {5.0f, 16.0f}, 1.5f, color, color, 0.0f);
+        renderer2D.drawSdfRect({center.x + 3.0f, center.y - 8.0f}, {5.0f, 16.0f}, 1.5f, color, color, 0.0f);
     } else {
-        renderer2D.drawQuad({center.x - 8.0f, center.y - 8.0f}, {16.0f, 16.0f}, color);
+        renderer2D.drawSdfRect({center.x - 8.0f, center.y - 8.0f}, {16.0f, 16.0f}, 2.0f, color, color, 0.0f);
     }
-}
-
-// Draws a checkbox with a filled mark when enabled.
-void EditorUI::drawCheckbox(
-    Renderer2D& renderer2D,
-    const glm::vec2& position,
-    const glm::vec2& size,
-    const bool checked,
-    const UIInteraction& state)
-{
-    const glm::vec4 fill = state.hovered ? glm::vec4{0.18f, 0.21f, 0.27f, 1.0f} : glm::vec4{0.13f, 0.145f, 0.18f, 1.0f};
-    renderer2D.drawQuad(position, size, fill);
-    renderer2D.drawRect(position, size, {0.28f, 0.33f, 0.42f, 1.0f}, 1.0f);
-
-    if (checked) {
-        renderer2D.drawQuad({position.x + 5.0f, position.y + 5.0f}, {size.x - 10.0f, size.y - 10.0f}, {0.30f, 0.62f, 0.95f, 1.0f});
-    }
-}
-
-// Draws a simple horizontal slider track and draggable fill amount.
-void EditorUI::drawSlider(
-    Renderer2D& renderer2D,
-    const glm::vec2& position,
-    const glm::vec2& size,
-    const float value,
-    const float minValue,
-    const float maxValue,
-    const UIInteraction& state)
-{
-    const float t = maxValue > minValue ? std::clamp((value - minValue) / (maxValue - minValue), 0.0f, 1.0f) : 0.0f;
-    const glm::vec4 track = state.hovered || state.held ? glm::vec4{0.18f, 0.21f, 0.27f, 1.0f} : glm::vec4{0.13f, 0.145f, 0.18f, 1.0f};
-    renderer2D.drawQuad(position, size, track);
-    renderer2D.drawQuad(position, {size.x * t, size.y}, {0.30f, 0.52f, 0.78f, 1.0f});
-    renderer2D.drawRect(position, size, {0.24f, 0.29f, 0.36f, 1.0f}, 1.0f);
 }
 
 // Draws a lightweight viewport grid controlled by the inspector checkbox.
-void EditorUI::drawViewportGrid(Renderer2D& renderer2D, const glm::vec2& position, const glm::vec2& size)
+void EditorUI::drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds)
 {
     constexpr float spacing = 40.0f;
-    const glm::vec4 gridColor{0.10f, 0.13f, 0.17f, 0.8f};
 
-    for (float x = position.x + spacing; x < position.x + size.x; x += spacing) {
-        renderer2D.drawQuad({x, position.y}, {1.0f, size.y}, gridColor);
+    for (float x = bounds.position.x + spacing; x < bounds.position.x + bounds.size.x; x += spacing) {
+        renderer2D.drawQuad({x, bounds.position.y}, {1.0f, bounds.size.y}, m_style.viewportGrid);
     }
 
-    for (float y = position.y + spacing; y < position.y + size.y; y += spacing) {
-        renderer2D.drawQuad({position.x, y}, {size.x, 1.0f}, gridColor);
+    for (float y = bounds.position.y + spacing; y < bounds.position.y + bounds.size.y; y += spacing) {
+        renderer2D.drawQuad({bounds.position.x, y}, {bounds.size.x, 1.0f}, m_style.viewportGrid);
     }
 }
 

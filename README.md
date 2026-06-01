@@ -85,6 +85,9 @@ powershell -ExecutionPolicy Bypass -File scripts/build.ps1
 powershell -ExecutionPolicy Bypass -File scripts/run.ps1
 ```
 
+The configure and build scripts automatically initialize a missing
+`external/NikreonUI` Git submodule checkout before running CMake.
+
 ## Platform Defaults
 
 The Makefile chooses a vcpkg triplet automatically:

@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "normalize-env.ps1")
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+& (Join-Path $PSScriptRoot "ensure-submodules.ps1")
 $cmake = & (Join-Path $PSScriptRoot "find-cmake.ps1")
 $toolchain = Join-Path $repoRoot (Join-Path $VcpkgRoot "scripts/buildsystems/vcpkg.cmake")
 $buildPath = Join-Path $repoRoot $BuildDir

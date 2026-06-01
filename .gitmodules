@@ -1,0 +1,3 @@
+[submodule "external/NikreonUI"]
+	path = external/NikreonUI
+	url = https://github.com/Nikcher256/NikreonUI.git

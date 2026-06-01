@@ -10,6 +10,8 @@ make run
 
 `make deps` clones vcpkg into `external/vcpkg` and installs the packages listed in `vcpkg.json`.
 
+`make build` and `make configure` automatically initialize a missing `external/NikreonUI` Git submodule checkout before running CMake.
+
 ## Default Triplets
 
 The Makefile picks a default vcpkg triplet based on the host:

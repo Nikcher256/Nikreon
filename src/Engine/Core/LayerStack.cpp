@@ -19,10 +19,10 @@ void LayerStack::update(const float deltaTime, const Input& input)
 }
 
 // Renders layers in stack order.
-void LayerStack::render(Renderer2D& renderer2D, const glm::uvec2& viewportSize, const Input& input)
+void LayerStack::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
 {
     for (const auto& layer : m_layers) {
-        layer->onRender(renderer2D, viewportSize, input);
+        layer->onRender(renderer2D, textRenderer, viewportSize, input);
     }
 }
 

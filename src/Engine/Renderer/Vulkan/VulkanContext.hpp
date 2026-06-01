@@ -9,6 +9,7 @@
 namespace Engine {
 
 class VulkanRenderer2D;
+class VulkanTextRenderer;
 class Window;
 
 class VulkanContext {
@@ -26,7 +27,7 @@ public:
     VulkanContext(VulkanContext&&) = delete;
     VulkanContext& operator=(VulkanContext&&) = delete;
 
-    FrameResult drawFrame(VulkanRenderer2D& renderer2D);
+    FrameResult drawFrame(VulkanRenderer2D& renderer2D, VulkanTextRenderer& textRenderer);
     void waitIdle() const;
     void recreateSwapchain();
 
@@ -35,6 +36,8 @@ public:
     [[nodiscard]] VkDevice device() const;
     [[nodiscard]] VkPhysicalDevice physicalDevice() const;
     [[nodiscard]] VkRenderPass renderPass() const;
+    [[nodiscard]] VkQueue graphicsQueue() const;
+    [[nodiscard]] VkCommandPool commandPool() const;
     [[nodiscard]] glm::uvec2 swapchainSize() const;
 
 private:
@@ -71,7 +74,11 @@ private:
 
     void cleanupSwapchain();
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex, VulkanRenderer2D& renderer2D);
+    void recordCommandBuffer(
+        VkCommandBuffer commandBuffer,
+        std::uint32_t imageIndex,
+        VulkanRenderer2D& renderer2D,
+        VulkanTextRenderer& textRenderer);
 
     [[nodiscard]] QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;

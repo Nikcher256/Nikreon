@@ -6,13 +6,14 @@ namespace Engine {
 
 class Input;
 class Renderer2D;
+class TextRenderer;
 
 class Layer {
 public:
     virtual ~Layer() = default;
 
     virtual void onUpdate(float deltaTime, const Input& input);
-    virtual void onRender(Renderer2D& renderer2D, const glm::uvec2& viewportSize, const Input& input);
+    virtual void onRender(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input);
 };
 
 } // namespace Engine

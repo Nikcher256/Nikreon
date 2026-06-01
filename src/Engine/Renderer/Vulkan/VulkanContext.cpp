@@ -2,6 +2,7 @@
 
 #include "Engine/Core/Window.hpp"
 #include "Engine/Renderer/Vulkan/VulkanRenderer2D.hpp"
+#include "Engine/Renderer/Vulkan/VulkanTextRenderer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -75,7 +76,7 @@ VulkanContext::~VulkanContext()
     shutdown();
 }
 
-VulkanContext::FrameResult VulkanContext::drawFrame(VulkanRenderer2D& renderer2D)
+VulkanContext::FrameResult VulkanContext::drawFrame(VulkanRenderer2D& renderer2D, VulkanTextRenderer& textRenderer)
 {
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -98,7 +99,7 @@ VulkanContext::FrameResult VulkanContext::drawFrame(VulkanRenderer2D& renderer2D
 
     vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
-    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D);
+    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, textRenderer);
 
     const VkSemaphore waitSemaphores[] = {m_imageAvailableSemaphores[m_currentFrame]};
     const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -170,6 +171,16 @@ VkPhysicalDevice VulkanContext::physicalDevice() const
 VkRenderPass VulkanContext::renderPass() const
 {
     return m_renderPass;
+}
+
+VkQueue VulkanContext::graphicsQueue() const
+{
+    return m_graphicsQueue;
+}
+
+VkCommandPool VulkanContext::commandPool() const
+{
+    return m_commandPool;
 }
 
 glm::uvec2 VulkanContext::swapchainSize() const
@@ -598,7 +609,11 @@ void VulkanContext::recreateSwapchain()
     createRenderFinishedSemaphores();
 }
 
-void VulkanContext::recordCommandBuffer(VkCommandBuffer commandBuffer, const std::uint32_t imageIndex, VulkanRenderer2D& renderer2D)
+void VulkanContext::recordCommandBuffer(
+    VkCommandBuffer commandBuffer,
+    const std::uint32_t imageIndex,
+    VulkanRenderer2D& renderer2D,
+    VulkanTextRenderer& textRenderer)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -622,6 +637,7 @@ void VulkanContext::recordCommandBuffer(VkCommandBuffer commandBuffer, const std
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     renderer2D.record(commandBuffer);
+    textRenderer.record(commandBuffer);
     vkCmdEndRenderPass(commandBuffer);
 
     checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end command buffer.");

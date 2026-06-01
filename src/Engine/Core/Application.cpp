@@ -84,7 +84,7 @@ void Application::render()
     m_renderingFrame = true;
 
     if (m_renderer.beginFrame()) {
-        m_layers.render(m_renderer.renderer2D(), m_renderer.viewportSize(), m_input);
+        m_layers.render(m_renderer.renderer2D(), m_renderer.textRenderer(), m_renderer.viewportSize(), m_input);
         m_renderer.endFrame();
     }
 
