@@ -140,7 +140,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     updatePanelSplitters(width, height);
     m_inspectorScroll.update(m_context);
     layoutWidgets(width, height);
-    updateWidgets();
+    updateWidgets(textRenderer);
 
     renderer2D.drawQuad({0.0f, 0.0f}, {width, height}, m_style.windowBackground);
     renderer2D.drawQuad({0.0f, 0.0f}, {width, m_toolbarHeight}, m_style.toolbar.fill);
@@ -310,7 +310,7 @@ void EditorUI::updatePanelSplitters(const float width, const float height)
 }
 
 // Updates every retained widget after layout has assigned its bounds.
-void EditorUI::updateWidgets()
+void EditorUI::updateWidgets(TextRenderer& textRenderer)
 {
     m_playButton.setSelected(m_runState == RunState::Playing);
     m_pauseButton.setSelected(m_runState == RunState::Paused);
@@ -336,7 +336,8 @@ void EditorUI::updateWidgets()
         m_gridCheckbox.update(m_context);
         m_exposureSlider.update(m_context);
         m_lightIntensityInput.update(m_context);
-        m_objectNameInput.update(m_context);
+        const UITextStyle& inputValueStyle = m_style.resolveText("input-value");
+        m_objectNameInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_inspectorScroll.popClip(m_context);
     }
 }
@@ -439,10 +440,26 @@ void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
             "Object Name",
             {{m_objectNameInput.position().x, m_objectNameInput.position().y - 22.0f}, {m_objectNameInput.size().x, 18.0f}},
             "control-label");
+        const UITextInputStyle& objectNameStyle = m_style.resolveTextInput(m_objectNameInput.styleClass(), m_objectNameInput.id());
+        const UIClipRect objectNameClip{
+            m_objectNameInput.position() + glm::vec2{objectNameStyle.box.padding.x, 2.0f},
+            {
+                std::max(m_objectNameInput.size().x - objectNameStyle.box.padding.x * 2.0f, 0.0f),
+                std::max(m_objectNameInput.size().y - 6.0f, 0.0f),
+            },
+        };
+        const float objectNameTextX = m_objectNameInput.position().x + objectNameStyle.box.padding.x -
+            m_objectNameInput.horizontalScrollOffset();
         const std::string_view objectName = m_objectNameInput.value().empty()
             ? std::string_view{m_objectNameInput.placeholder()}
             : std::string_view{m_objectNameInput.value()};
-        drawStyledText(textRenderer, objectName, {m_objectNameInput.position() + glm::vec2{8.0f, 0.0f}, {m_objectNameInput.size().x - 16.0f, m_objectNameInput.size().y}}, m_objectNameInput.value().empty() ? "muted" : "input-value");
+        textRenderer.pushClipRect(objectNameClip);
+        drawStyledText(
+            textRenderer,
+            objectName,
+            {{objectNameTextX, m_objectNameInput.position().y}, {m_objectNameInput.size().x, m_objectNameInput.size().y}},
+            m_objectNameInput.value().empty() ? "muted" : "input-value");
+        textRenderer.popClipRect();
         if (m_objectNameInput.focused()) {
             if (m_objectNameInput.hasSelection()) {
                 const std::string_view selectedPrefix{m_objectNameInput.value().data(), m_objectNameInput.selectionStart()};
@@ -450,16 +467,20 @@ void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
                     m_objectNameInput.value().data() + m_objectNameInput.selectionStart(),
                     m_objectNameInput.selectionEnd() - m_objectNameInput.selectionStart(),
                 };
-                const float selectionX = m_objectNameInput.position().x + 8.0f + textRenderer.measureText(selectedPrefix, "default", 0.86f).x;
+                const float selectionX = objectNameTextX + textRenderer.measureText(selectedPrefix, "default", 0.86f).x;
                 const float selectionWidth = textRenderer.measureText(selectedText, "default", 0.86f).x;
                 m_inspectorScroll.pushClip(renderer2D);
+                renderer2D.pushClipRect(objectNameClip);
                 renderer2D.drawQuad({selectionX, m_objectNameInput.position().y + 4.0f}, {selectionWidth, m_objectNameInput.size().y - 8.0f}, {0.24f, 0.48f, 0.78f, 0.55f});
+                renderer2D.popClipRect();
                 m_inspectorScroll.popClip(renderer2D);
             }
             const std::string_view prefix{m_objectNameInput.value().data(), m_objectNameInput.caretIndex()};
-            const float caretX = m_objectNameInput.position().x + 8.0f + textRenderer.measureText(prefix, "default", 0.86f).x;
+            const float caretX = objectNameTextX + textRenderer.measureText(prefix, "default", 0.86f).x;
             m_inspectorScroll.pushClip(renderer2D);
+            renderer2D.pushClipRect(objectNameClip);
             renderer2D.drawQuad({caretX, m_objectNameInput.position().y + 5.0f}, {1.0f, m_objectNameInput.size().y - 10.0f}, {0.86f, 0.92f, 1.0f, 1.0f});
+            renderer2D.popClipRect();
             m_inspectorScroll.popClip(renderer2D);
         }
         m_inspectorScroll.popClip(textRenderer);

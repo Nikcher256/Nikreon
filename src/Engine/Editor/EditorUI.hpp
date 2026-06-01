@@ -42,7 +42,7 @@ private:
 
     void layoutWidgets(float width, float height);
     void updatePanelSplitters(float width, float height);
-    void updateWidgets();
+    void updateWidgets(TextRenderer& textRenderer);
     void renderWidgets(Renderer2D& renderer2D);
     void renderPanelSplitters(Renderer2D& renderer2D);
     void renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer);
