@@ -122,7 +122,7 @@ EditorUI::EditorUI()
     m_toggleConsoleButton.setStyleClass("toolbar-toggle");
     m_exposureSlider.setStyleClass("inspector");
     m_lightIntensityInput.setStyleClass("inspector");
-    m_testNumberInput.setStyleClass("inspector");
+    m_testNumberInput.setStyleClass("plain");
     m_objectNameInput.setStyleClass("inspector");
 
     m_toggleHierarchyButton.setOnClick([this]() { m_hierarchyCollapsed = !m_hierarchyCollapsed; });

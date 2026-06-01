@@ -85,6 +85,15 @@ number-input.inspector {
     accent: 0.27, 0.48, 0.72, 0.78;
 }
 
+number-input.plain {
+    fill: 0.105, 0.12, 0.15, 1.0;
+    border-color: 0.28, 0.34, 0.42, 1.0;
+    border-width: 1;
+    border-radius: 3;
+    hover-fill: 0.15, 0.17, 0.21, 1.0;
+    show-value-fill: false;
+}
+
 text-input.inspector {
     fill: 0.085, 0.105, 0.145, 1.0;
     border-color: 0.30, 0.38, 0.50, 1.0;
