@@ -158,6 +158,25 @@ text.input-placeholder {
     vertical-align: center;
 }
 
+text.coordinate-axis {
+    color: 0.48, 0.76, 1.0, 1.0;
+    font-scale: 0.76;
+    vertical-align: center;
+}
+
+text.coordinate-value {
+    color: 0.86, 0.92, 1.0, 1.0;
+    font-scale: 0.76;
+    text-align: right;
+    vertical-align: center;
+    offset: -5, 0;
+}
+
+text.coordinate-summary {
+    color: 0.48, 0.55, 0.66, 1.0;
+    font-scale: 0.76;
+}
+
 text.toolbar-toggle {
     color: 0.86, 0.92, 1.0, 1.0;
     font-scale: 0.82;

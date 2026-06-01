@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 
 namespace Engine {
 
@@ -68,7 +69,9 @@ private:
     Checkbox m_gridCheckbox;
     Slider m_exposureSlider;
     NumberInput m_lightIntensityInput;
-    NumberInput m_testNumberInput;
+    NumberInput m_positionXInput;
+    NumberInput m_positionYInput;
+    NumberInput m_positionZInput;
     TextInput m_objectNameInput;
     ScrollContainer m_inspectorScroll;
     std::vector<Button> m_hierarchyRows;
@@ -97,7 +100,7 @@ private:
     float m_previewExposure{0.65f};
     float m_lastLoggedExposure{0.65f};
     float m_lightIntensity{4.0f};
-    float m_testNumber{12.5f};
+    glm::vec3 m_previewPosition{12.5f, -4.0f, 8.0f};
 };
 
 } // namespace Engine

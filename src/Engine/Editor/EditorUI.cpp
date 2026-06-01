@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -60,7 +61,9 @@ EditorUI::EditorUI()
     , m_gridCheckbox("inspector.showGrid", true)
     , m_exposureSlider("inspector.exposure", 0.65f, 0.0f, 1.0f)
     , m_lightIntensityInput("inspector.lightIntensity", 4.0f, 0.0f, 100.0f)
-    , m_testNumberInput("inspector.testNumber", 12.5f, -100.0f, 100.0f)
+    , m_positionXInput("inspector.position.x", 12.5f, -100.0f, 100.0f)
+    , m_positionYInput("inspector.position.y", -4.0f, -100.0f, 100.0f)
+    , m_positionZInput("inspector.position.z", 8.0f, -100.0f, 100.0f)
     , m_objectNameInput("inspector.objectName", "Directional Light")
 {
     std::string styleError;
@@ -107,11 +110,15 @@ EditorUI::EditorUI()
     m_lightIntensityInput.setOnValueChanged([this](const float value) {
         m_lightIntensity = value;
     });
-    m_testNumberInput.setSensitivity(0.1f);
-    m_testNumberInput.setPrecision(2);
-    m_testNumberInput.setOnValueChanged([this](const float value) {
-        m_testNumber = value;
-    });
+    m_positionXInput.setSensitivity(0.1f);
+    m_positionYInput.setSensitivity(0.1f);
+    m_positionZInput.setSensitivity(0.1f);
+    m_positionXInput.setPrecision(2);
+    m_positionYInput.setPrecision(2);
+    m_positionZInput.setPrecision(2);
+    m_positionXInput.setOnValueChanged([this](const float value) { m_previewPosition.x = value; });
+    m_positionYInput.setOnValueChanged([this](const float value) { m_previewPosition.y = value; });
+    m_positionZInput.setOnValueChanged([this](const float value) { m_previewPosition.z = value; });
     m_objectNameInput.setPlaceholder("Object name");
 
     m_playButton.setStyleClass("toolbar");
@@ -122,7 +129,9 @@ EditorUI::EditorUI()
     m_toggleConsoleButton.setStyleClass("toolbar-toggle");
     m_exposureSlider.setStyleClass("inspector");
     m_lightIntensityInput.setStyleClass("inspector");
-    m_testNumberInput.setStyleClass("plain");
+    m_positionXInput.setStyleClass("plain");
+    m_positionYInput.setStyleClass("plain");
+    m_positionZInput.setStyleClass("plain");
     m_objectNameInput.setStyleClass("inspector");
 
     m_toggleHierarchyButton.setOnClick([this]() { m_hierarchyCollapsed = !m_hierarchyCollapsed; });
@@ -284,19 +293,25 @@ void EditorUI::layoutWidgets(const float width, const float height)
     inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, -scrollOffset}, {22.0f, 22.0f}));
     inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(54.0f - scrollOffset, 24.0f));
     inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(120.0f - scrollOffset, 28.0f));
-    inspectorLayout.add(m_testNumberInput, UIAnchors::horizontalStretch(186.0f - scrollOffset, 28.0f));
-    inspectorLayout.add(m_objectNameInput, UIAnchors::horizontalStretch(252.0f - scrollOffset, 28.0f));
+    const float coordinateGap = 6.0f;
+    const float coordinateWidth = std::max((m_inspectorBounds.size.x - 36.0f - coordinateGap * 2.0f) / 3.0f, 0.0f);
+    inspectorLayout.add(m_positionXInput, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, 186.0f - scrollOffset}, {coordinateWidth, 28.0f}));
+    inspectorLayout.add(m_positionYInput, UIAnchors::fixed({0.0f, 0.0f}, {coordinateWidth + coordinateGap, 186.0f - scrollOffset}, {coordinateWidth, 28.0f}));
+    inspectorLayout.add(m_positionZInput, UIAnchors::fixed({0.0f, 0.0f}, {(coordinateWidth + coordinateGap) * 2.0f, 186.0f - scrollOffset}, {coordinateWidth, 28.0f}));
+    inspectorLayout.add(m_objectNameInput, UIAnchors::horizontalStretch(274.0f - scrollOffset, 28.0f));
     inspectorLayout.layout();
     m_inspectorScroll.setBounds({
         {m_inspectorBounds.position.x + 12.0f, m_inspectorBounds.position.y + 36.0f},
         {std::max(m_inspectorBounds.size.x - 24.0f, 0.0f), std::max(m_inspectorBounds.size.y - 48.0f, 0.0f)},
     });
-    m_inspectorScroll.setContentHeight(486.0f);
+    m_inspectorScroll.setContentHeight(508.0f);
 
     m_gridCheckbox.setVisible(m_inspectorVisible);
     m_exposureSlider.setVisible(m_inspectorVisible);
     m_lightIntensityInput.setVisible(m_inspectorVisible);
-    m_testNumberInput.setVisible(m_inspectorVisible);
+    m_positionXInput.setVisible(m_inspectorVisible);
+    m_positionYInput.setVisible(m_inspectorVisible);
+    m_positionZInput.setVisible(m_inspectorVisible);
     m_objectNameInput.setVisible(m_inspectorVisible);
     for (Button& row : m_hierarchyRows) {
         row.setVisible(m_hierarchyVisible);
@@ -338,7 +353,9 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
     m_gridCheckbox.setChecked(m_showGrid);
     m_exposureSlider.setValue(m_previewExposure);
     m_lightIntensityInput.setValue(m_lightIntensity);
-    m_testNumberInput.setValue(m_testNumber);
+    m_positionXInput.setValue(m_previewPosition.x);
+    m_positionYInput.setValue(m_previewPosition.y);
+    m_positionZInput.setValue(m_previewPosition.z);
 
     m_playButton.update(m_context);
     m_pauseButton.update(m_context);
@@ -358,7 +375,9 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
         const UITextStyle& inputValueStyle = m_style.resolveText("input-value");
         m_exposureSlider.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_lightIntensityInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
-        m_testNumberInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
+        m_positionXInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
+        m_positionYInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
+        m_positionZInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_objectNameInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_inspectorScroll.popClip(m_context);
     }
@@ -386,7 +405,9 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D)
         m_gridCheckbox.render(renderer2D, m_style);
         m_exposureSlider.render(renderer2D, m_style);
         m_lightIntensityInput.render(renderer2D, m_style);
-        m_testNumberInput.render(renderer2D, m_style);
+        m_positionXInput.render(renderer2D, m_style);
+        m_positionYInput.render(renderer2D, m_style);
+        m_positionZInput.render(renderer2D, m_style);
         m_objectNameInput.render(renderer2D, m_style);
         m_inspectorScroll.popClip(renderer2D);
     }
@@ -468,14 +489,33 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
         }
         drawStyledText(
             textRenderer,
-            "Test Number",
-            {{m_testNumberInput.position().x, m_testNumberInput.position().y - 22.0f}, {m_testNumberInput.size().x, 18.0f}},
+            "Position",
+            {{m_positionXInput.position().x, m_positionXInput.position().y - 22.0f}, {m_positionZInput.position().x + m_positionZInput.size().x - m_positionXInput.position().x, 18.0f}},
             "control-label");
-        if (m_testNumberInput.editing()) {
-            drawTextInputValue(textRenderer, m_testNumberInput.textEditor(), m_style.resolveNumberInput(m_testNumberInput.styleClass(), m_testNumberInput.id()).box);
-        } else {
-            drawStyledText(textRenderer, m_testNumberInput.formattedValue(), {m_testNumberInput.position(), m_testNumberInput.size()}, "control-value");
-        }
+        const auto drawCoordinateInput = [this, &textRenderer](const char axis, const NumberInput& input) {
+            drawStyledText(
+                textRenderer,
+                std::string_view{&axis, 1},
+                {{input.position().x + 6.0f, input.position().y}, {12.0f, input.size().y}},
+                "coordinate-axis");
+            if (input.editing()) {
+                drawTextInputValue(textRenderer, input.textEditor(), m_style.resolveNumberInput(input.styleClass(), input.id()).box);
+            } else {
+                drawStyledText(textRenderer, input.formattedValue(), {input.position(), input.size()}, "coordinate-value");
+            }
+        };
+        drawCoordinateInput('X', m_positionXInput);
+        drawCoordinateInput('Y', m_positionYInput);
+        drawCoordinateInput('Z', m_positionZInput);
+        std::ostringstream positionText;
+        positionText << '{' << m_positionXInput.formattedValue() << ", "
+                     << m_positionYInput.formattedValue() << ", "
+                     << m_positionZInput.formattedValue() << '}';
+        drawStyledText(
+            textRenderer,
+            positionText.str(),
+            {{m_positionXInput.position().x, m_positionXInput.position().y + 32.0f}, {m_positionZInput.position().x + m_positionZInput.size().x - m_positionXInput.position().x, 18.0f}},
+            "coordinate-summary");
         drawStyledText(
             textRenderer,
             "Object Name",
