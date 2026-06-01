@@ -330,15 +330,18 @@ Completed/started note:
 - Replaced editor label magic offsets with measured bounds-based text placement and reserved panel-header spacing.
 - Added CSS-like selector support for `type`, `type.class`, `type#id`, and `type.class#id`.
 - Widget and text ID selectors now override reusable classes; class-plus-ID selectors inherit the reusable class before applying ID-specific properties.
+- Added user-draggable hierarchy, inspector, and console splitters with clamped panel extents.
+- Added responsive editor-shell visibility rules that preserve the viewport by hiding secondary panels at narrow or low window sizes.
+- Added a retained scrub-style `NumberInput` widget with value clamping, precision formatting, sensitivity, callbacks, and CSS-like `number-input` styles.
+- Sliders expose formatted values so editor controls can render Unreal-like numeric overlays.
 - Raw mouse coordinate debug logs were removed; useful widget action logs remain.
-- Text labels, typed input, and proper icons are still pending.
+- Text labels are active; typed text editing and proper icons are still pending.
 
 Next UI foundation tasks:
 
-- Add text labels once `TextRenderer` exists.
 - Add text input widget after text rendering and keyboard text events exist.
 - Add scroll containers with mouse-wheel offsets, clipped panel content, and sensible scroll limits after text metrics and renderer clipping exist.
-- Add responsive panel rules: preserve the viewport first, then collapse or hide secondary panels when available width or height falls below their minimum usable size.
+- Refine responsive panel rules with explicit collapse controls after the first automatic hide thresholds.
 - Do not implement full browser CSS: no cascade complexity, media queries, full selector engine, or DOM model.
 - Keep `Engine/UI` and text APIs independent from Vulkan so they can be extracted into a reusable `NikreonUI` GitHub project.
 

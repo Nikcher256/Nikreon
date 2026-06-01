@@ -3,6 +3,7 @@
 #include "Engine/UI/Button.hpp"
 #include "Engine/UI/Checkbox.hpp"
 #include "Engine/UI/Layout.hpp"
+#include "Engine/UI/NumberInput.hpp"
 #include "Engine/UI/Slider.hpp"
 #include "Engine/UI/UIContext.hpp"
 #include "Engine/UI/UIStyle.hpp"
@@ -38,8 +39,10 @@ private:
     };
 
     void layoutWidgets(float width, float height);
+    void updatePanelSplitters(float width, float height);
     void updateWidgets();
     void renderWidgets(Renderer2D& renderer2D);
+    void renderPanelSplitters(Renderer2D& renderer2D);
     void renderLabels(TextRenderer& textRenderer);
     void drawStyledText(
         TextRenderer& textRenderer,
@@ -58,19 +61,30 @@ private:
     Button m_stopButton;
     Checkbox m_gridCheckbox;
     Slider m_exposureSlider;
+    NumberInput m_lightIntensityInput;
     std::vector<Button> m_hierarchyRows;
     UIRect m_hierarchyBounds;
     UIRect m_inspectorBounds;
     UIRect m_consoleBounds;
     UIRect m_viewportBounds;
+    UIRect m_hierarchySplitterBounds;
+    UIRect m_inspectorSplitterBounds;
+    UIRect m_consoleSplitterBounds;
     float m_toolbarHeight{48.0f};
-    float m_consoleHeight{180.0f};
+    float m_hierarchyWidth{192.0f};
+    float m_inspectorWidth{230.0f};
+    float m_consoleHeight{130.0f};
+    glm::vec2 m_previousMousePosition{0.0f, 0.0f};
     int m_selectedHierarchyRow{0};
     RunState m_runState{RunState::Stopped};
     bool m_showGrid{true};
     bool m_viewportFocused{false};
+    bool m_hierarchyVisible{true};
+    bool m_inspectorVisible{true};
+    bool m_consoleVisible{true};
     float m_previewExposure{0.65f};
     float m_lastLoggedExposure{0.65f};
+    float m_lightIntensity{4.0f};
 };
 
 } // namespace Engine
