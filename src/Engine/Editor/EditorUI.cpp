@@ -458,7 +458,7 @@ void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
             textRenderer,
             objectName,
             {{objectNameTextX, m_objectNameInput.position().y}, {m_objectNameInput.size().x, m_objectNameInput.size().y}},
-            m_objectNameInput.value().empty() ? "muted" : "input-value");
+            m_objectNameInput.value().empty() ? "input-placeholder" : "input-value");
         textRenderer.popClipRect();
         if (m_objectNameInput.focused()) {
             if (m_objectNameInput.hasSelection()) {
@@ -477,11 +477,13 @@ void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
             }
             const std::string_view prefix{m_objectNameInput.value().data(), m_objectNameInput.caretIndex()};
             const float caretX = objectNameTextX + textRenderer.measureText(prefix, "default", 0.86f).x;
-            m_inspectorScroll.pushClip(renderer2D);
-            renderer2D.pushClipRect(objectNameClip);
-            renderer2D.drawQuad({caretX, m_objectNameInput.position().y + 5.0f}, {1.0f, m_objectNameInput.size().y - 10.0f}, {0.86f, 0.92f, 1.0f, 1.0f});
-            renderer2D.popClipRect();
-            m_inspectorScroll.popClip(renderer2D);
+            textRenderer.pushClipRect(objectNameClip);
+            drawStyledText(
+                textRenderer,
+                "|",
+                {{caretX - 1.0f, m_objectNameInput.position().y}, {8.0f, m_objectNameInput.size().y}},
+                "input-caret");
+            textRenderer.popClipRect();
         }
         m_inspectorScroll.popClip(textRenderer);
     }
