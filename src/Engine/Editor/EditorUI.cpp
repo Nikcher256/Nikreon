@@ -478,11 +478,10 @@ void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
             const std::string_view prefix{m_objectNameInput.value().data(), m_objectNameInput.caretIndex()};
             const float caretX = objectNameTextX + textRenderer.measureText(prefix, "default", 0.86f).x;
             textRenderer.pushClipRect(objectNameClip);
-            drawStyledText(
-                textRenderer,
-                "|",
-                {{caretX - 1.0f, m_objectNameInput.position().y}, {8.0f, m_objectNameInput.size().y}},
-                "input-caret");
+            textRenderer.drawSolidRect(
+                {caretX, m_objectNameInput.position().y + 5.0f},
+                {1.0f, m_objectNameInput.size().y - 10.0f},
+                {0.92f, 0.98f, 1.0f, 1.0f});
             textRenderer.popClipRect();
         }
         m_inspectorScroll.popClip(textRenderer);

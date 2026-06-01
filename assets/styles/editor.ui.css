@@ -149,12 +149,6 @@ text.input-placeholder {
     vertical-align: center;
 }
 
-text.input-caret {
-    color: 0.92, 0.98, 1.0, 1.0;
-    font-scale: 0.86;
-    vertical-align: center;
-}
-
 text.toolbar-toggle {
     color: 0.86, 0.92, 1.0, 1.0;
     font-scale: 0.82;
