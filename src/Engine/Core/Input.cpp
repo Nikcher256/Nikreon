@@ -30,4 +30,22 @@ glm::vec2 Input::mousePosition() const
     };
 }
 
+glm::vec2 Input::scrollDelta() const
+{
+    return {
+        static_cast<float>(m_window.scrollX()),
+        static_cast<float>(m_window.scrollY()),
+    };
+}
+
+const std::vector<char32_t>& Input::typedCharacters() const
+{
+    return m_window.typedCharacters();
+}
+
+const std::vector<int>& Input::pressedKeys() const
+{
+    return m_window.pressedKeys();
+}
+
 } // namespace Engine

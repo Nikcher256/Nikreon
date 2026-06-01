@@ -4,7 +4,9 @@
 #include "Engine/UI/Checkbox.hpp"
 #include "Engine/UI/Layout.hpp"
 #include "Engine/UI/NumberInput.hpp"
+#include "Engine/UI/ScrollContainer.hpp"
 #include "Engine/UI/Slider.hpp"
+#include "Engine/UI/TextInput.hpp"
 #include "Engine/UI/UIContext.hpp"
 #include "Engine/UI/UIStyle.hpp"
 
@@ -43,7 +45,7 @@ private:
     void updateWidgets();
     void renderWidgets(Renderer2D& renderer2D);
     void renderPanelSplitters(Renderer2D& renderer2D);
-    void renderLabels(TextRenderer& textRenderer);
+    void renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer);
     void drawStyledText(
         TextRenderer& textRenderer,
         std::string_view text,
@@ -59,9 +61,14 @@ private:
     Button m_playButton;
     Button m_pauseButton;
     Button m_stopButton;
+    Button m_toggleHierarchyButton;
+    Button m_toggleInspectorButton;
+    Button m_toggleConsoleButton;
     Checkbox m_gridCheckbox;
     Slider m_exposureSlider;
     NumberInput m_lightIntensityInput;
+    TextInput m_objectNameInput;
+    ScrollContainer m_inspectorScroll;
     std::vector<Button> m_hierarchyRows;
     UIRect m_hierarchyBounds;
     UIRect m_inspectorBounds;
@@ -82,6 +89,9 @@ private:
     bool m_hierarchyVisible{true};
     bool m_inspectorVisible{true};
     bool m_consoleVisible{true};
+    bool m_hierarchyCollapsed{false};
+    bool m_inspectorCollapsed{false};
+    bool m_consoleCollapsed{false};
     float m_previewExposure{0.65f};
     float m_lastLoggedExposure{0.65f};
     float m_lightIntensity{4.0f};

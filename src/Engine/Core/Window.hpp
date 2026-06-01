@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <functional>
+#include <vector>
 
 struct GLFWwindow;
 
@@ -30,11 +31,16 @@ public:
     using RefreshCallback = std::function<void()>;
     void setRefreshCallback(RefreshCallback callback);
     [[nodiscard]] bool consumeFramebufferResized();
+    void clearTransientInput();
     
 
     [[nodiscard]] bool shouldClose() const;
     [[nodiscard]] bool isKeyPressed(int key) const;
     [[nodiscard]] bool isMouseButtonPressed(int button) const;
+    [[nodiscard]] const std::vector<char32_t>& typedCharacters() const;
+    [[nodiscard]] const std::vector<int>& pressedKeys() const;
+    [[nodiscard]] double scrollX() const;
+    [[nodiscard]] double scrollY() const;
     [[nodiscard]] double mouseX() const;
     [[nodiscard]] double mouseY() const;
     [[nodiscard]] bool isFullscreen() const;
@@ -56,6 +62,10 @@ private:
     bool m_fullscreen{false};
     bool m_framebufferResized{false};
     RefreshCallback m_refreshCallback;
+    std::vector<char32_t> m_typedCharacters;
+    std::vector<int> m_pressedKeys;
+    double m_scrollX{0.0};
+    double m_scrollY{0.0};
 };
 
 } // namespace Engine

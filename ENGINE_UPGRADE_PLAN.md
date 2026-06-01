@@ -334,14 +334,17 @@ Completed/started note:
 - Added responsive editor-shell visibility rules that preserve the viewport by hiding secondary panels at narrow or low window sizes.
 - Added a retained scrub-style `NumberInput` widget with value clamping, precision formatting, sensitivity, callbacks, and CSS-like `number-input` styles.
 - Sliders expose formatted values so editor controls can render Unreal-like numeric overlays.
+- Added GLFW character, editing-key, and wheel event queues exposed through engine input snapshots.
+- Added retained `TextInput` with focus, printable ASCII insertion, caret movement, deletion, placeholder text, callbacks, and CSS-like `text-input` styles.
+- Added nested renderer clip rectangles and a reusable wheel-driven `ScrollContainer`; inspector shapes and labels now scroll inside a clipped content region.
+- Added explicit toolbar controls for collapsing hierarchy, inspector, and console panels.
 - Raw mouse coordinate debug logs were removed; useful widget action logs remain.
 - Text labels are active; typed text editing and proper icons are still pending.
 
 Next UI foundation tasks:
 
-- Add text input widget after text rendering and keyboard text events exist.
-- Add scroll containers with mouse-wheel offsets, clipped panel content, and sensible scroll limits after text metrics and renderer clipping exist.
-- Refine responsive panel rules with explicit collapse controls after the first automatic hide thresholds.
+- Add UTF-8 editing and selection ranges after the printable-ASCII text-input pass.
+- Add draggable scrollbar thumbs after the first visible wheel-scroll indicator.
 - Do not implement full browser CSS: no cascade complexity, media queries, full selector engine, or DOM model.
 - Keep `Engine/UI` and text APIs independent from Vulkan so they can be extracted into a reusable `NikreonUI` GitHub project.
 

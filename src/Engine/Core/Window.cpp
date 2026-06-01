@@ -83,6 +83,14 @@ bool Window::consumeFramebufferResized()
     return resized;
 }
 
+void Window::clearTransientInput()
+{
+    m_typedCharacters.clear();
+    m_pressedKeys.clear();
+    m_scrollX = 0.0;
+    m_scrollY = 0.0;
+}
+
 // Installs a callback used by GLFW when the OS asks the window to refresh.
 void Window::setRefreshCallback(RefreshCallback callback)
 {
@@ -105,6 +113,26 @@ bool Window::isKeyPressed(const int key) const
 bool Window::isMouseButtonPressed(const int button) const
 {
     return m_handle != nullptr && glfwGetMouseButton(m_handle, button) == GLFW_PRESS;
+}
+
+const std::vector<char32_t>& Window::typedCharacters() const
+{
+    return m_typedCharacters;
+}
+
+const std::vector<int>& Window::pressedKeys() const
+{
+    return m_pressedKeys;
+}
+
+double Window::scrollX() const
+{
+    return m_scrollX;
+}
+
+double Window::scrollY() const
+{
+    return m_scrollY;
 }
 
 // Returns the current cursor x coordinate scaled into framebuffer space.
@@ -195,6 +223,28 @@ void Window::create(const WindowProps& props)
         self->m_width = width > 0 ? static_cast<std::uint32_t>(width) : 0U;
         self->m_height = height > 0 ? static_cast<std::uint32_t>(height) : 0U;
         self->m_framebufferResized = true;
+    });
+
+    glfwSetCharCallback(m_handle, [](GLFWwindow* window, const unsigned int codepoint) {
+        auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        if (self != nullptr) {
+            self->m_typedCharacters.push_back(static_cast<char32_t>(codepoint));
+        }
+    });
+
+    glfwSetKeyCallback(m_handle, [](GLFWwindow* window, const int key, const int, const int action, const int) {
+        auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        if (self != nullptr && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+            self->m_pressedKeys.push_back(key);
+        }
+    });
+
+    glfwSetScrollCallback(m_handle, [](GLFWwindow* window, const double xOffset, const double yOffset) {
+        auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        if (self != nullptr) {
+            self->m_scrollX += xOffset;
+            self->m_scrollY += yOffset;
+        }
     });
 
     glfwSetWindowRefreshCallback(m_handle, [](GLFWwindow* window) {

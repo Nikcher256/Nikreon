@@ -10,6 +10,7 @@
 #include <cmath>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <glm/vec4.hpp>
 #include <GLFW/glfw3.h>
@@ -21,13 +22,36 @@ namespace Engine {
 #define NIKREON_ASSET_DIR "assets"
 #endif
 
+std::vector<UIKey> uiKeys(const Input& input)
+{
+    std::vector<UIKey> keys;
+    for (const int key : input.pressedKeys()) {
+        switch (key) {
+        case GLFW_KEY_BACKSPACE: keys.push_back(UIKey::Backspace); break;
+        case GLFW_KEY_DELETE: keys.push_back(UIKey::Delete); break;
+        case GLFW_KEY_LEFT: keys.push_back(UIKey::Left); break;
+        case GLFW_KEY_RIGHT: keys.push_back(UIKey::Right); break;
+        case GLFW_KEY_HOME: keys.push_back(UIKey::Home); break;
+        case GLFW_KEY_END: keys.push_back(UIKey::End); break;
+        case GLFW_KEY_ENTER: keys.push_back(UIKey::Enter); break;
+        case GLFW_KEY_ESCAPE: keys.push_back(UIKey::Escape); break;
+        default: break;
+        }
+    }
+    return keys;
+}
+
 EditorUI::EditorUI()
     : m_playButton("toolbar.play")
     , m_pauseButton("toolbar.pause")
     , m_stopButton("toolbar.stop")
+    , m_toggleHierarchyButton("toolbar.toggleHierarchy")
+    , m_toggleInspectorButton("toolbar.toggleInspector")
+    , m_toggleConsoleButton("toolbar.toggleConsole")
     , m_gridCheckbox("inspector.showGrid", true)
     , m_exposureSlider("inspector.exposure", 0.65f, 0.0f, 1.0f)
     , m_lightIntensityInput("inspector.lightIntensity", 4.0f, 0.0f, 100.0f)
+    , m_objectNameInput("inspector.objectName", "Directional Light")
 {
     std::string styleError;
     if (!UIStyleParser::loadFile(NIKREON_ASSET_DIR "/styles/editor.ui.css", m_style, styleError)) {
@@ -73,12 +97,21 @@ EditorUI::EditorUI()
     m_lightIntensityInput.setOnValueChanged([this](const float value) {
         m_lightIntensity = value;
     });
+    m_objectNameInput.setPlaceholder("Object name");
 
     m_playButton.setStyleClass("toolbar");
     m_pauseButton.setStyleClass("toolbar");
     m_stopButton.setStyleClass("toolbar");
+    m_toggleHierarchyButton.setStyleClass("toolbar-toggle");
+    m_toggleInspectorButton.setStyleClass("toolbar-toggle");
+    m_toggleConsoleButton.setStyleClass("toolbar-toggle");
     m_exposureSlider.setStyleClass("inspector");
     m_lightIntensityInput.setStyleClass("inspector");
+    m_objectNameInput.setStyleClass("inspector");
+
+    m_toggleHierarchyButton.setOnClick([this]() { m_hierarchyCollapsed = !m_hierarchyCollapsed; });
+    m_toggleInspectorButton.setOnClick([this]() { m_inspectorCollapsed = !m_inspectorCollapsed; });
+    m_toggleConsoleButton.setOnClick([this]() { m_consoleCollapsed = !m_consoleCollapsed; });
 
     for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
         m_hierarchyRows[index].setStyleClass("hierarchy-row");
@@ -94,13 +127,18 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
 {
     m_context.beginFrame({
         input.mousePosition(),
+        input.scrollDelta(),
         input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT),
+        input.typedCharacters(),
+        uiKeys(input),
     });
 
     const float width = static_cast<float>(std::max(viewportSize.x, 1U));
     const float height = static_cast<float>(std::max(viewportSize.y, 1U));
     layoutWidgets(width, height);
     updatePanelSplitters(width, height);
+    m_inspectorScroll.update(m_context);
+    layoutWidgets(width, height);
     updateWidgets();
 
     renderer2D.drawQuad({0.0f, 0.0f}, {width, height}, m_style.windowBackground);
@@ -139,8 +177,9 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     renderPanelSplitters(renderer2D);
 
     if (m_inspectorVisible) {
+        m_inspectorScroll.pushClip(renderer2D);
         for (int index = 0; index < 3; ++index) {
-            const float fieldY = m_lightIntensityInput.position().y + m_lightIntensityInput.size().y + 18.0f + static_cast<float>(index) * 42.0f;
+            const float fieldY = m_objectNameInput.position().y + m_objectNameInput.size().y + 18.0f + static_cast<float>(index) * 42.0f;
             const glm::vec2 fieldPosition{m_inspectorBounds.position.x + 18.0f, fieldY};
             const glm::vec2 fieldSize{m_inspectorBounds.size.x - 36.0f, 28.0f};
             renderer2D.drawSdfRect(
@@ -151,9 +190,11 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
                 m_style.field.border,
                 m_style.field.borderWidth);
         }
+        m_inspectorScroll.renderScrollbar(renderer2D);
+        m_inspectorScroll.popClip(renderer2D);
     }
 
-    renderLabels(textRenderer);
+    renderLabels(renderer2D, textRenderer);
     m_context.endFrame();
 }
 
@@ -162,9 +203,9 @@ void EditorUI::layoutWidgets(const float width, const float height)
 {
     const float gap = m_style.gap;
     m_toolbarHeight = std::clamp(height * 0.07f, m_style.toolbarHeightMin, m_style.toolbarHeightMax);
-    m_hierarchyVisible = width >= 760.0f;
-    m_inspectorVisible = width >= 620.0f;
-    m_consoleVisible = height >= 460.0f;
+    m_hierarchyVisible = !m_hierarchyCollapsed && width >= 760.0f;
+    m_inspectorVisible = !m_inspectorCollapsed && width >= 620.0f;
+    m_consoleVisible = !m_consoleCollapsed && height >= 460.0f;
 
     m_hierarchyWidth = std::clamp(m_hierarchyWidth, 150.0f, 320.0f);
     m_inspectorWidth = std::clamp(m_inspectorWidth, 190.0f, 380.0f);
@@ -203,6 +244,9 @@ void EditorUI::layoutWidgets(const float width, const float height)
     toolbarLayout.add(m_playButton, {76.0f, 28.0f});
     toolbarLayout.add(m_pauseButton, {76.0f, 28.0f});
     toolbarLayout.add(m_stopButton, {76.0f, 28.0f});
+    toolbarLayout.add(m_toggleHierarchyButton, {28.0f, 28.0f});
+    toolbarLayout.add(m_toggleInspectorButton, {28.0f, 28.0f});
+    toolbarLayout.add(m_toggleConsoleButton, {28.0f, 28.0f});
     toolbarLayout.layout();
 
     UILinearLayout hierarchyLayout(UILayoutAxis::Vertical);
@@ -217,14 +261,22 @@ void EditorUI::layoutWidgets(const float width, const float height)
     UIStackLayout inspectorLayout;
     inspectorLayout.setBounds(m_inspectorBounds);
     inspectorLayout.setPadding({18.0f, 42.0f, 18.0f, 0.0f});
-    inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, 0.0f}, {22.0f, 22.0f}));
-    inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(54.0f, 24.0f));
-    inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(120.0f, 28.0f));
+    const float scrollOffset = m_inspectorScroll.offset();
+    inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, -scrollOffset}, {22.0f, 22.0f}));
+    inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(54.0f - scrollOffset, 24.0f));
+    inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(120.0f - scrollOffset, 28.0f));
+    inspectorLayout.add(m_objectNameInput, UIAnchors::horizontalStretch(186.0f - scrollOffset, 28.0f));
     inspectorLayout.layout();
+    m_inspectorScroll.setBounds({
+        {m_inspectorBounds.position.x + 12.0f, m_inspectorBounds.position.y + 36.0f},
+        {std::max(m_inspectorBounds.size.x - 24.0f, 0.0f), std::max(m_inspectorBounds.size.y - 48.0f, 0.0f)},
+    });
+    m_inspectorScroll.setContentHeight(420.0f);
 
     m_gridCheckbox.setVisible(m_inspectorVisible);
     m_exposureSlider.setVisible(m_inspectorVisible);
     m_lightIntensityInput.setVisible(m_inspectorVisible);
+    m_objectNameInput.setVisible(m_inspectorVisible);
     for (Button& row : m_hierarchyRows) {
         row.setVisible(m_hierarchyVisible);
     }
@@ -269,15 +321,23 @@ void EditorUI::updateWidgets()
     m_playButton.update(m_context);
     m_pauseButton.update(m_context);
     m_stopButton.update(m_context);
+    m_toggleHierarchyButton.update(m_context);
+    m_toggleInspectorButton.update(m_context);
+    m_toggleConsoleButton.update(m_context);
 
     for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
         m_hierarchyRows[index].setSelected(static_cast<int>(index) == m_selectedHierarchyRow);
         m_hierarchyRows[index].update(m_context);
     }
 
-    m_gridCheckbox.update(m_context);
-    m_exposureSlider.update(m_context);
-    m_lightIntensityInput.update(m_context);
+    if (m_inspectorVisible) {
+        m_inspectorScroll.pushClip(m_context);
+        m_gridCheckbox.update(m_context);
+        m_exposureSlider.update(m_context);
+        m_lightIntensityInput.update(m_context);
+        m_objectNameInput.update(m_context);
+        m_inspectorScroll.popClip(m_context);
+    }
 }
 
 // Renders every retained widget and any editor-specific icon overlays.
@@ -289,14 +349,22 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D)
     drawToolbarIcon(renderer2D, m_pauseButton.position(), m_pauseButton.size(), ToolbarIcon::Pause, m_pauseButton.selected());
     m_stopButton.render(renderer2D, m_style);
     drawToolbarIcon(renderer2D, m_stopButton.position(), m_stopButton.size(), ToolbarIcon::Stop, m_stopButton.selected());
+    m_toggleHierarchyButton.render(renderer2D, m_style);
+    m_toggleInspectorButton.render(renderer2D, m_style);
+    m_toggleConsoleButton.render(renderer2D, m_style);
 
     for (const auto& row : m_hierarchyRows) {
         row.render(renderer2D, m_style);
     }
 
-    m_gridCheckbox.render(renderer2D, m_style);
-    m_exposureSlider.render(renderer2D, m_style);
-    m_lightIntensityInput.render(renderer2D, m_style);
+    if (m_inspectorVisible) {
+        m_inspectorScroll.pushClip(renderer2D);
+        m_gridCheckbox.render(renderer2D, m_style);
+        m_exposureSlider.render(renderer2D, m_style);
+        m_lightIntensityInput.render(renderer2D, m_style);
+        m_objectNameInput.render(renderer2D, m_style);
+        m_inspectorScroll.popClip(renderer2D);
+    }
 }
 
 void EditorUI::renderPanelSplitters(Renderer2D& renderer2D)
@@ -314,7 +382,7 @@ void EditorUI::renderPanelSplitters(Renderer2D& renderer2D)
 }
 
 // Draws the first real editor labels through the cached font atlas.
-void EditorUI::renderLabels(TextRenderer& textRenderer)
+void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
 {
     if (m_hierarchyVisible) {
         drawStyledText(textRenderer, "Hierarchy", {m_hierarchyBounds.position + glm::vec2{16.0f, 8.0f}, {m_hierarchyBounds.size.x - 32.0f, 18.0f}}, "heading");
@@ -326,6 +394,9 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
         drawStyledText(textRenderer, "Console", {m_consoleBounds.position + glm::vec2{16.0f, 8.0f}, {m_consoleBounds.size.x - 32.0f, 18.0f}}, "heading");
     }
     drawStyledText(textRenderer, "Viewport", {m_viewportBounds.position + glm::vec2{12.0f, 8.0f}, {m_viewportBounds.size.x - 24.0f, 18.0f}}, "muted", "viewport-title");
+    drawStyledText(textRenderer, "H", {m_toggleHierarchyButton.position(), m_toggleHierarchyButton.size()}, "toolbar-toggle");
+    drawStyledText(textRenderer, "I", {m_toggleInspectorButton.position(), m_toggleInspectorButton.size()}, "toolbar-toggle");
+    drawStyledText(textRenderer, "C", {m_toggleConsoleButton.position(), m_toggleConsoleButton.size()}, "toolbar-toggle");
 
     constexpr std::array<std::string_view, 5> hierarchyNames = {
         "Main Camera",
@@ -344,6 +415,7 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
     }
 
     if (m_inspectorVisible) {
+        m_inspectorScroll.pushClip(textRenderer);
         drawStyledText(
             textRenderer,
             "Grid",
@@ -361,6 +433,23 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             {{m_lightIntensityInput.position().x, m_lightIntensityInput.position().y - 22.0f}, {m_lightIntensityInput.size().x, 18.0f}},
             "control-label");
         drawStyledText(textRenderer, m_lightIntensityInput.formattedValue(), {m_lightIntensityInput.position(), m_lightIntensityInput.size()}, "control-value");
+        drawStyledText(
+            textRenderer,
+            "Object Name",
+            {{m_objectNameInput.position().x, m_objectNameInput.position().y - 22.0f}, {m_objectNameInput.size().x, 18.0f}},
+            "control-label");
+        const std::string_view objectName = m_objectNameInput.value().empty()
+            ? std::string_view{m_objectNameInput.placeholder()}
+            : std::string_view{m_objectNameInput.value()};
+        drawStyledText(textRenderer, objectName, {m_objectNameInput.position() + glm::vec2{8.0f, 0.0f}, {m_objectNameInput.size().x - 16.0f, m_objectNameInput.size().y}}, m_objectNameInput.value().empty() ? "muted" : "input-value");
+        if (m_objectNameInput.focused()) {
+            const std::string_view prefix{m_objectNameInput.value().data(), m_objectNameInput.caretIndex()};
+            const float caretX = m_objectNameInput.position().x + 8.0f + textRenderer.measureText(prefix, "default", 0.86f).x;
+            m_inspectorScroll.pushClip(renderer2D);
+            renderer2D.drawQuad({caretX, m_objectNameInput.position().y + 5.0f}, {1.0f, m_objectNameInput.size().y - 10.0f}, {0.86f, 0.92f, 1.0f, 1.0f});
+            m_inspectorScroll.popClip(renderer2D);
+        }
+        m_inspectorScroll.popClip(textRenderer);
     }
     if (m_consoleVisible) {
         drawStyledText(

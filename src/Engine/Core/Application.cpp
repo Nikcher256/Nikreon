@@ -44,6 +44,7 @@ void Application::run(const RunOptions& options)
 
         update(m_time.deltaSeconds());
         render();
+        m_window.clearTransientInput();
 
         ++m_frameCount;
         if (options.maxFrames > 0 && m_frameCount >= options.maxFrames) {
