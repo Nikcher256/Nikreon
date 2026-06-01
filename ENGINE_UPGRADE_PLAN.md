@@ -332,8 +332,8 @@ Completed/started note:
 - Widget and text ID selectors now override reusable classes; class-plus-ID selectors inherit the reusable class before applying ID-specific properties.
 - Added user-draggable hierarchy, inspector, and console splitters with clamped panel extents.
 - Added responsive editor-shell visibility rules that preserve the viewport by hiding secondary panels at narrow or low window sizes.
-- Added a retained scrub-style `NumberInput` widget with value clamping, precision formatting, sensitivity, callbacks, and CSS-like `number-input` styles.
-- Sliders expose formatted values so editor controls can render Unreal-like numeric overlays.
+- Added a retained scrub-style `NumberInput` widget with value clamping, precision formatting, sensitivity, callbacks, CSS-like `number-input` styles, and click-to-edit keyboard entry composed from `TextInput`.
+- Sliders expose formatted values and click-to-edit keyboard entry composed from `TextInput`, so editor controls can render Unreal-like numeric overlays while retaining drag interaction.
 - Added GLFW character, editing-key, and wheel event queues exposed through engine input snapshots.
 - Added retained `TextInput` with focus, UTF-8 insertion, UTF-8-boundary caret movement, click-to-position, mouse-drag and shift-selection ranges, visible post-text selection overlays, Ctrl+A/C/V clipboard shortcuts, automatic and thumb-draggable horizontal overflow scrolling, deletion, placeholder text, callbacks, and CSS-like `text-input` styles.
 - Added nested renderer clip rectangles and a reusable wheel-driven `ScrollContainer`; inspector shapes and labels now scroll inside a clipped content region.

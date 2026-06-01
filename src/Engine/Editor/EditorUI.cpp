@@ -60,6 +60,7 @@ EditorUI::EditorUI()
     , m_gridCheckbox("inspector.showGrid", true)
     , m_exposureSlider("inspector.exposure", 0.65f, 0.0f, 1.0f)
     , m_lightIntensityInput("inspector.lightIntensity", 4.0f, 0.0f, 100.0f)
+    , m_testNumberInput("inspector.testNumber", 12.5f, -100.0f, 100.0f)
     , m_objectNameInput("inspector.objectName", "Directional Light")
 {
     std::string styleError;
@@ -106,6 +107,11 @@ EditorUI::EditorUI()
     m_lightIntensityInput.setOnValueChanged([this](const float value) {
         m_lightIntensity = value;
     });
+    m_testNumberInput.setSensitivity(0.1f);
+    m_testNumberInput.setPrecision(2);
+    m_testNumberInput.setOnValueChanged([this](const float value) {
+        m_testNumber = value;
+    });
     m_objectNameInput.setPlaceholder("Object name");
 
     m_playButton.setStyleClass("toolbar");
@@ -116,6 +122,7 @@ EditorUI::EditorUI()
     m_toggleConsoleButton.setStyleClass("toolbar-toggle");
     m_exposureSlider.setStyleClass("inspector");
     m_lightIntensityInput.setStyleClass("inspector");
+    m_testNumberInput.setStyleClass("inspector");
     m_objectNameInput.setStyleClass("inspector");
 
     m_toggleHierarchyButton.setOnClick([this]() { m_hierarchyCollapsed = !m_hierarchyCollapsed; });
@@ -277,17 +284,19 @@ void EditorUI::layoutWidgets(const float width, const float height)
     inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, -scrollOffset}, {22.0f, 22.0f}));
     inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(54.0f - scrollOffset, 24.0f));
     inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(120.0f - scrollOffset, 28.0f));
-    inspectorLayout.add(m_objectNameInput, UIAnchors::horizontalStretch(186.0f - scrollOffset, 28.0f));
+    inspectorLayout.add(m_testNumberInput, UIAnchors::horizontalStretch(186.0f - scrollOffset, 28.0f));
+    inspectorLayout.add(m_objectNameInput, UIAnchors::horizontalStretch(252.0f - scrollOffset, 28.0f));
     inspectorLayout.layout();
     m_inspectorScroll.setBounds({
         {m_inspectorBounds.position.x + 12.0f, m_inspectorBounds.position.y + 36.0f},
         {std::max(m_inspectorBounds.size.x - 24.0f, 0.0f), std::max(m_inspectorBounds.size.y - 48.0f, 0.0f)},
     });
-    m_inspectorScroll.setContentHeight(420.0f);
+    m_inspectorScroll.setContentHeight(486.0f);
 
     m_gridCheckbox.setVisible(m_inspectorVisible);
     m_exposureSlider.setVisible(m_inspectorVisible);
     m_lightIntensityInput.setVisible(m_inspectorVisible);
+    m_testNumberInput.setVisible(m_inspectorVisible);
     m_objectNameInput.setVisible(m_inspectorVisible);
     for (Button& row : m_hierarchyRows) {
         row.setVisible(m_hierarchyVisible);
@@ -329,6 +338,7 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
     m_gridCheckbox.setChecked(m_showGrid);
     m_exposureSlider.setValue(m_previewExposure);
     m_lightIntensityInput.setValue(m_lightIntensity);
+    m_testNumberInput.setValue(m_testNumber);
 
     m_playButton.update(m_context);
     m_pauseButton.update(m_context);
@@ -345,9 +355,10 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
     if (m_inspectorVisible) {
         m_inspectorScroll.pushClip(m_context);
         m_gridCheckbox.update(m_context);
-        m_exposureSlider.update(m_context);
-        m_lightIntensityInput.update(m_context);
         const UITextStyle& inputValueStyle = m_style.resolveText("input-value");
+        m_exposureSlider.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
+        m_lightIntensityInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
+        m_testNumberInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_objectNameInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_inspectorScroll.popClip(m_context);
     }
@@ -375,6 +386,7 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D)
         m_gridCheckbox.render(renderer2D, m_style);
         m_exposureSlider.render(renderer2D, m_style);
         m_lightIntensityInput.render(renderer2D, m_style);
+        m_testNumberInput.render(renderer2D, m_style);
         m_objectNameInput.render(renderer2D, m_style);
         m_inspectorScroll.popClip(renderer2D);
     }
@@ -439,63 +451,37 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             "Exposure",
             {{m_exposureSlider.position().x, m_exposureSlider.position().y - 22.0f}, {m_exposureSlider.size().x, 18.0f}},
             "control-label");
-        drawStyledText(textRenderer, m_exposureSlider.formattedValue(), {m_exposureSlider.position(), m_exposureSlider.size()}, "control-value");
+        if (m_exposureSlider.editing()) {
+            drawTextInputValue(textRenderer, m_exposureSlider.textEditor(), m_style.resolveSlider(m_exposureSlider.styleClass(), m_exposureSlider.id()).track);
+        } else {
+            drawStyledText(textRenderer, m_exposureSlider.formattedValue(), {m_exposureSlider.position(), m_exposureSlider.size()}, "control-value");
+        }
         drawStyledText(
             textRenderer,
             "Light Intensity",
             {{m_lightIntensityInput.position().x, m_lightIntensityInput.position().y - 22.0f}, {m_lightIntensityInput.size().x, 18.0f}},
             "control-label");
-        drawStyledText(textRenderer, m_lightIntensityInput.formattedValue(), {m_lightIntensityInput.position(), m_lightIntensityInput.size()}, "control-value");
+        if (m_lightIntensityInput.editing()) {
+            drawTextInputValue(textRenderer, m_lightIntensityInput.textEditor(), m_style.resolveNumberInput(m_lightIntensityInput.styleClass(), m_lightIntensityInput.id()).box);
+        } else {
+            drawStyledText(textRenderer, m_lightIntensityInput.formattedValue(), {m_lightIntensityInput.position(), m_lightIntensityInput.size()}, "control-value");
+        }
+        drawStyledText(
+            textRenderer,
+            "Test Number",
+            {{m_testNumberInput.position().x, m_testNumberInput.position().y - 22.0f}, {m_testNumberInput.size().x, 18.0f}},
+            "control-label");
+        if (m_testNumberInput.editing()) {
+            drawTextInputValue(textRenderer, m_testNumberInput.textEditor(), m_style.resolveNumberInput(m_testNumberInput.styleClass(), m_testNumberInput.id()).box);
+        } else {
+            drawStyledText(textRenderer, m_testNumberInput.formattedValue(), {m_testNumberInput.position(), m_testNumberInput.size()}, "control-value");
+        }
         drawStyledText(
             textRenderer,
             "Object Name",
             {{m_objectNameInput.position().x, m_objectNameInput.position().y - 22.0f}, {m_objectNameInput.size().x, 18.0f}},
             "control-label");
-        const UITextInputStyle& objectNameStyle = m_style.resolveTextInput(m_objectNameInput.styleClass(), m_objectNameInput.id());
-        const UIClipRect objectNameClip{
-            m_objectNameInput.position() + glm::vec2{objectNameStyle.box.padding.x, 2.0f},
-            {
-                std::max(m_objectNameInput.size().x - objectNameStyle.box.padding.x * 2.0f, 0.0f),
-                std::max(m_objectNameInput.size().y - 6.0f, 0.0f),
-            },
-        };
-        const float objectNameTextX = m_objectNameInput.position().x + objectNameStyle.box.padding.x -
-            m_objectNameInput.horizontalScrollOffset();
-        const std::string_view objectName = m_objectNameInput.value().empty()
-            ? std::string_view{m_objectNameInput.placeholder()}
-            : std::string_view{m_objectNameInput.value()};
-        textRenderer.pushClipRect(objectNameClip);
-        drawStyledText(
-            textRenderer,
-            objectName,
-            {{objectNameTextX, m_objectNameInput.position().y}, {m_objectNameInput.size().x, m_objectNameInput.size().y}},
-            m_objectNameInput.value().empty() ? "input-placeholder" : "input-value");
-        textRenderer.popClipRect();
-        if (m_objectNameInput.focused()) {
-            if (m_objectNameInput.hasSelection()) {
-                const std::string_view selectedPrefix{m_objectNameInput.value().data(), m_objectNameInput.selectionStart()};
-                const std::string_view selectedText{
-                    m_objectNameInput.value().data() + m_objectNameInput.selectionStart(),
-                    m_objectNameInput.selectionEnd() - m_objectNameInput.selectionStart(),
-                };
-                const float selectionX = objectNameTextX + textRenderer.measureText(selectedPrefix, "default", 0.86f).x;
-                const float selectionWidth = textRenderer.measureText(selectedText, "default", 0.86f).x;
-                textRenderer.pushClipRect(objectNameClip);
-                textRenderer.drawSolidRect(
-                    {selectionX, m_objectNameInput.position().y + 4.0f},
-                    {selectionWidth, m_objectNameInput.size().y - 8.0f},
-                    {0.30f, 0.58f, 0.96f, 0.58f});
-                textRenderer.popClipRect();
-            }
-            const std::string_view prefix{m_objectNameInput.value().data(), m_objectNameInput.caretIndex()};
-            const float caretX = objectNameTextX + textRenderer.measureText(prefix, "default", 0.86f).x;
-            textRenderer.pushClipRect(objectNameClip);
-            textRenderer.drawSolidRect(
-                {caretX, m_objectNameInput.position().y + 5.0f},
-                {1.0f, m_objectNameInput.size().y - 10.0f},
-                {0.92f, 0.98f, 1.0f, 1.0f});
-            textRenderer.popClipRect();
-        }
+        drawTextInputValue(textRenderer, m_objectNameInput, m_style.resolveTextInput(m_objectNameInput.styleClass(), m_objectNameInput.id()).box);
         m_inspectorScroll.popClip(textRenderer);
     }
     if (m_consoleVisible) {
@@ -505,6 +491,56 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             {m_consoleBounds.position + glm::vec2{16.0f, 34.0f}, {m_consoleBounds.size.x - 32.0f, 18.0f}},
             "muted");
     }
+}
+
+void EditorUI::drawTextInputValue(TextRenderer& textRenderer, const TextInput& input, const UIBoxStyle& boxStyle)
+{
+    const UIClipRect clipRect{
+        input.position() + glm::vec2{boxStyle.padding.x, 2.0f},
+        {
+            std::max(input.size().x - boxStyle.padding.x * 2.0f, 0.0f),
+            std::max(input.size().y - 6.0f, 0.0f),
+        },
+    };
+    const float textX = input.position().x + boxStyle.padding.x - input.horizontalScrollOffset();
+    const std::string_view text = input.value().empty()
+        ? std::string_view{input.placeholder()}
+        : std::string_view{input.value()};
+    textRenderer.pushClipRect(clipRect);
+    drawStyledText(
+        textRenderer,
+        text,
+        {{textX, input.position().y}, {input.size().x, input.size().y}},
+        input.value().empty() ? "input-placeholder" : "input-value");
+    textRenderer.popClipRect();
+    if (!input.focused()) {
+        return;
+    }
+
+    if (input.hasSelection()) {
+        const std::string_view selectedPrefix{input.value().data(), input.selectionStart()};
+        const std::string_view selectedText{
+            input.value().data() + input.selectionStart(),
+            input.selectionEnd() - input.selectionStart(),
+        };
+        const float selectionX = textX + textRenderer.measureText(selectedPrefix, "default", 0.86f).x;
+        const float selectionWidth = textRenderer.measureText(selectedText, "default", 0.86f).x;
+        textRenderer.pushClipRect(clipRect);
+        textRenderer.drawSolidRect(
+            {selectionX, input.position().y + 4.0f},
+            {selectionWidth, input.size().y - 8.0f},
+            {0.30f, 0.58f, 0.96f, 0.58f});
+        textRenderer.popClipRect();
+    }
+
+    const std::string_view prefix{input.value().data(), input.caretIndex()};
+    const float caretX = textX + textRenderer.measureText(prefix, "default", 0.86f).x;
+    textRenderer.pushClipRect(clipRect);
+    textRenderer.drawSolidRect(
+        {caretX, input.position().y + 5.0f},
+        {1.0f, input.size().y - 10.0f},
+        {0.92f, 0.98f, 1.0f, 1.0f});
+    textRenderer.popClipRect();
 }
 
 // Positions measured text inside a rectangle using the selected stylesheet class.
