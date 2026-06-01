@@ -11,6 +11,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 & (Join-Path $PSScriptRoot "ensure-submodules.ps1")
+& (Join-Path $PSScriptRoot "ensure-deps.ps1") -Triplet $Triplet -VcpkgRoot $VcpkgRoot
 $cmake = & (Join-Path $PSScriptRoot "find-cmake.ps1")
 $buildPath = Join-Path $repoRoot $BuildDir
 

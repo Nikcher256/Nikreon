@@ -34,3 +34,10 @@ if (-not (Test-Path $vcpkgExe)) {
 if ($LASTEXITCODE -ne 0) {
     throw "vcpkg install failed with exit code $LASTEXITCODE."
 }
+
+if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+    & $vcpkgExe fetch cmake | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "vcpkg could not fetch CMake (exit code $LASTEXITCODE)."
+    }
+}

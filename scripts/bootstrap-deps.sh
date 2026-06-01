@@ -24,3 +24,7 @@ if [ ! -x "$vcpkg_exe" ]; then
 fi
 
 "$vcpkg_exe" install --triplet "$triplet"
+
+if ! command -v cmake >/dev/null 2>&1; then
+    "$vcpkg_exe" fetch cmake >/dev/null
+fi

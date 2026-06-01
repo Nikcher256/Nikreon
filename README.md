@@ -86,7 +86,9 @@ powershell -ExecutionPolicy Bypass -File scripts/run.ps1
 ```
 
 The configure and build scripts automatically initialize a missing
-`external/NikreonUI` Git submodule checkout before running CMake.
+`external/NikreonUI` Git submodule checkout before running CMake. They also
+bootstrap a missing local vcpkg checkout and fetch a local CMake tool when
+neither `cmake` on `PATH` nor the vcpkg tool cache is available.
 
 ## Platform Defaults
 
