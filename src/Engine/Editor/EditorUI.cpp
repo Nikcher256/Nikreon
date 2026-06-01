@@ -129,6 +129,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
         input.mousePosition(),
         input.scrollDelta(),
         input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT),
+        input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) || input.isKeyPressed(GLFW_KEY_RIGHT_SHIFT),
         input.typedCharacters(),
         uiKeys(input),
     });
@@ -443,6 +444,18 @@ void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
             : std::string_view{m_objectNameInput.value()};
         drawStyledText(textRenderer, objectName, {m_objectNameInput.position() + glm::vec2{8.0f, 0.0f}, {m_objectNameInput.size().x - 16.0f, m_objectNameInput.size().y}}, m_objectNameInput.value().empty() ? "muted" : "input-value");
         if (m_objectNameInput.focused()) {
+            if (m_objectNameInput.hasSelection()) {
+                const std::string_view selectedPrefix{m_objectNameInput.value().data(), m_objectNameInput.selectionStart()};
+                const std::string_view selectedText{
+                    m_objectNameInput.value().data() + m_objectNameInput.selectionStart(),
+                    m_objectNameInput.selectionEnd() - m_objectNameInput.selectionStart(),
+                };
+                const float selectionX = m_objectNameInput.position().x + 8.0f + textRenderer.measureText(selectedPrefix, "default", 0.86f).x;
+                const float selectionWidth = textRenderer.measureText(selectedText, "default", 0.86f).x;
+                m_inspectorScroll.pushClip(renderer2D);
+                renderer2D.drawQuad({selectionX, m_objectNameInput.position().y + 4.0f}, {selectionWidth, m_objectNameInput.size().y - 8.0f}, {0.24f, 0.48f, 0.78f, 0.55f});
+                m_inspectorScroll.popClip(renderer2D);
+            }
             const std::string_view prefix{m_objectNameInput.value().data(), m_objectNameInput.caretIndex()};
             const float caretX = m_objectNameInput.position().x + 8.0f + textRenderer.measureText(prefix, "default", 0.86f).x;
             m_inspectorScroll.pushClip(renderer2D);

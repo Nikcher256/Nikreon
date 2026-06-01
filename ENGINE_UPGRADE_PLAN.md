@@ -335,16 +335,19 @@ Completed/started note:
 - Added a retained scrub-style `NumberInput` widget with value clamping, precision formatting, sensitivity, callbacks, and CSS-like `number-input` styles.
 - Sliders expose formatted values so editor controls can render Unreal-like numeric overlays.
 - Added GLFW character, editing-key, and wheel event queues exposed through engine input snapshots.
-- Added retained `TextInput` with focus, printable ASCII insertion, caret movement, deletion, placeholder text, callbacks, and CSS-like `text-input` styles.
+- Added retained `TextInput` with focus, UTF-8 insertion, UTF-8-boundary caret movement, shift-selection ranges, deletion, placeholder text, callbacks, and CSS-like `text-input` styles.
 - Added nested renderer clip rectangles and a reusable wheel-driven `ScrollContainer`; inspector shapes and labels now scroll inside a clipped content region.
 - Added explicit toolbar controls for collapsing hierarchy, inspector, and console panels.
+- Bundled redistributable Noto Sans plus its license under `assets/fonts` and prefer it before optional system-font fallbacks.
+- Expanded the default atlas to Latin-1 and Cyrillic ranges with dynamic atlas-height growth.
+- Added `TextLayout` options for configurable line spacing, maximum width, and basic wrapping.
+- Added clipped hit testing and draggable scrollbar thumbs to `ScrollContainer`.
 - Raw mouse coordinate debug logs were removed; useful widget action logs remain.
-- Text labels are active; typed text editing and proper icons are still pending.
+- Text labels and typed text editing are active; proper icons are still pending.
 
 Next UI foundation tasks:
 
-- Add UTF-8 editing and selection ranges after the printable-ASCII text-input pass.
-- Add draggable scrollbar thumbs after the first visible wheel-scroll indicator.
+- Add copy/paste shortcuts and richer mouse-driven text selection gestures.
 - Do not implement full browser CSS: no cascade complexity, media queries, full selector engine, or DOM model.
 - Keep `Engine/UI` and text APIs independent from Vulkan so they can be extracted into a reusable `NikreonUI` GitHub project.
 
@@ -385,22 +388,21 @@ Build gate:
 Completed/started note:
 
 - Added an API-neutral `TextRenderer` interface and Vulkan-specific `VulkanTextRenderer` backend.
-- Added FreeType TTF loading for printable ASCII glyphs, cached glyph metrics, text measurement, scaling, color, opacity, alignment, and multi-line positioning.
+- Added FreeType TTF loading for Latin-1 and Cyrillic glyphs, cached glyph metrics, growing atlas height, UTF-8 decoding, text measurement, scaling, color, opacity, alignment, configurable line spacing, basic wrapping, and multi-line positioning.
 - Added one-time staging-buffer upload for a cached single-channel Vulkan font atlas.
 - Added a Vulkan text pipeline with descriptor-backed atlas sampling and batched dynamic glyph vertices.
 - Added `text.vert` and `text.frag` shader compilation through CMake.
 - Renderer orchestration now records text after 2D UI shapes so editor labels remain crisp and visible.
 - Added real editor labels for panels, hierarchy rows, inspector controls, and the console placeholder.
 - Editor labels now resolve typography from CSS-like text classes and align measured text within explicit UI rectangles.
-- The first pass searches common system font locations and currently loads `C:/Windows/Fonts/segoeui.ttf` on the Windows development machine.
+- Bundled Noto Sans is the redistributable default font; common system-font locations remain optional fallbacks.
 - Verified with `scripts/build.ps1`, `build/Debug/NikreonEngine.exe --smoke-test`, and `build/Debug/NikreonEngine.exe --frames 180`.
 
 Remaining text tasks:
 
-- Bundle or configure a redistributable default font asset before extracting `NikreonUI`.
-- Add broader Unicode glyph loading and atlas growth or multiple atlas pages.
-- Add configurable line spacing, word wrapping, and richer text layout.
-- Add keyboard text events, caret rendering, selection, and the retained text-input widget.
+- Add on-demand Unicode glyph atlas growth or multiple atlas pages beyond the preloaded Latin-1 and Cyrillic ranges.
+- Improve wrapping from the basic glyph-width pass to word-boundary-aware rich text layout.
+- Add clipboard shortcuts and richer mouse-driven selection gestures.
 
 ## NikreonUI Extraction Milestone
 

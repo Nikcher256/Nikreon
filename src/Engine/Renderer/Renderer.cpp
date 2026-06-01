@@ -12,6 +12,10 @@
 
 namespace Engine {
 
+#ifndef NIKREON_ASSET_DIR
+#define NIKREON_ASSET_DIR "assets"
+#endif
+
 Renderer::Renderer(Window& window)
     : m_context(window)
 {
@@ -78,7 +82,8 @@ void Renderer::createBackendRenderers()
         m_context.commandPool(),
         m_context.renderPass());
 
-    const std::array<std::filesystem::path, 4> fontCandidates = {
+    const std::array<std::filesystem::path, 5> fontCandidates = {
+        NIKREON_ASSET_DIR "/fonts/NotoSans-Regular.ttf",
         "C:/Windows/Fonts/segoeui.ttf",
         "C:/Windows/Fonts/arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
