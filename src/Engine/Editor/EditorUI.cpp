@@ -25,7 +25,16 @@ namespace Engine {
 std::vector<UIKey> uiKeys(const Input& input)
 {
     std::vector<UIKey> keys;
+    const bool controlDown = input.isKeyPressed(GLFW_KEY_LEFT_CONTROL) || input.isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
     for (const int key : input.pressedKeys()) {
+        if (controlDown) {
+            switch (key) {
+            case GLFW_KEY_A: keys.push_back(UIKey::SelectAll); continue;
+            case GLFW_KEY_C: keys.push_back(UIKey::Copy); continue;
+            case GLFW_KEY_V: keys.push_back(UIKey::Paste); continue;
+            default: break;
+            }
+        }
         switch (key) {
         case GLFW_KEY_BACKSPACE: keys.push_back(UIKey::Backspace); break;
         case GLFW_KEY_DELETE: keys.push_back(UIKey::Delete); break;
@@ -130,6 +139,8 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
         input.scrollDelta(),
         input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT),
         input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) || input.isKeyPressed(GLFW_KEY_RIGHT_SHIFT),
+        input.clipboardText(),
+        [&input](const std::string_view text) { input.setClipboardText(text); },
         input.typedCharacters(),
         uiKeys(input),
     });
@@ -195,7 +206,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
         m_inspectorScroll.popClip(renderer2D);
     }
 
-    renderLabels(renderer2D, textRenderer);
+    renderLabels(textRenderer);
     m_context.endFrame();
 }
 
@@ -384,7 +395,7 @@ void EditorUI::renderPanelSplitters(Renderer2D& renderer2D)
 }
 
 // Draws the first real editor labels through the cached font atlas.
-void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
+void EditorUI::renderLabels(TextRenderer& textRenderer)
 {
     if (m_hierarchyVisible) {
         drawStyledText(textRenderer, "Hierarchy", {m_hierarchyBounds.position + glm::vec2{16.0f, 8.0f}, {m_hierarchyBounds.size.x - 32.0f, 18.0f}}, "heading");
@@ -469,11 +480,12 @@ void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
                 };
                 const float selectionX = objectNameTextX + textRenderer.measureText(selectedPrefix, "default", 0.86f).x;
                 const float selectionWidth = textRenderer.measureText(selectedText, "default", 0.86f).x;
-                m_inspectorScroll.pushClip(renderer2D);
-                renderer2D.pushClipRect(objectNameClip);
-                renderer2D.drawQuad({selectionX, m_objectNameInput.position().y + 4.0f}, {selectionWidth, m_objectNameInput.size().y - 8.0f}, {0.24f, 0.48f, 0.78f, 0.55f});
-                renderer2D.popClipRect();
-                m_inspectorScroll.popClip(renderer2D);
+                textRenderer.pushClipRect(objectNameClip);
+                textRenderer.drawSolidRect(
+                    {selectionX, m_objectNameInput.position().y + 4.0f},
+                    {selectionWidth, m_objectNameInput.size().y - 8.0f},
+                    {0.30f, 0.58f, 0.96f, 0.58f});
+                textRenderer.popClipRect();
             }
             const std::string_view prefix{m_objectNameInput.value().data(), m_objectNameInput.caretIndex()};
             const float caretX = objectNameTextX + textRenderer.measureText(prefix, "default", 0.86f).x;

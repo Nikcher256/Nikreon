@@ -335,7 +335,7 @@ Completed/started note:
 - Added a retained scrub-style `NumberInput` widget with value clamping, precision formatting, sensitivity, callbacks, and CSS-like `number-input` styles.
 - Sliders expose formatted values so editor controls can render Unreal-like numeric overlays.
 - Added GLFW character, editing-key, and wheel event queues exposed through engine input snapshots.
-- Added retained `TextInput` with focus, UTF-8 insertion, UTF-8-boundary caret movement, click-to-position, mouse-drag and shift-selection ranges, automatic and thumb-draggable horizontal overflow scrolling, deletion, placeholder text, callbacks, and CSS-like `text-input` styles.
+- Added retained `TextInput` with focus, UTF-8 insertion, UTF-8-boundary caret movement, click-to-position, mouse-drag and shift-selection ranges, visible post-text selection overlays, Ctrl+A/C/V clipboard shortcuts, automatic and thumb-draggable horizontal overflow scrolling, deletion, placeholder text, callbacks, and CSS-like `text-input` styles.
 - Added nested renderer clip rectangles and a reusable wheel-driven `ScrollContainer`; inspector shapes and labels now scroll inside a clipped content region.
 - Added explicit toolbar controls for collapsing hierarchy, inspector, and console panels.
 - Bundled redistributable Noto Sans plus its license under `assets/fonts` and prefer it before optional system-font fallbacks.
@@ -347,7 +347,7 @@ Completed/started note:
 
 Next UI foundation tasks:
 
-- Add copy/paste shortcuts and richer selection gestures such as double-click word selection.
+- Add richer selection gestures such as double-click word selection.
 - Do not implement full browser CSS: no cascade complexity, media queries, full selector engine, or DOM model.
 - Keep `Engine/UI` and text APIs independent from Vulkan so they can be extracted into a reusable `NikreonUI` GitHub project.
 
@@ -402,7 +402,7 @@ Remaining text tasks:
 
 - Add on-demand Unicode glyph atlas growth or multiple atlas pages beyond the preloaded Latin-1 and Cyrillic ranges.
 - Improve wrapping from the basic glyph-width pass to word-boundary-aware rich text layout.
-- Add clipboard shortcuts and richer selection gestures such as double-click word selection.
+- Add richer selection gestures such as double-click word selection.
 
 ## NikreonUI Extraction Milestone
 

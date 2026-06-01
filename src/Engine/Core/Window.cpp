@@ -125,6 +125,19 @@ const std::vector<int>& Window::pressedKeys() const
     return m_pressedKeys;
 }
 
+std::string Window::clipboardText() const
+{
+    const char* text = m_handle != nullptr ? glfwGetClipboardString(m_handle) : nullptr;
+    return text != nullptr ? text : "";
+}
+
+void Window::setClipboardText(const std::string_view text) const
+{
+    if (m_handle != nullptr) {
+        glfwSetClipboardString(m_handle, std::string{text}.c_str());
+    }
+}
+
 double Window::scrollX() const
 {
     return m_scrollX;

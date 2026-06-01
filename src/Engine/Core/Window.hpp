@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <functional>
 #include <vector>
 
@@ -39,6 +40,8 @@ public:
     [[nodiscard]] bool isMouseButtonPressed(int button) const;
     [[nodiscard]] const std::vector<char32_t>& typedCharacters() const;
     [[nodiscard]] const std::vector<int>& pressedKeys() const;
+    [[nodiscard]] std::string clipboardText() const;
+    void setClipboardText(std::string_view text) const;
     [[nodiscard]] double scrollX() const;
     [[nodiscard]] double scrollY() const;
     [[nodiscard]] double mouseX() const;

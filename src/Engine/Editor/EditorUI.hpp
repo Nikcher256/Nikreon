@@ -45,7 +45,7 @@ private:
     void updateWidgets(TextRenderer& textRenderer);
     void renderWidgets(Renderer2D& renderer2D);
     void renderPanelSplitters(Renderer2D& renderer2D);
-    void renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer);
+    void renderLabels(TextRenderer& textRenderer);
     void drawStyledText(
         TextRenderer& textRenderer,
         std::string_view text,

@@ -48,4 +48,14 @@ const std::vector<int>& Input::pressedKeys() const
     return m_window.pressedKeys();
 }
 
+std::string Input::clipboardText() const
+{
+    return m_window.clipboardText();
+}
+
+void Input::setClipboardText(const std::string_view text) const
+{
+    m_window.setClipboardText(text);
+}
+
 } // namespace Engine
