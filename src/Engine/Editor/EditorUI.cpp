@@ -59,6 +59,10 @@ EditorUI::EditorUI()
     , m_toggleHierarchyButton("toolbar.toggleHierarchy")
     , m_toggleInspectorButton("toolbar.toggleInspector")
     , m_toggleConsoleButton("toolbar.toggleConsole")
+    , m_editModeButton("toolbar.mode.edit")
+    , m_playModeButton("toolbar.mode.play")
+    , m_simulateModeButton("toolbar.mode.simulate")
+    , m_hudEditModeButton("toolbar.mode.hudEdit")
     , m_gridCheckbox("inspector.showGrid", true)
     , m_exposureSlider("inspector.exposure", 0.65f, 0.0f, 1.0f)
     , m_lightIntensityInput("inspector.lightIntensity", 4.0f, 0.0f, 100.0f)
@@ -79,6 +83,7 @@ EditorUI::EditorUI()
 
     m_playButton.setOnClick([this]() {
         m_runState = RunState::Playing;
+        m_viewport.setMode(EditorViewportMode::Play);
         spdlog::info("Editor UI: Play button clicked.");
     });
 
@@ -89,7 +94,7 @@ EditorUI::EditorUI()
 
     m_stopButton.setOnClick([this]() {
         m_runState = RunState::Stopped;
-        m_viewportFocused = false;
+        m_viewport.setMode(EditorViewportMode::Edit);
         spdlog::info("Editor UI: Stop button clicked.");
     });
 
@@ -128,6 +133,10 @@ EditorUI::EditorUI()
     m_toggleHierarchyButton.setStyleClass("toolbar-toggle");
     m_toggleInspectorButton.setStyleClass("toolbar-toggle");
     m_toggleConsoleButton.setStyleClass("toolbar-toggle");
+    m_editModeButton.setStyleClass("toolbar");
+    m_playModeButton.setStyleClass("toolbar");
+    m_simulateModeButton.setStyleClass("toolbar");
+    m_hudEditModeButton.setStyleClass("toolbar");
     m_exposureSlider.setStyleClass("inspector");
     m_lightIntensityInput.setStyleClass("inspector");
     m_positionXInput.setStyleClass("plain");
@@ -138,6 +147,22 @@ EditorUI::EditorUI()
     m_toggleHierarchyButton.setOnClick([this]() { m_hierarchyCollapsed = !m_hierarchyCollapsed; });
     m_toggleInspectorButton.setOnClick([this]() { m_inspectorCollapsed = !m_inspectorCollapsed; });
     m_toggleConsoleButton.setOnClick([this]() { m_consoleCollapsed = !m_consoleCollapsed; });
+    m_editModeButton.setOnClick([this]() {
+        m_viewport.setMode(EditorViewportMode::Edit);
+        m_runState = RunState::Stopped;
+    });
+    m_playModeButton.setOnClick([this]() {
+        m_viewport.setMode(EditorViewportMode::Play);
+        m_runState = RunState::Playing;
+    });
+    m_simulateModeButton.setOnClick([this]() {
+        m_viewport.setMode(EditorViewportMode::Simulate);
+        m_runState = RunState::Playing;
+    });
+    m_hudEditModeButton.setOnClick([this]() {
+        m_viewport.setMode(EditorViewportMode::HudEdit);
+        m_runState = RunState::Stopped;
+    });
 
     for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
         m_hierarchyRows[index].setStyleClass("hierarchy-row");
@@ -183,23 +208,16 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
         drawPanel(renderer2D, m_consoleBounds);
     }
 
-    const float viewportBrightness = 0.035f + m_previewExposure * 0.045f;
-    renderer2D.drawQuad(
-        m_viewportBounds.position,
-        m_viewportBounds.size,
-        {viewportBrightness, viewportBrightness + 0.006f, viewportBrightness + 0.018f, 1.0f});
-
-    const UIInteraction viewportInteraction = m_context.interact("viewport.main", m_viewportBounds.position, m_viewportBounds.size);
-    if (viewportInteraction.pressed) {
-        m_viewportFocused = true;
-        spdlog::info("Editor UI: Viewport focused.");
-    }
+    m_viewport.updateInteraction(
+        {m_viewportBounds.position, m_viewportBounds.size},
+        input.mousePosition(),
+        input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT));
 
     if (m_showGrid) {
         drawViewportGrid(renderer2D, m_viewportBounds);
     }
 
-    const glm::vec4 viewportBorder = m_viewportFocused ? m_editorStyle.viewportFocusedBorder : m_editorStyle.viewportBorder;
+    const glm::vec4 viewportBorder = m_viewport.focused() ? m_editorStyle.viewportFocusedBorder : m_editorStyle.viewportBorder;
     renderer2D.drawRect(m_viewportBounds.position, m_viewportBounds.size, viewportBorder, 2.0f);
 
     renderWidgets(renderer2D, textRenderer);
@@ -225,6 +243,23 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
 
     renderLabels(textRenderer);
     m_context.endFrame();
+}
+
+void EditorUI::updateEditorCamera(const float deltaTime, const Input& input)
+{
+    const auto axis = [&input](const int positive, const int negative) {
+        return static_cast<float>(input.isKeyPressed(positive)) - static_cast<float>(input.isKeyPressed(negative));
+    };
+    m_viewport.updateEditorCamera(deltaTime, {
+        .moveRight = axis(GLFW_KEY_D, GLFW_KEY_A),
+        .moveUp = axis(GLFW_KEY_E, GLFW_KEY_Q),
+        .moveForward = axis(GLFW_KEY_W, GLFW_KEY_S),
+    });
+}
+
+const EditorViewport& EditorUI::viewport() const
+{
+    return m_viewport;
 }
 
 // Computes responsive panel and widget bounds for the current framebuffer size.
@@ -276,6 +311,10 @@ void EditorUI::layoutWidgets(const float width, const float height)
     toolbarLayout.add(m_toggleHierarchyButton, {28.0f, 28.0f});
     toolbarLayout.add(m_toggleInspectorButton, {28.0f, 28.0f});
     toolbarLayout.add(m_toggleConsoleButton, {28.0f, 28.0f});
+    toolbarLayout.add(m_editModeButton, {52.0f, 28.0f});
+    toolbarLayout.add(m_playModeButton, {52.0f, 28.0f});
+    toolbarLayout.add(m_simulateModeButton, {76.0f, 28.0f});
+    toolbarLayout.add(m_hudEditModeButton, {68.0f, 28.0f});
     toolbarLayout.layout();
 
     UILinearLayout hierarchyLayout(UILayoutAxis::Vertical);
@@ -351,6 +390,10 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
     m_playButton.setSelected(m_runState == RunState::Playing);
     m_pauseButton.setSelected(m_runState == RunState::Paused);
     m_stopButton.setSelected(m_runState == RunState::Stopped);
+    m_editModeButton.setSelected(m_viewport.mode() == EditorViewportMode::Edit);
+    m_playModeButton.setSelected(m_viewport.mode() == EditorViewportMode::Play);
+    m_simulateModeButton.setSelected(m_viewport.mode() == EditorViewportMode::Simulate);
+    m_hudEditModeButton.setSelected(m_viewport.mode() == EditorViewportMode::HudEdit);
     m_gridCheckbox.setChecked(m_showGrid);
     m_exposureSlider.setValue(m_previewExposure);
     m_lightIntensityInput.setValue(m_lightIntensity);
@@ -364,6 +407,10 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
     m_toggleHierarchyButton.update(m_context);
     m_toggleInspectorButton.update(m_context);
     m_toggleConsoleButton.update(m_context);
+    m_editModeButton.update(m_context);
+    m_playModeButton.update(m_context);
+    m_simulateModeButton.update(m_context);
+    m_hudEditModeButton.update(m_context);
 
     for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
         m_hierarchyRows[index].setSelected(static_cast<int>(index) == m_selectedHierarchyRow);
@@ -397,6 +444,10 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer)
     m_toggleHierarchyButton.render(renderer2D, m_style);
     m_toggleInspectorButton.render(renderer2D, m_style);
     m_toggleConsoleButton.render(renderer2D, m_style);
+    m_editModeButton.render(renderer2D, m_style);
+    m_playModeButton.render(renderer2D, m_style);
+    m_simulateModeButton.render(renderer2D, m_style);
+    m_hudEditModeButton.render(renderer2D, m_style);
 
     for (const auto& row : m_hierarchyRows) {
         row.render(renderer2D, m_style);
@@ -445,6 +496,15 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
     drawStyledText(textRenderer, "H", {m_toggleHierarchyButton.position(), m_toggleHierarchyButton.size()}, "toolbar-toggle");
     drawStyledText(textRenderer, "I", {m_toggleInspectorButton.position(), m_toggleInspectorButton.size()}, "toolbar-toggle");
     drawStyledText(textRenderer, "C", {m_toggleConsoleButton.position(), m_toggleConsoleButton.size()}, "toolbar-toggle");
+    drawStyledText(textRenderer, "Edit", {m_editModeButton.position(), m_editModeButton.size()}, "toolbar-toggle");
+    drawStyledText(textRenderer, "Play", {m_playModeButton.position(), m_playModeButton.size()}, "toolbar-toggle");
+    drawStyledText(textRenderer, "Simulate", {m_simulateModeButton.position(), m_simulateModeButton.size()}, "toolbar-toggle");
+    drawStyledText(textRenderer, "HudEdit", {m_hudEditModeButton.position(), m_hudEditModeButton.size()}, "toolbar-toggle");
+    drawStyledText(
+        textRenderer,
+        editorViewportModeName(m_viewport.mode()),
+        {m_viewportBounds.position + glm::vec2{12.0f, 28.0f}, {m_viewportBounds.size.x - 24.0f, 18.0f}},
+        "muted");
 
     constexpr std::array<std::string_view, 5> hierarchyNames = {
         "Main Camera",

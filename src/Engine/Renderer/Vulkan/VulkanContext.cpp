@@ -1,8 +1,10 @@
 #include "Engine/Renderer/Vulkan/VulkanContext.hpp"
 
 #include "Engine/Core/Window.hpp"
+#include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/Renderer/Vulkan/VulkanRenderer2D.hpp"
 #include "Engine/Renderer/Vulkan/VulkanTextRenderer.hpp"
+#include "Engine/Renderer/Vulkan/VulkanViewportRenderTarget.hpp"
 
 #include <algorithm>
 #include <array>
@@ -67,6 +69,7 @@ bool VulkanContext::QueueFamilyIndices::complete() const
 
 VulkanContext::VulkanContext(Window& window)
     : m_window(window)
+    , m_editorViewportMode(EditorViewportMode::Edit)
 {
     initialize();
 }
@@ -98,6 +101,7 @@ VulkanContext::FrameResult VulkanContext::drawFrame(VulkanRenderer2D& renderer2D
     }
 
     vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
+    prepareViewportRenderTarget();
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
     recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, textRenderer);
 
@@ -141,6 +145,13 @@ void VulkanContext::waitIdle() const
     if (m_device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(m_device);
     }
+}
+
+void VulkanContext::setEditorViewport(const EditorViewportPresentation& presentation, const EditorViewportMode mode)
+{
+    m_editorViewportPosition = presentation.position;
+    m_editorViewportSize = presentation.size;
+    m_editorViewportMode = mode;
 }
 
 bool VulkanContext::isDrawable() const
@@ -204,6 +215,7 @@ void VulkanContext::initialize()
     createLogicalDevice();
     volkLoadDevice(m_device);
     createSwapchain();
+    createViewportRenderTarget();
     createImageViews();
     createRenderPass();
     createFramebuffers();
@@ -221,6 +233,7 @@ void VulkanContext::shutdown()
     }
 
     cleanupSwapchain();
+    m_viewportRenderTarget.reset();
 
     for (std::size_t index = 0; index < m_imageAvailableSemaphores.size(); ++index) {
         vkDestroySemaphore(m_device, m_imageAvailableSemaphores[index], nullptr);
@@ -447,11 +460,11 @@ void VulkanContext::createRenderPass()
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = m_swapchainImageFormat;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     VkAttachmentReference colorAttachmentReference{};
@@ -568,6 +581,28 @@ void VulkanContext::destroyRenderFinishedSemaphores()
     m_renderFinishedSemaphores.clear();
 }
 
+void VulkanContext::createViewportRenderTarget()
+{
+    m_viewportRenderTarget = std::make_unique<VulkanViewportRenderTarget>(m_device, m_physicalDevice, m_swapchainImageFormat);
+}
+
+void VulkanContext::prepareViewportRenderTarget()
+{
+    const std::uint32_t availableWidth = m_swapchainExtent.width;
+    const std::uint32_t availableHeight = m_swapchainExtent.height;
+    const std::uint32_t x = std::min(static_cast<std::uint32_t>(std::max(m_editorViewportPosition.x, 0.0f)), availableWidth);
+    const std::uint32_t y = std::min(static_cast<std::uint32_t>(std::max(m_editorViewportPosition.y, 0.0f)), availableHeight);
+    const glm::uvec2 size{
+        std::max(std::min(static_cast<std::uint32_t>(std::max(m_editorViewportSize.x, 1.0f)), availableWidth - x), 1U),
+        std::max(std::min(static_cast<std::uint32_t>(std::max(m_editorViewportSize.y, 1.0f)), availableHeight - y), 1U),
+    };
+
+    if (m_viewportRenderTarget->size() != size) {
+        vkDeviceWaitIdle(m_device);
+        m_viewportRenderTarget->resize(size);
+    }
+}
+
 void VulkanContext::cleanupSwapchain()
 {
     for (const auto framebuffer : m_swapchainFramebuffers) {
@@ -601,8 +636,10 @@ void VulkanContext::recreateSwapchain()
     }
 
     vkDeviceWaitIdle(m_device);
+    m_viewportRenderTarget.reset();
     cleanupSwapchain();
     createSwapchain();
+    createViewportRenderTarget();
     createImageViews();
     createRenderPass();
     createFramebuffers();
@@ -620,11 +657,22 @@ void VulkanContext::recordCommandBuffer(
 
     checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin command buffer.");
 
-    VkClearValue clearColor{};
-    clearColor.color.float32[0] = 0.08f;
-    clearColor.color.float32[1] = 0.09f;
-    clearColor.color.float32[2] = 0.12f;
-    clearColor.color.float32[3] = 1.0f;
+    const std::array<glm::vec4, 4> modeClearColors = {
+        glm::vec4{0.055f, 0.085f, 0.14f, 1.0f},
+        glm::vec4{0.055f, 0.13f, 0.095f, 1.0f},
+        glm::vec4{0.13f, 0.095f, 0.045f, 1.0f},
+        glm::vec4{0.12f, 0.065f, 0.13f, 1.0f},
+    };
+    const glm::uvec2 viewportTargetSize = m_viewportRenderTarget->size();
+    m_viewportRenderTarget->recordClearAndCopy(
+        commandBuffer,
+        m_swapchainImages[imageIndex],
+        {
+            static_cast<int>(std::max(m_editorViewportPosition.x, 0.0f)),
+            static_cast<int>(std::max(m_editorViewportPosition.y, 0.0f)),
+        },
+        viewportTargetSize,
+        modeClearColors[static_cast<std::size_t>(m_editorViewportMode)]);
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -632,8 +680,8 @@ void VulkanContext::recordCommandBuffer(
     renderPassInfo.framebuffer = m_swapchainFramebuffers[imageIndex];
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = m_swapchainExtent;
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    renderPassInfo.clearValueCount = 0;
+    renderPassInfo.pClearValues = nullptr;
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     renderer2D.record(commandBuffer);

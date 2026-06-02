@@ -8,6 +8,8 @@
 
 namespace Engine {
 
+class EditorLayer;
+
 struct RunOptions {
     unsigned int maxFrames{0};
 };
@@ -33,6 +35,7 @@ private:
     Time m_time;
     Renderer m_renderer;
     LayerStack m_layers;
+    EditorLayer* m_editorLayer{nullptr};
     unsigned int m_frameCount{0};
     bool m_fullscreenToggleWasPressed{false};
     bool m_renderingFrame = false;

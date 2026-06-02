@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include <glm/vec2.hpp>
@@ -8,8 +9,11 @@
 
 namespace Engine {
 
+enum class EditorViewportMode;
+struct EditorViewportPresentation;
 class VulkanRenderer2D;
 class VulkanTextRenderer;
+class VulkanViewportRenderTarget;
 class Window;
 
 class VulkanContext {
@@ -30,6 +34,7 @@ public:
     FrameResult drawFrame(VulkanRenderer2D& renderer2D, VulkanTextRenderer& textRenderer);
     void waitIdle() const;
     void recreateSwapchain();
+    void setEditorViewport(const EditorViewportPresentation& presentation, EditorViewportMode mode);
 
     [[nodiscard]] bool isDrawable() const;
     [[nodiscard]] bool shouldRecreateSwapchain();
@@ -71,6 +76,8 @@ private:
     void createSyncObjects();
     void createRenderFinishedSemaphores();
     void destroyRenderFinishedSemaphores();
+    void createViewportRenderTarget();
+    void prepareViewportRenderTarget();
 
     void cleanupSwapchain();
 
@@ -120,6 +127,10 @@ private:
     std::vector<VkSemaphore> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::vector<VkFence> m_inFlightFences;
+    std::unique_ptr<VulkanViewportRenderTarget> m_viewportRenderTarget;
+    glm::vec2 m_editorViewportPosition{0.0f, 0.0f};
+    glm::vec2 m_editorViewportSize{1.0f, 1.0f};
+    EditorViewportMode m_editorViewportMode;
     std::uint32_t m_currentFrame{0};
 };
 

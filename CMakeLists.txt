@@ -20,6 +20,7 @@ add_subdirectory("${NIKREON_UI_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/externa
 add_executable(NikreonEngine
     src/Engine/Editor/EditorLayer.cpp
     src/Engine/Editor/EditorUI.cpp
+    src/Engine/Editor/EditorViewport.cpp
     src/Engine/Core/Application.cpp
     src/Engine/Core/Input.cpp
     src/Engine/Core/Layer.cpp
@@ -29,7 +30,13 @@ add_executable(NikreonEngine
     src/Engine/Core/Window.cpp
     src/Engine/Renderer/Renderer.cpp
     src/Engine/Renderer/Vulkan/VulkanContext.cpp
+    src/Engine/Renderer/Vulkan/VulkanViewportRenderTarget.cpp
     src/main.cpp
+)
+
+add_executable(NikreonEditorViewportTests
+    src/Engine/Editor/EditorViewport.cpp
+    tests/editor_viewport_tests.cpp
 )
 
 find_package(Vulkan QUIET)
@@ -54,6 +61,10 @@ target_include_directories(NikreonEngine PRIVATE
     ${TINYGLTF_INCLUDE_DIRS}
     ${MINIAUDIO_INCLUDE_DIRS}
 )
+
+target_include_directories(NikreonEditorViewportTests PRIVATE src)
+target_link_libraries(NikreonEditorViewportTests PRIVATE glm::glm)
+add_test(NAME NikreonEditorViewportTests COMMAND NikreonEditorViewportTests)
 
 target_link_libraries(NikreonEngine PRIVATE
     glfw

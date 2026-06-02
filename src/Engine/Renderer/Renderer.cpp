@@ -69,6 +69,11 @@ glm::uvec2 Renderer::viewportSize() const
     return m_context.swapchainSize();
 }
 
+void Renderer::setEditorViewport(const EditorViewportPresentation& presentation, const EditorViewportMode mode)
+{
+    m_context.setEditorViewport(presentation, mode);
+}
+
 void Renderer::createBackendRenderers()
 {
     m_renderer2D = std::make_unique<VulkanRenderer2D>(

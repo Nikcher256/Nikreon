@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/UI/Button.hpp"
 #include "Engine/UI/Checkbox.hpp"
 #include "Engine/UI/Layout.hpp"
@@ -27,6 +28,8 @@ public:
     EditorUI();
 
     void render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input);
+    void updateEditorCamera(float deltaTime, const Input& input);
+    [[nodiscard]] const EditorViewport& viewport() const;
 
 private:
     enum class RunState {
@@ -73,6 +76,10 @@ private:
     Button m_toggleHierarchyButton;
     Button m_toggleInspectorButton;
     Button m_toggleConsoleButton;
+    Button m_editModeButton;
+    Button m_playModeButton;
+    Button m_simulateModeButton;
+    Button m_hudEditModeButton;
     Checkbox m_gridCheckbox;
     Slider m_exposureSlider;
     NumberInput m_lightIntensityInput;
@@ -96,8 +103,8 @@ private:
     glm::vec2 m_previousMousePosition{0.0f, 0.0f};
     int m_selectedHierarchyRow{0};
     RunState m_runState{RunState::Stopped};
+    EditorViewport m_viewport;
     bool m_showGrid{true};
-    bool m_viewportFocused{false};
     bool m_hierarchyVisible{true};
     bool m_inspectorVisible{true};
     bool m_consoleVisible{true};

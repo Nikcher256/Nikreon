@@ -19,7 +19,9 @@ Application::Application()
     , m_renderer(m_window)
 {
     m_time.reset();
-    m_layers.pushLayer(std::make_unique<EditorLayer>());
+    auto editorLayer = std::make_unique<EditorLayer>();
+    m_editorLayer = editorLayer.get();
+    m_layers.pushLayer(std::move(editorLayer));
 
     m_window.setRefreshCallback([this]() {
         render();
@@ -86,6 +88,7 @@ void Application::render()
 
     if (m_renderer.beginFrame()) {
         m_layers.render(m_renderer.renderer2D(), m_renderer.textRenderer(), m_renderer.viewportSize(), m_input);
+        m_renderer.setEditorViewport(m_editorLayer->viewport().presentation(), m_editorLayer->viewport().mode());
         m_renderer.endFrame();
     }
 

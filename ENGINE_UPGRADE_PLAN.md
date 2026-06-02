@@ -2,7 +2,7 @@
 
 This document is the working roadmap for upgrading the C++ Vulkan engine into a modular modern game engine. It is intentionally phased: each phase should compile, preserve existing working behavior where possible, and avoid rewriting unrelated systems.
 
-The main target is a renderer and engine architecture that can load Blender-exported GLB/glTF assets with proper materials, textures, lighting, transparency, shadows, and later animation, while also supporting a real GPU-driven 2D/UI/HUD pipeline.
+The main target is a renderer and engine architecture that can load Blender-exported GLB/glTF assets with proper materials, textures, lighting, transparency, shadows, and later animation, while also supporting a shared GPU-rendered UI system and a separate engine 2D world renderer.
 
 ## Current Starting Point
 
@@ -15,7 +15,7 @@ The repository now has the project bootstrap in place:
 - Core external libraries selected: GLFW, GLM, Vulkan headers, volk, stb, tinygltf, FreeType, OpenAL Soft, miniaudio, EnTT, spdlog, nlohmann-json, and Jolt Physics.
 - Minimal `src/main.cpp` builds and runs.
 
-The next work should not jump directly into complex PBR rendering. The safer path is to build a small engine skeleton first, add minimal Vulkan ownership, build an engine-native 2D/UI layer for editor controls, then add the main viewport and 3D renderer.
+The next work should not jump directly into complex PBR rendering. The safer path is to build a small engine skeleton first, add minimal Vulkan ownership, build the engine-native UI layer for editor controls, then add viewport modes before complex 2D and 3D world rendering.
 
 ## Guiding Rules
 
@@ -23,8 +23,12 @@ The next work should not jump directly into complex PBR rendering. The safer pat
 - Do not build one huge renderer file. Split responsibility into small engine modules.
 - Every phase should build before moving on.
 - Prefer glTF/GLB as the primary Blender import path.
-- HUD, menus, text, sprites, debug overlays, and editor overlays are not random 3D objects. They render through the 2D/UI/debug systems after the 3D world and post-processing.
-- Do not use ImGui. Editor UI, game HUD, menus, debug panels, and tools should be engine-native and GPU-rendered through the engine UI stack.
+- UI and game-world 2D rendering are separate responsibilities. Do not combine them into one catch-all renderer.
+- `NikreonUI` is the shared UI/HUD/menu system. Use it for editor UI, in-game HUD, game menus, pause menus, inventory UI, dialogue boxes, buttons, sliders, text inputs, panels, layouts, text, styles, progress bars, icons, crosshairs, and nine-slice panels.
+- `NikreonUI` must not become the engine's sprite, tilemap, or particle renderer.
+- The engine 2D world renderer handles game-world sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing.
+- `EditorUI` and `GameHUD` are separate composition layers that can both use `NikreonUI`.
+- Do not use ImGui. Editor UI, game HUD, menus, debug panels, and tools should be engine-native and GPU-rendered through `NikreonUI`.
 - Avoid recreating Vulkan pipelines, descriptor sets, textures, static buffers, or model resources every frame.
 - Organize shaders by purpose and rendering feature so PBR, unlit, stylized, debug, sprite, text, shadow, skybox, outline, voxel/block, and post-process passes can coexist without forcing the whole engine into one predefined art style.
 
@@ -49,16 +53,60 @@ This means the 3D renderer should be data-driven and extensible:
 
 ## Target Render Order
 
-1. Shadow pass
-2. 3D opaque world pass
-3. Skybox pass
-4. Transparent 3D pass
-5. Post-processing pass
-6. Screen-space HUD/UI pass
-7. Editor/debug overlay pass
-8. Present
+Exported game:
 
-HUD/UI normally renders after post-processing so text, crosshair, menus, and health bars are not blurred by bloom, depth of field, or tone mapping artifacts.
+1. Shadow pass
+2. 3D and/or 2D game-world pass
+3. Skybox/background
+4. Transparent world pass
+5. Post-processing
+6. `GameHUD` pass using `NikreonUI`
+7. Present
+
+Editor:
+
+1. Render the scene into the viewport render target using the editor camera or game camera depending on viewport mode.
+2. Render `GameHUD` into the viewport target only in `Play` or `HudEdit`. Exported runtime uses its own game render path.
+3. Draw the viewport texture inside the editor viewport panel.
+4. Render editor debug overlays/gizmos if needed.
+5. Render `EditorUI` using `NikreonUI`.
+6. Present.
+
+`GameHUD` normally renders after post-processing so text, crosshairs, menus, and health bars are not blurred by bloom, depth of field, or tone mapping artifacts.
+
+## UI Layers, Surfaces, and Viewport Modes
+
+`NikreonUI` is a reusable UI system, not a game-world renderer. Both editor and game composition layers use it:
+
+- `EditorUI`: toolbar, hierarchy, inspector, console, asset browser, and editor viewport frame.
+- `GameHUD`: health bar, ammo, crosshair, inventory, pause menu, dialogue UI, minimap, and game settings.
+
+`GameHUD` visibility is mode-specific:
+
+- Show it in `Play` mode.
+- Show it in the exported/runtime game.
+- Show it in the dedicated `HudEdit` mode.
+- Hide it by default in normal `Edit` mode.
+- Keep it normally hidden in `Simulate` mode unless the user explicitly previews it.
+
+Viewport modes:
+
+- `Edit`: use the editor/debug fly camera, show editor gizmos, and hide `GameHUD` by default.
+- `Play`: use the scene primary game camera, route input to the game and `GameHUD`, and render `GameHUD`.
+- `Simulate`: run simulation while keeping the editor camera; normally hide `GameHUD` unless previewed.
+- `HudEdit`: show `GameHUD` for editing without full `Play` mode, with anchors, safe areas, and layout guides.
+
+`GameHUD` renders in game viewport-local coordinates through a UI surface:
+
+```cpp
+struct UISurface {
+    glm::vec2 origin;
+    glm::vec2 size;
+    float scale;
+};
+```
+
+For `GameHUD`, `{0, 0}` is the top-left of the game viewport or render target. In editor `Play` and `HudEdit` modes, `GameHUD` renders into the editor viewport render target. In exported game mode, it renders into the game window/swapchain. The same `GameHUD` code should work in both cases.
 
 ## Target Module Layout
 
@@ -75,9 +123,8 @@ Engine/
     Renderer
     RenderGraph or RenderPipeline
     Renderer3D
-    Renderer2D
-    TextRenderer
-    UIRenderer
+    Renderer2DWorld
+    NikreonUIAdapter
     DebugRenderer
     ShadowRenderer
     SkyboxRenderer
@@ -123,6 +170,8 @@ Engine/
     Gizmos
     Picking
     Selection
+  Game/
+    GameHUD
 ```
 
 ## Phase 0: Project Bootstrap
@@ -217,7 +266,8 @@ Goal: build the first engine-native rendering path for editor UI primitives.
 
 Scope:
 
-- This is not the full game/UI renderer yet.
+- This completed phase is the historical foundation for GPU-rendered UI primitives.
+- It is not the engine 2D world renderer for sprites, tilemaps, particles, or 2D cameras.
 - Start with the smallest useful Vulkan 2D pipeline.
 - Colored quads are enough for the first build gate.
 - Textured quads, batching limits, atlases, and text come next.
@@ -255,14 +305,14 @@ Completed note:
 
 Status: in progress.
 
-Goal: create reusable native UI controls first, using the engine's own 2D/UI renderer.
+Goal: create reusable native UI controls first, using the engine's own GPU-rendered UI path.
 
 Important:
 
 - This is the first real UI users can play with.
-- Keep UI logic separate from `Renderer2D`.
-- `Renderer2D` draws primitives only; widgets should not know Vulkan.
-- `Engine/UI` owns reusable UI primitives that will later move with text rendering into a separate `NikreonUI` GitHub project.
+- Keep UI logic separate from low-level primitive rendering.
+- Low-level primitive rendering draws efficiently; widgets should not know Vulkan.
+- During the initial implementation, `Engine/UI` owns reusable UI primitives that move with text rendering into the separate `NikreonUI` GitHub project.
 - `EditorUI` handles editor layout/composition and editor-specific panels.
 - Prefer a small retained widget model for editor UI instead of piling everything into immediate-mode helper calls.
 
@@ -350,7 +400,7 @@ Next UI foundation tasks:
 
 - Add richer selection gestures such as double-click word selection.
 - Do not implement full browser CSS: no cascade complexity, media queries, full selector engine, or DOM model.
-- Keep `Engine/UI` and text APIs independent from Vulkan so they can be extracted into a reusable `NikreonUI` GitHub project.
+- Keep the extracted `NikreonUI` widget and text APIs independent from Vulkan-facing engine ownership.
 
 ## Phase 5: Text Rendering
 
@@ -415,8 +465,11 @@ Important:
 
 - Create a separate `NikreonUI` GitHub repository with its own CMake library target.
 - Move reusable widgets, layouts, style parsing, text layout, font-atlas ownership, and shared UI assets/shaders into `NikreonUI`.
+- Use `NikreonUI` for `EditorUI`, `GameHUD`, game menus, pause menus, inventory UI, dialogue boxes, buttons, sliders, text inputs, panels, layouts, text, styles, progress bars, icons, crosshairs, and nine-slice panels.
+- Keep `NikreonUI` focused on UI surfaces. It must not become the engine's sprite, tilemap, particle, parallax, sprite-animation, or 2D camera renderer.
 - Keep editor-specific composition such as hierarchy, inspector, console, and viewport panels inside `NikreonEngine`.
-- Keep Vulkan-specific engine ownership behind a narrow rendering adapter. `NikreonUI` should submit styled boxes, clipped regions, sprites, and glyph quads without owning the engine swapchain or frame lifecycle.
+- Keep game-specific HUD composition such as health, ammo, crosshair, inventory, minimap, pause menu, dialogue UI, and game settings inside the game layer.
+- Keep Vulkan-specific engine ownership behind a narrow rendering adapter. `NikreonUI` should submit styled boxes, clipped regions, UI images/icons, and glyph quads without owning the engine swapchain or frame lifecycle.
 - Pin the dependency revision from `NikreonEngine` so UI updates are intentional and reproducible.
 - Do this extraction after basic text rendering works and before finishing the remaining UI polish tasks, avoiding churn while the first font-atlas path is still taking shape.
 
@@ -446,7 +499,7 @@ Remaining extraction tasks:
 
 ## Phase 6: Editor Viewport Integration
 
-Goal: make the editor viewport panel the place where the engine will render the game/editor scene.
+Goal: make the editor viewport panel the place where the engine renders the game/editor scene and establish viewport modes before complex renderer work.
 
 Tasks:
 
@@ -457,12 +510,27 @@ Tasks:
 - Add editor camera placeholder controls.
 - Prepare picking coordinates from viewport-local mouse position.
 - Keep menu/panels independent from viewport rendering.
+- Add explicit `Edit`, `Play`, `Simulate`, and `HudEdit` viewport modes.
+- In `Edit`, use the editor/debug fly camera, show editor gizmos, and hide `GameHUD` by default.
+- In `Play`, use the scene primary game camera, route input to the game and `GameHUD`, and render `GameHUD`.
+- In `Simulate`, run simulation with the editor camera and normally hide `GameHUD` unless previewed.
+- In `HudEdit`, render `GameHUD` without full `Play` mode and show anchors, safe areas, and layout guides.
 
 Build gate:
 
 - Main editor window has UI panels plus a working viewport panel.
 - Viewport resizes without breaking the swapchain/render target.
 - Editor UI remains interactive while the viewport updates.
+- Viewport mode state exists before complex 2D or 3D renderer work depends on it.
+- Normal `Edit` mode does not show `GameHUD`.
+
+Completed note:
+
+- Added an engine-owned Vulkan viewport render target that resizes to the editor viewport panel and clears to a mode-specific test color before copying into the panel.
+- Added viewport-local mouse, hover, focus, and picking-coordinate tracking without coupling editor panels to Vulkan ownership.
+- Added explicit `Edit`, `Play`, `Simulate`, and `HudEdit` modes plus focused-only placeholder editor fly-camera movement for `Edit` and `Simulate`.
+- Added focused non-GPU tests for viewport interaction, picking coordinates, modes, and camera-input gating.
+- Deferred game-world 2D, 3D, materials, real cameras, `GameHUD`, and scene picking to their later phases.
 
 ## Phase 7: Clean Render Architecture
 
@@ -471,54 +539,52 @@ Goal: introduce the architecture and render pass order without breaking existing
 Tasks:
 
 - Add or prepare the main renderer orchestration layer.
-- Add empty or minimal modules for `Renderer3D`, `Renderer2D`, `TextRenderer`, `UIRenderer`, `DebugRenderer`, `ShadowRenderer`, `SkyboxRenderer`, and `PostProcessRenderer`.
+- Add empty or minimal modules for `Renderer3D`, `Renderer2DWorld`, the `NikreonUI` rendering adapter, `DebugRenderer`, `ShadowRenderer`, `SkyboxRenderer`, and `PostProcessRenderer`.
 - Define a frame render sequence matching the target render order.
 - Add clear interfaces for per-frame begin/end, resize, resource cleanup, and command buffer recording.
-- Prepare placeholders for screen-space UI, world-space UI, billboards, editor overlays, and debug labels.
+- Prepare separate placeholders for `EditorUI`, viewport-local `GameHUD`, engine 2D world rendering, world-space UI/billboards, editor overlays, and debug labels.
 
 Build gate:
 
 - Existing editor UI and viewport placeholder still render.
 - New modules compile even if most are placeholders.
 - No Vulkan resources are leaked or recreated per frame unnecessarily.
+- The architecture does not route game-world sprites, tilemaps, or particles through `NikreonUI`.
 
-## Phase 8: Full Renderer2D, Sprites, and Quads
+## Phase 8: Engine 2D World Renderer, Sprites, and Tilemaps
 
-Goal: expand the minimal 2D renderer into a real batched GPU 2D renderer.
+Goal: add a dedicated batched GPU renderer for 2D game-world content. This is not the HUD/menu renderer.
 
 Current note:
 
-- Renderer2D already has colored quads and an SDF styled-rectangle path.
-- SDF rectangles are drawn efficiently with instancing: one static quad vertex buffer and one per-rectangle instance buffer.
-- The remaining large missing piece for UI/HUD is textured quads/sprites, which unlocks icons, image buttons, font atlases, thumbnails, and game sprites.
+- The completed early `Renderer2D` work established reusable GPU primitive techniques for UI.
+- `NikreonUI` owns UI concerns such as styled rectangles, clipping, icons, text, panels, and HUD widgets.
+- The engine still needs a separate 2D world renderer for scene content.
 
 Required features:
 
-- Batched colored quads
-- Batched textured quads
-- Batched SDF styled rectangles
-- Sprites and sprite sheets
-- Texture atlas support
-- UV coordinates
-- Rotation, scaling, tint color, opacity
+- Batched 2D game-world sprites
+- Sprite sheets and texture atlases
+- Tilemaps
+- Particles
+- Parallax layers
+- Sprite animations
+- Rotation, scaling, tint color, opacity, and UV coordinates
 - Z/layer sorting
-- Orthographic projection
-- Screen-space coordinates
-- Line rendering
-- Rectangle outlines and filled rectangles
-- Simple circles if practical
-- Scissor/clipping rectangles for UI panels
+- 2D camera and world transforms
+- Orthographic world projection
+- 2D debug drawing
+- World-space lines, rectangle outlines, filled rectangles, and simple circles if practical
 
 Suggested API:
 
 ```cpp
-renderer2D.begin(projection);
-renderer2D.drawQuad(position, size, color);
-renderer2D.drawSprite(texture, position, size, uv, tint);
-renderer2D.drawRotatedSprite(texture, position, size, rotation, uv, tint);
-renderer2D.drawLine(start, end, color, thickness);
-renderer2D.drawRect(position, size, color);
-renderer2D.end();
+renderer2DWorld.begin(camera);
+renderer2DWorld.drawSprite(texture, transform, uv, tint);
+renderer2DWorld.drawTilemap(tilemap, transform);
+renderer2DWorld.drawParticles(particleSystem);
+renderer2DWorld.drawDebugLine(start, end, color, thickness);
+renderer2DWorld.end();
 ```
 
 Implementation notes:
@@ -531,6 +597,7 @@ Implementation notes:
 - Group by texture where reasonable.
 - Use alpha blending.
 - Do not issue one draw call per sprite.
+- Do not add HUD widget state, menu layout, text-input behavior, or editor panel composition to the engine 2D world renderer.
 
 Core vertex:
 
@@ -546,15 +613,15 @@ struct QuadVertex {
 
 Build gate:
 
-- Colored quads render.
-- SDF rounded rectangles render with border radius and border width.
-- Textured sprites render.
-- Many sprites render in batches.
-- Resize and orthographic projection work correctly.
+- Many game-world sprites render in batches.
+- A tilemap renders through the engine 2D world renderer.
+- Particle and parallax paths exist or are cleanly prepared.
+- Sprite animation and 2D camera/world transform paths exist or are cleanly prepared.
+- 2D debug drawing works without using `NikreonUI`.
 
-## Phase 9: Game UI and HUD Layer
+## Phase 9: Game HUD and Menu Layer Using NikreonUI
 
-Goal: reuse and harden the engine-native UI stack for in-game HUD and menus.
+Goal: compose in-game HUD and menus with `NikreonUI`. Do not create a separate HUD renderer.
 
 Required widgets:
 
@@ -565,6 +632,7 @@ Required widgets:
 - Health/progress bars
 - Inventory slots
 - Crosshair
+- Nine-slice panels
 - Minimap placeholder
 - Sliders
 - Checkboxes
@@ -575,8 +643,29 @@ Required widgets:
 
 Important separation:
 
-- UI layout, input, and state live in `UIRenderer` or a UI system.
-- `Renderer2D` only draws primitives efficiently.
+- `EditorUI` and `GameHUD` are separate composition layers that both use `NikreonUI`.
+- `EditorUI` owns toolbar, hierarchy, inspector, console, asset browser, and editor viewport frame.
+- `GameHUD` owns health bar, ammo, crosshair, inventory, pause menu, dialogue UI, minimap, and game settings.
+- `GameHUD` appears in `Play`, exported/runtime game, and dedicated `HudEdit` mode.
+- Normal `Edit` mode hides `GameHUD` by default.
+- `Simulate` normally hides `GameHUD` unless the user explicitly previews it.
+- `NikreonUI` handles UI layout, input, state, styles, text, icons, and widgets.
+- The engine 2D world renderer remains responsible for sprites, tilemaps, particles, parallax, sprite animations, 2D cameras, and 2D debug drawing.
+
+Viewport-local surface:
+
+```cpp
+struct UISurface {
+    glm::vec2 origin;
+    glm::vec2 size;
+    float scale;
+};
+```
+
+- For `GameHUD`, `{0, 0}` means the top-left of the game viewport/render target.
+- In editor `Play` and `HudEdit`, render `GameHUD` into the editor viewport render target.
+- In exported game mode, render `GameHUD` into the game window/swapchain.
+- Keep the same `GameHUD` code in both cases by changing the `UISurface`, not the widget composition.
 
 Suggested API:
 
@@ -591,9 +680,10 @@ ui.end();
 
 Build gate:
 
-- HUD renders after 3D/post-process.
+- `GameHUD` renders after world rendering and post-processing through `NikreonUI`.
 - Basic interactive button state works.
-- Crosshair, health bar, and text are drawn with engine-native UI.
+- Crosshair, health bar, and text are drawn with `NikreonUI`.
+- `GameHUD` appears in `Play` and `HudEdit`, remains hidden by default in `Edit`, and uses the same viewport-local layout in the exported/runtime game.
 
 ## Phase 10: Debug Renderer, Editor Overlays, and Gizmo Prep
 
@@ -770,7 +860,7 @@ Build gate:
 
 ## Phase 16: Post-Processing
 
-Goal: render the 3D world to an offscreen framebuffer before HUD/UI.
+Goal: render the 3D and/or 2D game world to an offscreen framebuffer before `GameHUD`.
 
 Required features:
 
@@ -791,7 +881,7 @@ Prepare for:
 Build gate:
 
 - 3D world renders through post-process.
-- HUD/UI renders after post-process.
+- `GameHUD` renders through `NikreonUI` after post-process.
 - Resize recreates offscreen resources safely.
 
 ## Phase 17: Scene, Entity, and Component Cleanup
@@ -1019,7 +1109,7 @@ Scene files should store:
 - Audio sources
 - Physics components
 - Script references
-- UI/HUD objects later
+- `GameHUD` layout and menu references later
 
 Do not store large binary model data directly in scene JSON unless there is a specific asset-pipeline reason.
 
@@ -1130,8 +1220,8 @@ Needed shaders:
 - PBR mesh shader
 - Unlit/flat mesh shader
 - Custom material shader variants
-- Sprite/quad shader
-- Text shader
+- Engine 2D world sprite/quad shader
+- `NikreonUI` UI image/icon and text shaders
 - Debug line shader
 - Skybox shader
 - Shadow depth shader
@@ -1149,7 +1239,7 @@ PBR shader inputs:
 - Emissive
 - Alpha
 
-Sprite shader inputs:
+Engine 2D world sprite shader inputs:
 
 - Texture
 - UV
@@ -1157,7 +1247,7 @@ Sprite shader inputs:
 - Opacity
 - Alpha blending
 
-Text shader inputs:
+`NikreonUI` text shader inputs:
 
 - Font atlas
 - Color
@@ -1188,12 +1278,19 @@ Renderer:
 - Sort by pipeline/material/texture when useful.
 - Keep CPU/GPU synchronization safe.
 
-2D:
+`NikreonUI`:
 
-- Batch quads, sprites, and text.
+- Batch UI boxes, UI images/icons, and text.
+- Keep `EditorUI` and `GameHUD` composition separate while sharing the UI library.
+- Use viewport-local `UISurface` data for `GameHUD`.
+
+Engine 2D world renderer:
+
+- Batch sprites, tilemaps, and particles.
 - Use atlas textures where possible.
 - Use one index-buffer pattern for quads.
 - Use dynamic vertex buffers or a ring buffer.
+- Keep 2D camera/world transforms separate from UI-surface coordinates.
 
 3D:
 
@@ -1215,9 +1312,14 @@ The upgraded engine should be able to:
 - Render directional, point, and spot lights.
 - Render at least directional-light shadows.
 - Render a skybox.
-- Render 2D sprites/quads after the 3D scene.
+- Render 2D game-world sprites and tilemaps through the engine 2D world renderer.
 - Render text using a font atlas.
-- Render HUD elements like health bar, crosshair, and ammo text.
+- Render `EditorUI` through `NikreonUI`.
+- Render `GameHUD` and menus through `NikreonUI`, without a separate HUD renderer.
+- Render HUD elements such as health bar, crosshair, ammo text, inventory, pause menu, and dialogue UI.
+- Show `GameHUD` in `Play`, exported/runtime game, and `HudEdit`, while hiding it by default in normal `Edit`.
+- Provide `Edit`, `Play`, `Simulate`, and `HudEdit` viewport modes before complex renderer work depends on them.
+- Keep `GameHUD` viewport-local so the same layout code renders into an editor viewport target or the exported game window/swapchain.
 - Render debug lines and bounding boxes.
 - Prepare editor gizmos.
 - Prepare object picking and raycasting.
@@ -1236,11 +1338,11 @@ The upgraded engine should be able to:
 5. Add engine-native UI foundation: layer stack, retained widgets, callbacks, style structs, style classes, per-widget overrides, SDF styled boxes, toolbar, hierarchy, inspector, console, viewport placeholder.
 6. Add `TextRenderer` with font atlas so editor UI has real labels and input text.
 7. Extract reusable UI and text code into the standalone `NikreonUI` GitHub project with a pinned CMake dependency.
-8. Finish UI foundation: labels, text input, scrollable clipped panels, and responsive panel collapse/hide rules.
-9. Add textured Renderer2D/sprite support for icons, image buttons, thumbnails, font atlases, and game sprites.
-10. Add editor viewport integration inside the native UI layout.
-11. Add clean renderer architecture and render pass order.
-12. Reuse/harden the UI stack for in-game HUD and menus.
+8. Finish `NikreonUI` foundation: labels, text input, scrollable clipped panels, responsive panel collapse/hide rules, UI images/icons, and nine-slice panels.
+9. Add editor viewport integration and explicit `Edit`, `Play`, `Simulate`, and `HudEdit` modes before complex renderer work.
+10. Add clean renderer architecture and separate `NikreonUI`, engine 2D world, 3D world, debug, and post-process responsibilities.
+11. Add the engine 2D world renderer for sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing.
+12. Compose `GameHUD` and menus through `NikreonUI` with viewport-local `UISurface` rendering. Do not create a separate HUD renderer.
 13. Add DebugRenderer for lines, boxes, and labels.
 14. Add ResourceManager foundation before complex asset loading.
 15. Upgrade model loading for GLB/glTF multiple meshes/materials.
@@ -1270,10 +1372,10 @@ Update this section as work progresses.
 [x] Phase 3  - Minimal Renderer2D foundation
 [ ] Phase 4  - Engine-native UI foundation/editor shell
 [~] Phase 5  - Text rendering
-[ ] Phase 6  - Editor viewport integration
+[x] Phase 6  - Editor viewport integration
 [ ] Phase 7  - Clean render architecture
-[ ] Phase 8  - Full Renderer2D batching/sprites
-[ ] Phase 9  - Game UI/HUD system
+[ ] Phase 8  - Engine 2D world renderer, sprites, and tilemaps
+[ ] Phase 9  - Game HUD and menu layer using NikreonUI
 [ ] Phase 10 - Debug renderer
 [ ] Phase 11 - Resource management foundation
 [ ] Phase 12 - GLB/glTF model loading

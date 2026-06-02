@@ -4,6 +4,7 @@
 
 #include <glm/vec2.hpp>
 
+#include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/Renderer/Vulkan/VulkanContext.hpp"
 
 namespace Engine {
@@ -30,6 +31,7 @@ public:
     [[nodiscard]] Renderer2D& renderer2D();
     [[nodiscard]] TextRenderer& textRenderer();
     [[nodiscard]] glm::uvec2 viewportSize() const;
+    void setEditorViewport(const EditorViewportPresentation& presentation, EditorViewportMode mode);
 
 private:
     void createBackendRenderers();
