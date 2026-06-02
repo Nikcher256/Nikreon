@@ -340,7 +340,12 @@ void EditorUI::layoutWidgets(const float width, const float height)
     inspectorLayout.setPadding({18.0f, 42.0f, 18.0f, 0.0f});
     const float scrollOffset = m_inspectorScroll.offset();
     inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, -scrollOffset}, {22.0f, 22.0f}));
-    inspectorLayout.add(m_clearColorPicker, UIAnchors::horizontalStretch(54.0f - scrollOffset, 28.0f));
+    inspectorLayout.add(
+    m_clearColorPicker,
+    UIAnchors::fixed(
+        {0.0f, 0.0f},
+        {0.0f, 54.0f - scrollOffset},
+        {30.0f, 30.0f}));
     inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(148.0f - scrollOffset, 24.0f));
     inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(214.0f - scrollOffset, 28.0f));
     const float coordinateGap = 6.0f;
