@@ -44,7 +44,7 @@ private:
     void layoutWidgets(float width, float height);
     void updatePanelSplitters(float width, float height);
     void updateWidgets(TextRenderer& textRenderer);
-    void renderWidgets(Renderer2D& renderer2D);
+    void renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer);
     void renderPanelSplitters(Renderer2D& renderer2D);
     void renderLabels(TextRenderer& textRenderer);
     void drawStyledText(
@@ -53,12 +53,19 @@ private:
         const UIRect& bounds,
         std::string_view styleClass,
         std::string_view id = {});
-    void drawTextInputValue(TextRenderer& textRenderer, const TextInput& input, const UIBoxStyle& boxStyle);
     void drawPanel(Renderer2D& renderer2D, const UIRect& bounds);
     void drawToolbarIcon(Renderer2D& renderer2D, const glm::vec2& position, const glm::vec2& size, ToolbarIcon icon, bool selected);
     void drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds);
 
     UIStyle m_style;
+    struct EditorStyle {
+        glm::vec4 toolbarFill{0.10f, 0.11f, 0.14f, 1.0f};
+        glm::vec4 viewportGrid{0.10f, 0.13f, 0.17f, 0.8f};
+        glm::vec4 viewportBorder{0.25f, 0.32f, 0.42f, 1.0f};
+        glm::vec4 viewportFocusedBorder{0.32f, 0.58f, 0.88f, 1.0f};
+        float toolbarHeightMin{42.0f};
+        float toolbarHeightMax{52.0f};
+    } m_editorStyle;
     UIContext m_context;
     Button m_playButton;
     Button m_pauseButton;

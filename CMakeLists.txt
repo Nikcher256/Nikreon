@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.24)
 
 project(NikreonEngine LANGUAGES CXX)
 
+enable_testing()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -59,7 +61,7 @@ target_link_libraries(NikreonEngine PRIVATE
     EnTT::EnTT
     spdlog::spdlog
     nlohmann_json::nlohmann_json
-    NikreonUI::NikreonUI
+    NikreonUI::Vulkan
 )
 
 if(TARGET volk::volk)

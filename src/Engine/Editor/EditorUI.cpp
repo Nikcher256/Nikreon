@@ -4,6 +4,7 @@
 #include "Engine/Renderer/Renderer2D.hpp"
 #include "Engine/Renderer/TextRenderer.hpp"
 #include "Engine/UI/UIStyleParser.hpp"
+#include "Engine/UI/UIFrame.hpp"
 
 #include <algorithm>
 #include <array>
@@ -170,7 +171,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     updateWidgets(textRenderer);
 
     renderer2D.drawQuad({0.0f, 0.0f}, {width, height}, m_style.windowBackground);
-    renderer2D.drawQuad({0.0f, 0.0f}, {width, m_toolbarHeight}, m_style.toolbar.fill);
+    renderer2D.drawQuad({0.0f, 0.0f}, {width, m_toolbarHeight}, m_editorStyle.toolbarFill);
 
     if (m_hierarchyVisible) {
         drawPanel(renderer2D, m_hierarchyBounds);
@@ -198,10 +199,10 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
         drawViewportGrid(renderer2D, m_viewportBounds);
     }
 
-    const glm::vec4 viewportBorder = m_viewportFocused ? m_style.viewportFocusedBorder : m_style.viewportBorder;
+    const glm::vec4 viewportBorder = m_viewportFocused ? m_editorStyle.viewportFocusedBorder : m_editorStyle.viewportBorder;
     renderer2D.drawRect(m_viewportBounds.position, m_viewportBounds.size, viewportBorder, 2.0f);
 
-    renderWidgets(renderer2D);
+    renderWidgets(renderer2D, textRenderer);
     renderPanelSplitters(renderer2D);
 
     if (m_inspectorVisible) {
@@ -218,7 +219,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
                 m_style.field.border,
                 m_style.field.borderWidth);
         }
-        m_inspectorScroll.renderScrollbar(renderer2D);
+        m_inspectorScroll.renderScrollbar(renderer2D, m_style);
         m_inspectorScroll.popClip(renderer2D);
     }
 
@@ -230,7 +231,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
 void EditorUI::layoutWidgets(const float width, const float height)
 {
     const float gap = m_style.gap;
-    m_toolbarHeight = std::clamp(height * 0.07f, m_style.toolbarHeightMin, m_style.toolbarHeightMax);
+    m_toolbarHeight = std::clamp(height * 0.07f, m_editorStyle.toolbarHeightMin, m_editorStyle.toolbarHeightMax);
     m_hierarchyVisible = !m_hierarchyCollapsed && width >= 760.0f;
     m_inspectorVisible = !m_inspectorCollapsed && width >= 620.0f;
     m_consoleVisible = !m_consoleCollapsed && height >= 460.0f;
@@ -302,7 +303,7 @@ void EditorUI::layoutWidgets(const float width, const float height)
     inspectorLayout.layout();
     m_inspectorScroll.setBounds({
         {m_inspectorBounds.position.x + 12.0f, m_inspectorBounds.position.y + 36.0f},
-        {std::max(m_inspectorBounds.size.x - 24.0f, 0.0f), std::max(m_inspectorBounds.size.y - 48.0f, 0.0f)},
+        {std::max(m_inspectorBounds.size.x - 20.0f, 0.0f), std::max(m_inspectorBounds.size.y - 48.0f, 0.0f)},
     });
     m_inspectorScroll.setContentHeight(508.0f);
 
@@ -384,8 +385,9 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
 }
 
 // Renders every retained widget and any editor-specific icon overlays.
-void EditorUI::renderWidgets(Renderer2D& renderer2D)
+void EditorUI::renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer)
 {
+    UIFrame frame{m_context, renderer2D, textRenderer, m_style};
     m_playButton.render(renderer2D, m_style);
     drawToolbarIcon(renderer2D, m_playButton.position(), m_playButton.size(), ToolbarIcon::Play, m_playButton.selected());
     m_pauseButton.render(renderer2D, m_style);
@@ -403,12 +405,12 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D)
     if (m_inspectorVisible) {
         m_inspectorScroll.pushClip(renderer2D);
         m_gridCheckbox.render(renderer2D, m_style);
-        m_exposureSlider.render(renderer2D, m_style);
-        m_lightIntensityInput.render(renderer2D, m_style);
-        m_positionXInput.render(renderer2D, m_style);
-        m_positionYInput.render(renderer2D, m_style);
-        m_positionZInput.render(renderer2D, m_style);
-        m_objectNameInput.render(renderer2D, m_style);
+        m_exposureSlider.render(frame);
+        m_lightIntensityInput.render(frame);
+        m_positionXInput.render(frame);
+        m_positionYInput.render(frame);
+        m_positionZInput.render(frame);
+        m_objectNameInput.render(frame);
         m_inspectorScroll.popClip(renderer2D);
     }
 }
@@ -472,36 +474,23 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             "Exposure",
             {{m_exposureSlider.position().x, m_exposureSlider.position().y - 22.0f}, {m_exposureSlider.size().x, 18.0f}},
             "control-label");
-        if (m_exposureSlider.editing()) {
-            drawTextInputValue(textRenderer, m_exposureSlider.textEditor(), m_style.resolveSlider(m_exposureSlider.styleClass(), m_exposureSlider.id()).track);
-        } else {
-            drawStyledText(textRenderer, m_exposureSlider.formattedValue(), {m_exposureSlider.position(), m_exposureSlider.size()}, "control-value");
-        }
         drawStyledText(
             textRenderer,
             "Light Intensity",
             {{m_lightIntensityInput.position().x, m_lightIntensityInput.position().y - 22.0f}, {m_lightIntensityInput.size().x, 18.0f}},
             "control-label");
-        if (m_lightIntensityInput.editing()) {
-            drawTextInputValue(textRenderer, m_lightIntensityInput.textEditor(), m_style.resolveNumberInput(m_lightIntensityInput.styleClass(), m_lightIntensityInput.id()).box);
-        } else {
-            drawStyledText(textRenderer, m_lightIntensityInput.formattedValue(), {m_lightIntensityInput.position(), m_lightIntensityInput.size()}, "control-value");
-        }
         drawStyledText(
             textRenderer,
             "Position",
             {{m_positionXInput.position().x, m_positionXInput.position().y - 22.0f}, {m_positionZInput.position().x + m_positionZInput.size().x - m_positionXInput.position().x, 18.0f}},
             "control-label");
         const auto drawCoordinateInput = [this, &textRenderer](const char axis, const NumberInput& input) {
-            drawStyledText(
+            if (!input.editing()) {
+                drawStyledText(
                 textRenderer,
                 std::string_view{&axis, 1},
                 {{input.position().x + 6.0f, input.position().y}, {12.0f, input.size().y}},
                 "coordinate-axis");
-            if (input.editing()) {
-                drawTextInputValue(textRenderer, input.textEditor(), m_style.resolveNumberInput(input.styleClass(), input.id()).box);
-            } else {
-                drawStyledText(textRenderer, input.formattedValue(), {input.position(), input.size()}, "coordinate-value");
             }
         };
         drawCoordinateInput('X', m_positionXInput);
@@ -521,7 +510,6 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             "Object Name",
             {{m_objectNameInput.position().x, m_objectNameInput.position().y - 22.0f}, {m_objectNameInput.size().x, 18.0f}},
             "control-label");
-        drawTextInputValue(textRenderer, m_objectNameInput, m_style.resolveTextInput(m_objectNameInput.styleClass(), m_objectNameInput.id()).box);
         m_inspectorScroll.popClip(textRenderer);
     }
     if (m_consoleVisible) {
@@ -531,56 +519,6 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             {m_consoleBounds.position + glm::vec2{16.0f, 34.0f}, {m_consoleBounds.size.x - 32.0f, 18.0f}},
             "muted");
     }
-}
-
-void EditorUI::drawTextInputValue(TextRenderer& textRenderer, const TextInput& input, const UIBoxStyle& boxStyle)
-{
-    const UIClipRect clipRect{
-        input.position() + glm::vec2{boxStyle.padding.x, 2.0f},
-        {
-            std::max(input.size().x - boxStyle.padding.x * 2.0f, 0.0f),
-            std::max(input.size().y - 6.0f, 0.0f),
-        },
-    };
-    const float textX = input.position().x + boxStyle.padding.x - input.horizontalScrollOffset();
-    const std::string_view text = input.value().empty()
-        ? std::string_view{input.placeholder()}
-        : std::string_view{input.value()};
-    textRenderer.pushClipRect(clipRect);
-    drawStyledText(
-        textRenderer,
-        text,
-        {{textX, input.position().y}, {input.size().x, input.size().y}},
-        input.value().empty() ? "input-placeholder" : "input-value");
-    textRenderer.popClipRect();
-    if (!input.focused()) {
-        return;
-    }
-
-    if (input.hasSelection()) {
-        const std::string_view selectedPrefix{input.value().data(), input.selectionStart()};
-        const std::string_view selectedText{
-            input.value().data() + input.selectionStart(),
-            input.selectionEnd() - input.selectionStart(),
-        };
-        const float selectionX = textX + textRenderer.measureText(selectedPrefix, "default", 0.86f).x;
-        const float selectionWidth = textRenderer.measureText(selectedText, "default", 0.86f).x;
-        textRenderer.pushClipRect(clipRect);
-        textRenderer.drawSolidRect(
-            {selectionX, input.position().y + 4.0f},
-            {selectionWidth, input.size().y - 8.0f},
-            {0.30f, 0.58f, 0.96f, 0.58f});
-        textRenderer.popClipRect();
-    }
-
-    const std::string_view prefix{input.value().data(), input.caretIndex()};
-    const float caretX = textX + textRenderer.measureText(prefix, "default", 0.86f).x;
-    textRenderer.pushClipRect(clipRect);
-    textRenderer.drawSolidRect(
-        {caretX, input.position().y + 5.0f},
-        {1.0f, input.size().y - 10.0f},
-        {0.92f, 0.98f, 1.0f, 1.0f});
-    textRenderer.popClipRect();
 }
 
 // Positions measured text inside a rectangle using the selected stylesheet class.
@@ -657,11 +595,11 @@ void EditorUI::drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds)
     constexpr float spacing = 40.0f;
 
     for (float x = bounds.position.x + spacing; x < bounds.position.x + bounds.size.x; x += spacing) {
-        renderer2D.drawQuad({x, bounds.position.y}, {1.0f, bounds.size.y}, m_style.viewportGrid);
+        renderer2D.drawQuad({x, bounds.position.y}, {1.0f, bounds.size.y}, m_editorStyle.viewportGrid);
     }
 
     for (float y = bounds.position.y + spacing; y < bounds.position.y + bounds.size.y; y += spacing) {
-        renderer2D.drawQuad({bounds.position.x, y}, {bounds.size.x, 1.0f}, m_style.viewportGrid);
+        renderer2D.drawQuad({bounds.position.x, y}, {bounds.size.x, 1.0f}, m_editorStyle.viewportGrid);
     }
 }
 

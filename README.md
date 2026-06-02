@@ -4,6 +4,11 @@ Nikreon Engine is a C++20 Vulkan game engine project. The current repository is 
 
 The long-term direction is documented in `ENGINE_UPGRADE_PLAN.md`: modern 3D rendering for Blender GLB/glTF assets, batched 2D rendering, text, UI/HUD, debug overlays, materials, lighting, shadows, physics, audio, scripting, and editor tooling.
 
+The `external/NikreonUI` submodule is split into reusable `NikreonUI::Core` and
+optional `NikreonUI::Vulkan` targets. Its surface-local `UIFrame` API is shared
+by editor UI and game HUD code without pulling editor configuration into the
+library. See `external/NikreonUI/README.md` for sample usage.
+
 ## Current Stack
 
 - C++20
