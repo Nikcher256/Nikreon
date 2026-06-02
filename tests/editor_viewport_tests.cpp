@@ -7,9 +7,10 @@ using namespace Engine;
 int main()
 {
     EditorViewport viewport;
-    const EditorViewportPresentation panel{{100.0f, 50.0f}, {320.0f, 180.0f}};
+    const EditorViewportPresentation panel{{100.0f, 50.0f}, {320.0f, 180.0f}, {0.2f, 0.4f, 0.6f, 1.0f}};
 
     viewport.updateInteraction(panel, {140.0f, 90.0f}, true);
+    assert(viewport.presentation().clearColor == glm::vec4(0.2f, 0.4f, 0.6f, 1.0f));
     assert(viewport.hovered());
     assert(viewport.focused());
     assert(viewport.localMousePosition() == glm::vec2(40.0f, 40.0f));

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <glm/vec2.hpp>
+#include <glm/vec4.hpp>
 #include <volk.h>
 
 namespace Engine {
@@ -130,6 +131,7 @@ private:
     std::unique_ptr<VulkanViewportRenderTarget> m_viewportRenderTarget;
     glm::vec2 m_editorViewportPosition{0.0f, 0.0f};
     glm::vec2 m_editorViewportSize{1.0f, 1.0f};
+    glm::vec4 m_editorViewportClearColor{0.055f, 0.085f, 0.14f, 1.0f};
     EditorViewportMode m_editorViewportMode;
     std::uint32_t m_currentFrame{0};
 };

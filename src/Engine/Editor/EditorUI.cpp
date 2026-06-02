@@ -64,6 +64,7 @@ EditorUI::EditorUI()
     , m_simulateModeButton("toolbar.mode.simulate")
     , m_hudEditModeButton("toolbar.mode.hudEdit")
     , m_gridCheckbox("inspector.showGrid", true)
+    , m_clearColorPicker("inspector.clearColor", m_viewportClearColor)
     , m_exposureSlider("inspector.exposure", 0.65f, 0.0f, 1.0f)
     , m_lightIntensityInput("inspector.lightIntensity", 4.0f, 0.0f, 100.0f)
     , m_positionXInput("inspector.position.x", 12.5f, -100.0f, 100.0f)
@@ -101,6 +102,9 @@ EditorUI::EditorUI()
     m_gridCheckbox.setOnValueChanged([this](const bool enabled) {
         m_showGrid = enabled;
         spdlog::info("Editor UI: Viewport grid {}.", m_showGrid ? "enabled" : "disabled");
+    });
+    m_clearColorPicker.setOnColorChanged([this](const glm::vec4& color) {
+        m_viewportClearColor = color;
     });
 
     m_exposureSlider.setOnValueChanged([this](const float value) {
@@ -209,7 +213,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     }
 
     m_viewport.updateInteraction(
-        {m_viewportBounds.position, m_viewportBounds.size},
+        {m_viewportBounds.position, m_viewportBounds.size, m_viewportClearColor},
         input.mousePosition(),
         input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT));
 
@@ -331,22 +335,24 @@ void EditorUI::layoutWidgets(const float width, const float height)
     inspectorLayout.setPadding({18.0f, 42.0f, 18.0f, 0.0f});
     const float scrollOffset = m_inspectorScroll.offset();
     inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, -scrollOffset}, {22.0f, 22.0f}));
-    inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(54.0f - scrollOffset, 24.0f));
-    inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(120.0f - scrollOffset, 28.0f));
+    inspectorLayout.add(m_clearColorPicker, UIAnchors::horizontalStretch(54.0f - scrollOffset, 58.0f));
+    inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(148.0f - scrollOffset, 24.0f));
+    inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(214.0f - scrollOffset, 28.0f));
     const float coordinateGap = 6.0f;
     const float coordinateWidth = std::max((m_inspectorBounds.size.x - 36.0f - coordinateGap * 2.0f) / 3.0f, 0.0f);
-    inspectorLayout.add(m_positionXInput, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, 186.0f - scrollOffset}, {coordinateWidth, 28.0f}));
-    inspectorLayout.add(m_positionYInput, UIAnchors::fixed({0.0f, 0.0f}, {coordinateWidth + coordinateGap, 186.0f - scrollOffset}, {coordinateWidth, 28.0f}));
-    inspectorLayout.add(m_positionZInput, UIAnchors::fixed({0.0f, 0.0f}, {(coordinateWidth + coordinateGap) * 2.0f, 186.0f - scrollOffset}, {coordinateWidth, 28.0f}));
-    inspectorLayout.add(m_objectNameInput, UIAnchors::horizontalStretch(274.0f - scrollOffset, 28.0f));
+    inspectorLayout.add(m_positionXInput, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, 280.0f - scrollOffset}, {coordinateWidth, 28.0f}));
+    inspectorLayout.add(m_positionYInput, UIAnchors::fixed({0.0f, 0.0f}, {coordinateWidth + coordinateGap, 280.0f - scrollOffset}, {coordinateWidth, 28.0f}));
+    inspectorLayout.add(m_positionZInput, UIAnchors::fixed({0.0f, 0.0f}, {(coordinateWidth + coordinateGap) * 2.0f, 280.0f - scrollOffset}, {coordinateWidth, 28.0f}));
+    inspectorLayout.add(m_objectNameInput, UIAnchors::horizontalStretch(368.0f - scrollOffset, 28.0f));
     inspectorLayout.layout();
     m_inspectorScroll.setBounds({
         {m_inspectorBounds.position.x + 12.0f, m_inspectorBounds.position.y + 36.0f},
         {std::max(m_inspectorBounds.size.x - 20.0f, 0.0f), std::max(m_inspectorBounds.size.y - 48.0f, 0.0f)},
     });
-    m_inspectorScroll.setContentHeight(508.0f);
+    m_inspectorScroll.setContentHeight(602.0f);
 
     m_gridCheckbox.setVisible(m_inspectorVisible);
+    m_clearColorPicker.setVisible(m_inspectorVisible);
     m_exposureSlider.setVisible(m_inspectorVisible);
     m_lightIntensityInput.setVisible(m_inspectorVisible);
     m_positionXInput.setVisible(m_inspectorVisible);
@@ -420,6 +426,7 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
     if (m_inspectorVisible) {
         m_inspectorScroll.pushClip(m_context);
         m_gridCheckbox.update(m_context);
+        m_clearColorPicker.update(m_context);
         const UITextStyle& inputValueStyle = m_style.resolveText("input-value");
         m_exposureSlider.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_lightIntensityInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
@@ -456,6 +463,7 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer)
     if (m_inspectorVisible) {
         m_inspectorScroll.pushClip(renderer2D);
         m_gridCheckbox.render(renderer2D, m_style);
+        m_clearColorPicker.render(renderer2D, m_style);
         m_exposureSlider.render(frame);
         m_lightIntensityInput.render(frame);
         m_positionXInput.render(frame);
@@ -528,6 +536,11 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             textRenderer,
             "Grid",
             {{m_gridCheckbox.position().x + 32.0f, m_gridCheckbox.position().y}, {m_inspectorBounds.size.x - 68.0f, m_gridCheckbox.size().y}},
+            "control-label");
+        drawStyledText(
+            textRenderer,
+            "Viewport Clear",
+            {{m_clearColorPicker.position().x, m_clearColorPicker.position().y - 22.0f}, {m_clearColorPicker.size().x, 18.0f}},
             "control-label");
         drawStyledText(
             textRenderer,

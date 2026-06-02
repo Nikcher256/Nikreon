@@ -151,6 +151,7 @@ void VulkanContext::setEditorViewport(const EditorViewportPresentation& presenta
 {
     m_editorViewportPosition = presentation.position;
     m_editorViewportSize = presentation.size;
+    m_editorViewportClearColor = presentation.clearColor;
     m_editorViewportMode = mode;
 }
 
@@ -657,12 +658,6 @@ void VulkanContext::recordCommandBuffer(
 
     checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin command buffer.");
 
-    const std::array<glm::vec4, 4> modeClearColors = {
-        glm::vec4{0.055f, 0.085f, 0.14f, 1.0f},
-        glm::vec4{0.055f, 0.13f, 0.095f, 1.0f},
-        glm::vec4{0.13f, 0.095f, 0.045f, 1.0f},
-        glm::vec4{0.12f, 0.065f, 0.13f, 1.0f},
-    };
     const glm::uvec2 viewportTargetSize = m_viewportRenderTarget->size();
     m_viewportRenderTarget->recordClearAndCopy(
         commandBuffer,
@@ -672,7 +667,7 @@ void VulkanContext::recordCommandBuffer(
             static_cast<int>(std::max(m_editorViewportPosition.y, 0.0f)),
         },
         viewportTargetSize,
-        modeClearColors[static_cast<std::size_t>(m_editorViewportMode)]);
+        m_editorViewportClearColor);
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

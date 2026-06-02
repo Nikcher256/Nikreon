@@ -5,6 +5,7 @@
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 
 namespace Engine {
 
@@ -20,6 +21,7 @@ enum class EditorViewportMode {
 struct EditorViewportPresentation {
     glm::vec2 position{0.0f, 0.0f};
     glm::vec2 size{1.0f, 1.0f};
+    glm::vec4 clearColor{0.055f, 0.085f, 0.14f, 1.0f};
 };
 
 struct EditorCameraInput {

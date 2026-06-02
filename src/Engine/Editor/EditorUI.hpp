@@ -3,6 +3,7 @@
 #include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/UI/Button.hpp"
 #include "Engine/UI/Checkbox.hpp"
+#include "Engine/UI/ColorPicker.hpp"
 #include "Engine/UI/Layout.hpp"
 #include "Engine/UI/NumberInput.hpp"
 #include "Engine/UI/ScrollContainer.hpp"
@@ -81,6 +82,7 @@ private:
     Button m_simulateModeButton;
     Button m_hudEditModeButton;
     Checkbox m_gridCheckbox;
+    ColorPicker m_clearColorPicker;
     Slider m_exposureSlider;
     NumberInput m_lightIntensityInput;
     NumberInput m_positionXInput;
@@ -105,6 +107,7 @@ private:
     RunState m_runState{RunState::Stopped};
     EditorViewport m_viewport;
     bool m_showGrid{true};
+    glm::vec4 m_viewportClearColor{0.055f, 0.085f, 0.14f, 1.0f};
     bool m_hierarchyVisible{true};
     bool m_inspectorVisible{true};
     bool m_consoleVisible{true};
