@@ -246,6 +246,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     }
 
     renderLabels(textRenderer);
+    m_clearColorPicker.renderPopup(renderer2D, m_style);
     m_context.endFrame();
 }
 
@@ -335,7 +336,7 @@ void EditorUI::layoutWidgets(const float width, const float height)
     inspectorLayout.setPadding({18.0f, 42.0f, 18.0f, 0.0f});
     const float scrollOffset = m_inspectorScroll.offset();
     inspectorLayout.add(m_gridCheckbox, UIAnchors::fixed({0.0f, 0.0f}, {0.0f, -scrollOffset}, {22.0f, 22.0f}));
-    inspectorLayout.add(m_clearColorPicker, UIAnchors::horizontalStretch(54.0f - scrollOffset, 58.0f));
+    inspectorLayout.add(m_clearColorPicker, UIAnchors::horizontalStretch(54.0f - scrollOffset, 28.0f));
     inspectorLayout.add(m_exposureSlider, UIAnchors::horizontalStretch(148.0f - scrollOffset, 24.0f));
     inspectorLayout.add(m_lightIntensityInput, UIAnchors::horizontalStretch(214.0f - scrollOffset, 28.0f));
     const float coordinateGap = 6.0f;
@@ -435,6 +436,7 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
         m_positionZInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_objectNameInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_inspectorScroll.popClip(m_context);
+        m_clearColorPicker.updatePopup(m_context);
     }
 }
 
