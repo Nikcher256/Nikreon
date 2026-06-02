@@ -199,7 +199,11 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     layoutWidgets(width, height);
     updateWidgets(textRenderer);
 
-    renderer2D.drawQuad({0.0f, 0.0f}, {width, height}, m_style.windowBackground);
+    const glm::vec2 viewportEnd = m_viewportBounds.position + m_viewportBounds.size;
+    renderer2D.drawQuad({0.0f, 0.0f}, {width, m_viewportBounds.position.y}, m_style.windowBackground);
+    renderer2D.drawQuad({0.0f, viewportEnd.y}, {width, height - viewportEnd.y}, m_style.windowBackground);
+    renderer2D.drawQuad({0.0f, m_viewportBounds.position.y}, {m_viewportBounds.position.x, m_viewportBounds.size.y}, m_style.windowBackground);
+    renderer2D.drawQuad({viewportEnd.x, m_viewportBounds.position.y}, {width - viewportEnd.x, m_viewportBounds.size.y}, m_style.windowBackground);
     renderer2D.drawQuad({0.0f, 0.0f}, {width, m_toolbarHeight}, m_editorStyle.toolbarFill);
 
     if (m_hierarchyVisible) {
@@ -246,7 +250,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     }
 
     renderLabels(textRenderer);
-    m_clearColorPicker.renderPopup(renderer2D, m_style);
+    m_clearColorPicker.renderPopup(m_context, renderer2D, textRenderer, m_style);
     m_context.endFrame();
 }
 
@@ -436,7 +440,7 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
         m_positionZInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_objectNameInput.update(m_context, textRenderer, m_style, inputValueStyle.font, inputValueStyle.scale);
         m_inspectorScroll.popClip(m_context);
-        m_clearColorPicker.updatePopup(m_context);
+        m_clearColorPicker.updatePopup(m_context, textRenderer, m_style);
     }
 }
 

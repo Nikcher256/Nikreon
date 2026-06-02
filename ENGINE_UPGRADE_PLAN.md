@@ -527,7 +527,7 @@ Build gate:
 Completed note:
 
 - Added an engine-owned Vulkan viewport render target that resizes to the editor viewport panel and clears to a mode-specific test color before copying into the panel.
-- Added an inspector color-swatch button with a nearby compact Unreal-inspired popup: saturation/value palette, hue strip, old/new previews, and RGB fine-tuning tracks. Its selected value routes into the Vulkan viewport clear so the render target can be checked interactively.
+- Added an inspector color-swatch button with a nearby compact Unreal-inspired popup: saturation/value palette, hue strip, old/new previews, RGB fine-tuning tracks, and editable `0-255` RGB number fields. The editor background leaves the viewport target visible so the selected clear color can be checked interactively beneath editor overlays.
 - Added viewport-local mouse, hover, focus, and picking-coordinate tracking without coupling editor panels to Vulkan ownership.
 - Added explicit `Edit`, `Play`, `Simulate`, and `HudEdit` modes plus focused-only placeholder editor fly-camera movement for `Edit` and `Simulate`.
 - Added focused non-GPU tests for viewport interaction, picking coordinates, modes, and camera-input gating.
