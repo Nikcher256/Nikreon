@@ -39,6 +39,15 @@ void transitionImage(
     vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
+VkImageSubresourceRange colorRange()
+{
+    VkImageSubresourceRange range{};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.levelCount = 1;
+    range.layerCount = 1;
+    return range;
+}
+
 } // namespace
 
 VulkanViewportRenderTarget::VulkanViewportRenderTarget(
@@ -49,12 +58,14 @@ VulkanViewportRenderTarget::VulkanViewportRenderTarget(
     , m_physicalDevice(physicalDevice)
     , m_format(format)
 {
+    createRenderPass();
     create();
 }
 
 VulkanViewportRenderTarget::~VulkanViewportRenderTarget()
 {
     destroy();
+    destroyRenderPass();
 }
 
 void VulkanViewportRenderTarget::resize(const glm::uvec2& size)
@@ -69,40 +80,86 @@ void VulkanViewportRenderTarget::resize(const glm::uvec2& size)
     create();
 }
 
-void VulkanViewportRenderTarget::recordClearAndCopy(
-    const VkCommandBuffer commandBuffer,
-    const VkImage destinationImage,
-    const glm::ivec2& destinationPosition,
-    const glm::uvec2& destinationSize,
-    const glm::vec4& clearColor) const
+void VulkanViewportRenderTarget::recordClear(const VkCommandBuffer commandBuffer, const glm::vec4& clearColor) const
 {
     transitionImage(
-        commandBuffer, m_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        commandBuffer,
+        m_image,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        0,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT);
 
     VkClearColorValue color{};
     color.float32[0] = clearColor.r;
     color.float32[1] = clearColor.g;
     color.float32[2] = clearColor.b;
     color.float32[3] = clearColor.a;
-    VkImageSubresourceRange range{};
-    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    range.levelCount = 1;
-    range.layerCount = 1;
+    const VkImageSubresourceRange range = colorRange();
     vkCmdClearColorImage(commandBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &color, 1, &range);
 
     transitionImage(
-        commandBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        commandBuffer,
+        m_image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+}
+
+void VulkanViewportRenderTarget::recordBeginRenderPass(const VkCommandBuffer commandBuffer) const
+{
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = m_renderPass;
+    renderPassInfo.framebuffer = m_framebuffer;
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = {m_size.x, m_size.y};
+    renderPassInfo.clearValueCount = 0;
+    renderPassInfo.pClearValues = nullptr;
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void VulkanViewportRenderTarget::recordEndRenderPass(const VkCommandBuffer commandBuffer) const
+{
+    vkCmdEndRenderPass(commandBuffer);
+}
+
+void VulkanViewportRenderTarget::recordCopyTo(
+    const VkCommandBuffer commandBuffer,
+    const VkImage destinationImage,
+    const glm::ivec2& destinationPosition,
+    const glm::uvec2& destinationSize) const
+{
     transitionImage(
-        commandBuffer, destinationImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        commandBuffer,
+        m_image,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_ACCESS_TRANSFER_READ_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT);
+    transitionImage(
+        commandBuffer,
+        destinationImage,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        0,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT);
 
     VkClearColorValue windowBackground{};
     windowBackground.float32[0] = 0.08f;
     windowBackground.float32[1] = 0.09f;
     windowBackground.float32[2] = 0.12f;
     windowBackground.float32[3] = 1.0f;
+    const VkImageSubresourceRange range = colorRange();
     vkCmdClearColorImage(commandBuffer, destinationImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &windowBackground, 1, &range);
 
     VkImageCopy copy{};
@@ -112,24 +169,67 @@ void VulkanViewportRenderTarget::recordClearAndCopy(
     copy.dstSubresource.layerCount = 1;
     copy.dstOffset = {destinationPosition.x, destinationPosition.y, 0};
     copy.extent = {destinationSize.x, destinationSize.y, 1};
-    vkCmdCopyImage(
-        commandBuffer,
-        m_image,
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        destinationImage,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1,
-        &copy);
+    vkCmdCopyImage(commandBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, destinationImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
     transitionImage(
-        commandBuffer, destinationImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        commandBuffer,
+        destinationImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 }
 
 glm::uvec2 VulkanViewportRenderTarget::size() const
 {
     return m_size;
+}
+
+VkRenderPass VulkanViewportRenderTarget::renderPass() const
+{
+    return m_renderPass;
+}
+
+void VulkanViewportRenderTarget::createRenderPass()
+{
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = m_format;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference colorAttachmentReference{};
+    colorAttachmentReference.attachment = 0;
+    colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentReference;
+
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+    checkVk(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass), "Failed to create viewport render target render pass.");
 }
 
 void VulkanViewportRenderTarget::create()
@@ -143,7 +243,7 @@ void VulkanViewportRenderTarget::create()
     imageInfo.format = m_format;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     checkVk(vkCreateImage(m_device, &imageInfo, nullptr, &m_image), "Failed to create viewport render target image.");
@@ -157,10 +257,39 @@ void VulkanViewportRenderTarget::create()
     allocateInfo.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     checkVk(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_memory), "Failed to allocate viewport render target memory.");
     checkVk(vkBindImageMemory(m_device, m_image, m_memory, 0), "Failed to bind viewport render target memory.");
+
+    VkImageViewCreateInfo imageViewInfo{};
+    imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewInfo.image = m_image;
+    imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewInfo.format = m_format;
+    imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewInfo.subresourceRange.levelCount = 1;
+    imageViewInfo.subresourceRange.layerCount = 1;
+    checkVk(vkCreateImageView(m_device, &imageViewInfo, nullptr, &m_imageView), "Failed to create viewport render target image view.");
+
+    const VkImageView attachments[] = {m_imageView};
+    VkFramebufferCreateInfo framebufferInfo{};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = m_renderPass;
+    framebufferInfo.attachmentCount = 1;
+    framebufferInfo.pAttachments = attachments;
+    framebufferInfo.width = m_size.x;
+    framebufferInfo.height = m_size.y;
+    framebufferInfo.layers = 1;
+    checkVk(vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_framebuffer), "Failed to create viewport render target framebuffer.");
 }
 
 void VulkanViewportRenderTarget::destroy()
 {
+    if (m_framebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(m_device, m_framebuffer, nullptr);
+        m_framebuffer = VK_NULL_HANDLE;
+    }
+    if (m_imageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(m_device, m_imageView, nullptr);
+        m_imageView = VK_NULL_HANDLE;
+    }
     if (m_image != VK_NULL_HANDLE) {
         vkDestroyImage(m_device, m_image, nullptr);
         m_image = VK_NULL_HANDLE;
@@ -168,6 +297,14 @@ void VulkanViewportRenderTarget::destroy()
     if (m_memory != VK_NULL_HANDLE) {
         vkFreeMemory(m_device, m_memory, nullptr);
         m_memory = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanViewportRenderTarget::destroyRenderPass()
+{
+    if (m_renderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+        m_renderPass = VK_NULL_HANDLE;
     }
 }
 

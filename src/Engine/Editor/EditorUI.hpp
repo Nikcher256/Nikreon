@@ -4,6 +4,7 @@
 #include "Engine/UI/Button.hpp"
 #include "Engine/UI/Checkbox.hpp"
 #include "Engine/UI/ColorPicker.hpp"
+#include "Engine/UI/FilePathInput.hpp"
 #include "Engine/UI/Layout.hpp"
 #include "Engine/UI/NumberInput.hpp"
 #include "Engine/UI/ScrollContainer.hpp"
@@ -12,23 +13,26 @@
 #include "Engine/UI/UIContext.hpp"
 #include "Engine/UI/UIStyle.hpp"
 
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 
 namespace Engine {
 
 class Input;
 class Renderer2D;
+class Renderer2DWorld;
 class TextRenderer;
 
 class EditorUI {
 public:
     EditorUI();
 
-    void render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input);
+    void render(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWorld, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input);
     void updateEditorCamera(float deltaTime, const Input& input);
     [[nodiscard]] const EditorViewport& viewport() const;
 
@@ -51,6 +55,8 @@ private:
     void renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer);
     void renderPanelSplitters(Renderer2D& renderer2D);
     void renderLabels(TextRenderer& textRenderer);
+    void submitWorldRendererTestContent(Renderer2DWorld& renderer2DWorld);
+    void renderWorldRendererLabels(TextRenderer& textRenderer, const Renderer2DWorld& renderer2DWorld);
     void drawStyledText(
         TextRenderer& textRenderer,
         std::string_view text,
@@ -81,6 +87,14 @@ private:
     Button m_playModeButton;
     Button m_simulateModeButton;
     Button m_hudEditModeButton;
+    Button m_addSpriteButton;
+    Button m_addManySpritesButton;
+    Button m_addTilemapButton;
+    Button m_animateSpriteButton;
+    Button m_toggleParallaxButton;
+    Button m_toggleParticlesButton;
+    Button m_toggleDebugShapesButton;
+    Button m_clearWorldTestButton;
     Checkbox m_gridCheckbox;
     ColorPicker m_clearColorPicker;
     Slider m_exposureSlider;
@@ -89,6 +103,7 @@ private:
     NumberInput m_positionYInput;
     NumberInput m_positionZInput;
     TextInput m_objectNameInput;
+    FilePathInput m_spritePathInput;
     ScrollContainer m_inspectorScroll;
     std::vector<Button> m_hierarchyRows;
     UIRect m_hierarchyBounds;
@@ -118,6 +133,15 @@ private:
     float m_lastLoggedExposure{0.65f};
     float m_lightIntensity{4.0f};
     glm::vec3 m_previewPosition{12.5f, -4.0f, 8.0f};
+    std::string m_loadedSpritePath;
+    std::size_t m_worldTestSpriteCount{0};
+    bool m_worldTestSpriteLoaded{false};
+    bool m_worldTestTilemap{false};
+    bool m_worldTestAnimated{false};
+    bool m_worldTestParallax{false};
+    bool m_worldTestParticles{false};
+    bool m_worldTestDebugShapes{false};
+    float m_worldTestElapsed{0.0f};
 };
 
 } // namespace Engine

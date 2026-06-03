@@ -14,9 +14,9 @@ const EditorViewport& EditorLayer::viewport() const
 }
 
 // Draws the editor layer after the renderer has started a frame.
-void EditorLayer::onRender(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
+void EditorLayer::onRender(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWorld, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
 {
-    m_ui.render(renderer2D, textRenderer, viewportSize, input);
+    m_ui.render(renderer2D, renderer2DWorld, textRenderer, viewportSize, input);
 }
 
 } // namespace Engine

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
 #include <volk.h>
@@ -15,18 +17,23 @@ public:
     VulkanViewportRenderTarget& operator=(const VulkanViewportRenderTarget&) = delete;
 
     void resize(const glm::uvec2& size);
-    void recordClearAndCopy(
+    void recordClear(VkCommandBuffer commandBuffer, const glm::vec4& clearColor) const;
+    void recordBeginRenderPass(VkCommandBuffer commandBuffer) const;
+    void recordEndRenderPass(VkCommandBuffer commandBuffer) const;
+    void recordCopyTo(
         VkCommandBuffer commandBuffer,
         VkImage destinationImage,
         const glm::ivec2& destinationPosition,
-        const glm::uvec2& destinationSize,
-        const glm::vec4& clearColor) const;
+        const glm::uvec2& destinationSize) const;
 
     [[nodiscard]] glm::uvec2 size() const;
+    [[nodiscard]] VkRenderPass renderPass() const;
 
 private:
+    void createRenderPass();
     void create();
     void destroy();
+    void destroyRenderPass();
     [[nodiscard]] std::uint32_t findMemoryType(std::uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 
     VkDevice m_device{VK_NULL_HANDLE};
@@ -34,6 +41,9 @@ private:
     VkFormat m_format{VK_FORMAT_UNDEFINED};
     VkImage m_image{VK_NULL_HANDLE};
     VkDeviceMemory m_memory{VK_NULL_HANDLE};
+    VkImageView m_imageView{VK_NULL_HANDLE};
+    VkRenderPass m_renderPass{VK_NULL_HANDLE};
+    VkFramebuffer m_framebuffer{VK_NULL_HANDLE};
     glm::uvec2 m_size{1U, 1U};
 };
 

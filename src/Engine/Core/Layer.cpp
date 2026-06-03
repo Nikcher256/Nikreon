@@ -10,9 +10,15 @@ void Layer::onUpdate(const float deltaTime, const Input& input)
 }
 
 // Provides a no-op render so logic-only layers can override only updating.
-void Layer::onRender(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
+void Layer::onRender(
+    Renderer2D& renderer2D,
+    Renderer2DWorld& renderer2DWorld,
+    TextRenderer& textRenderer,
+    const glm::uvec2& viewportSize,
+    const Input& input)
 {
     (void)renderer2D;
+    (void)renderer2DWorld;
     (void)textRenderer;
     (void)viewportSize;
     (void)input;

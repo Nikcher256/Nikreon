@@ -5,6 +5,8 @@
 #include <glm/vec2.hpp>
 
 #include "Engine/Editor/EditorViewport.hpp"
+#include "Engine/Renderer/RenderFrame.hpp"
+#include "Engine/Renderer/RenderPipeline.hpp"
 #include "Engine/Renderer/Vulkan/VulkanContext.hpp"
 
 namespace Engine {
@@ -29,6 +31,7 @@ public:
     void endFrame();
 
     [[nodiscard]] Renderer2D& renderer2D();
+    [[nodiscard]] Renderer2DWorld& renderer2DWorld();
     [[nodiscard]] TextRenderer& textRenderer();
     [[nodiscard]] glm::uvec2 viewportSize() const;
     void setEditorViewport(const EditorViewportPresentation& presentation, EditorViewportMode mode);
@@ -36,10 +39,16 @@ public:
 private:
     void createBackendRenderers();
     void recreateSwapchainResources();
+    void prepareViewportWorldRenderer();
+    [[nodiscard]] RenderFrameContext frameContext() const;
 
     VulkanContext m_context;
+    RenderPipeline m_renderPipeline;
     std::unique_ptr<VulkanRenderer2D> m_renderer2D;
+    std::unique_ptr<VulkanRenderer2D> m_viewportRenderer2D;
     std::unique_ptr<VulkanTextRenderer> m_textRenderer;
+    EditorViewportPresentation m_editorViewportPresentation{};
+    EditorViewportMode m_editorViewportMode{EditorViewportMode::Edit};
 };
 
 } // namespace Engine

@@ -15,6 +15,8 @@ struct EditorViewportPresentation;
 class VulkanRenderer2D;
 class VulkanTextRenderer;
 class VulkanViewportRenderTarget;
+class RenderPipeline;
+struct RenderFrameContext;
 class Window;
 
 class VulkanContext {
@@ -32,7 +34,12 @@ public:
     VulkanContext(VulkanContext&&) = delete;
     VulkanContext& operator=(VulkanContext&&) = delete;
 
-    FrameResult drawFrame(VulkanRenderer2D& renderer2D, VulkanTextRenderer& textRenderer);
+    FrameResult drawFrame(
+        VulkanRenderer2D& renderer2D,
+        VulkanRenderer2D& viewportRenderer2D,
+        VulkanTextRenderer& textRenderer,
+        RenderPipeline& renderPipeline,
+        const RenderFrameContext& frameContext);
     void waitIdle() const;
     void recreateSwapchain();
     void setEditorViewport(const EditorViewportPresentation& presentation, EditorViewportMode mode);
@@ -42,9 +49,11 @@ public:
     [[nodiscard]] VkDevice device() const;
     [[nodiscard]] VkPhysicalDevice physicalDevice() const;
     [[nodiscard]] VkRenderPass renderPass() const;
+    [[nodiscard]] VkRenderPass viewportRenderPass() const;
     [[nodiscard]] VkQueue graphicsQueue() const;
     [[nodiscard]] VkCommandPool commandPool() const;
     [[nodiscard]] glm::uvec2 swapchainSize() const;
+    [[nodiscard]] glm::uvec2 viewportRenderTargetSize() const;
 
 private:
     struct QueueFamilyIndices {
@@ -86,7 +95,10 @@ private:
         VkCommandBuffer commandBuffer,
         std::uint32_t imageIndex,
         VulkanRenderer2D& renderer2D,
-        VulkanTextRenderer& textRenderer);
+        VulkanRenderer2D& viewportRenderer2D,
+        VulkanTextRenderer& textRenderer,
+        RenderPipeline& renderPipeline,
+        const RenderFrameContext& frameContext);
 
     [[nodiscard]] QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;

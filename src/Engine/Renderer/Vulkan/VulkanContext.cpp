@@ -2,6 +2,7 @@
 
 #include "Engine/Core/Window.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
+#include "Engine/Renderer/RenderPipeline.hpp"
 #include "Engine/Renderer/Vulkan/VulkanRenderer2D.hpp"
 #include "Engine/Renderer/Vulkan/VulkanTextRenderer.hpp"
 #include "Engine/Renderer/Vulkan/VulkanViewportRenderTarget.hpp"
@@ -46,6 +47,29 @@ void checkVk(const VkResult result, const char* message)
     }
 }
 
+class VulkanRenderCommandRecorder final : public RenderCommandRecorder {
+public:
+    explicit VulkanRenderCommandRecorder(const VkCommandBuffer commandBuffer)
+        : m_commandBuffer(commandBuffer)
+    {
+    }
+
+    void beginStage(RenderStage stage) override
+    {
+        (void)stage;
+        (void)m_commandBuffer;
+    }
+
+    void endStage(RenderStage stage) override
+    {
+        (void)stage;
+        (void)m_commandBuffer;
+    }
+
+private:
+    VkCommandBuffer m_commandBuffer{VK_NULL_HANDLE};
+};
+
 void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
 {
     createInfo = {};
@@ -79,7 +103,12 @@ VulkanContext::~VulkanContext()
     shutdown();
 }
 
-VulkanContext::FrameResult VulkanContext::drawFrame(VulkanRenderer2D& renderer2D, VulkanTextRenderer& textRenderer)
+VulkanContext::FrameResult VulkanContext::drawFrame(
+    VulkanRenderer2D& renderer2D,
+    VulkanRenderer2D& viewportRenderer2D,
+    VulkanTextRenderer& textRenderer,
+    RenderPipeline& renderPipeline,
+    const RenderFrameContext& frameContext)
 {
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -103,7 +132,7 @@ VulkanContext::FrameResult VulkanContext::drawFrame(VulkanRenderer2D& renderer2D
     vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
     prepareViewportRenderTarget();
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
-    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, textRenderer);
+    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, viewportRenderer2D, textRenderer, renderPipeline, frameContext);
 
     const VkSemaphore waitSemaphores[] = {m_imageAvailableSemaphores[m_currentFrame]};
     const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -185,6 +214,11 @@ VkRenderPass VulkanContext::renderPass() const
     return m_renderPass;
 }
 
+VkRenderPass VulkanContext::viewportRenderPass() const
+{
+    return m_viewportRenderTarget->renderPass();
+}
+
 VkQueue VulkanContext::graphicsQueue() const
 {
     return m_graphicsQueue;
@@ -198,6 +232,11 @@ VkCommandPool VulkanContext::commandPool() const
 glm::uvec2 VulkanContext::swapchainSize() const
 {
     return {m_swapchainExtent.width, m_swapchainExtent.height};
+}
+
+glm::uvec2 VulkanContext::viewportRenderTargetSize() const
+{
+    return m_viewportRenderTarget ? m_viewportRenderTarget->size() : glm::uvec2{1U, 1U};
 }
 
 void VulkanContext::initialize()
@@ -651,23 +690,31 @@ void VulkanContext::recordCommandBuffer(
     VkCommandBuffer commandBuffer,
     const std::uint32_t imageIndex,
     VulkanRenderer2D& renderer2D,
-    VulkanTextRenderer& textRenderer)
+    VulkanRenderer2D& viewportRenderer2D,
+    VulkanTextRenderer& textRenderer,
+    RenderPipeline& renderPipeline,
+    const RenderFrameContext& frameContext)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin command buffer.");
 
-    const glm::uvec2 viewportTargetSize = m_viewportRenderTarget->size();
-    m_viewportRenderTarget->recordClearAndCopy(
+    VulkanRenderCommandRecorder renderCommandRecorder(commandBuffer);
+    renderPipeline.recordCommands(renderCommandRecorder, frameContext);
+
+    m_viewportRenderTarget->recordClear(commandBuffer, m_editorViewportClearColor);
+    m_viewportRenderTarget->recordBeginRenderPass(commandBuffer);
+    viewportRenderer2D.record(commandBuffer);
+    m_viewportRenderTarget->recordEndRenderPass(commandBuffer);
+    m_viewportRenderTarget->recordCopyTo(
         commandBuffer,
         m_swapchainImages[imageIndex],
         {
             static_cast<int>(std::max(m_editorViewportPosition.x, 0.0f)),
             static_cast<int>(std::max(m_editorViewportPosition.y, 0.0f)),
         },
-        viewportTargetSize,
-        m_editorViewportClearColor);
+        m_viewportRenderTarget->size());
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
