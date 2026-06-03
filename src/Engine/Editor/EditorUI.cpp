@@ -194,9 +194,11 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     const float width = static_cast<float>(std::max(viewportSize.x, 1U));
     const float height = static_cast<float>(std::max(viewportSize.y, 1U));
     layoutWidgets(width, height);
+    m_clearColorPicker.registerPopupLayer(m_context);
     updatePanelSplitters(width, height);
     m_inspectorScroll.update(m_context);
     layoutWidgets(width, height);
+    m_clearColorPicker.registerPopupLayer(m_context);
     updateWidgets(textRenderer);
 
     const glm::vec2 viewportEnd = m_viewportBounds.position + m_viewportBounds.size;
@@ -473,6 +475,7 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer)
 
     if (m_inspectorVisible) {
         m_inspectorScroll.pushClip(renderer2D);
+        m_inspectorScroll.pushClip(textRenderer);
         m_gridCheckbox.render(renderer2D, m_style);
         m_clearColorPicker.render(renderer2D, m_style);
         m_exposureSlider.render(frame);
@@ -481,6 +484,7 @@ void EditorUI::renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer)
         m_positionYInput.render(frame);
         m_positionZInput.render(frame);
         m_objectNameInput.render(frame);
+        m_inspectorScroll.popClip(textRenderer);
         m_inspectorScroll.popClip(renderer2D);
     }
 }

@@ -395,10 +395,12 @@ Completed/started note:
 - Added clipped hit testing and draggable scrollbar thumbs to `ScrollContainer`.
 - Raw mouse coordinate debug logs were removed; useful widget action logs remain.
 - Text labels and typed text editing are active; proper icons are still pending.
+- Added initial z-ordered `UIContext` interaction layers with popup/modal blocking support, plus color-picker popup registration so floating controls can capture input above lower panels without a full widget-tree/event-propagation rewrite.
 
 Next UI foundation tasks:
 
 - Add richer selection gestures such as double-click word selection.
+- Expand the initial interaction-layer API as full menus/HUD layout begins: add tooltip/drag-overlay layers, stronger outside-click dismissal helpers, and only consider a full widget tree/event propagation system if z-ordered layers become insufficient.
 - Do not implement full browser CSS: no cascade complexity, media queries, full selector engine, or DOM model.
 - Keep the extracted `NikreonUI` widget and text APIs independent from Vulkan-facing engine ownership.
 
