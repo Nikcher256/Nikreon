@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine/Editor/EditorWorldDebugController.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/UI/Button.hpp"
 #include "Engine/UI/Checkbox.hpp"
@@ -30,11 +31,11 @@ class TextRenderer;
 
 class EditorUI {
 public:
-    EditorUI();
+    explicit EditorUI(EditorViewport& viewport, EditorWorldDebugController& worldDebug);
 
-    void render(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWorld, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input);
-    void updateEditorCamera(float deltaTime, const Input& input);
-    [[nodiscard]] const EditorViewport& viewport() const;
+    void update(float deltaTime);
+    void render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input);
+    [[nodiscard]] const UIRect& viewportBounds() const;
 
 private:
     enum class RunState {
@@ -54,19 +55,25 @@ private:
     void updateWidgets(TextRenderer& textRenderer);
     void renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer);
     void renderPanelSplitters(Renderer2D& renderer2D);
-    void renderLabels(TextRenderer& textRenderer);
-    void submitWorldRendererTestContent(Renderer2DWorld& renderer2DWorld);
+    void renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer);
     void renderWorldRendererLabels(TextRenderer& textRenderer, const Renderer2DWorld& renderer2DWorld);
-    void drawStyledText(
+    bool drawStyledText(
         TextRenderer& textRenderer,
         std::string_view text,
         const UIRect& bounds,
         std::string_view styleClass,
         std::string_view id = {});
+    [[nodiscard]] bool drawButtonLabel(
+        TextRenderer& textRenderer,
+        const Button& button,
+        std::string_view label);
+    void drawTooltip(Renderer2D& renderer2D, TextRenderer& textRenderer, std::string_view text);
     void drawPanel(Renderer2D& renderer2D, const UIRect& bounds);
     void drawToolbarIcon(Renderer2D& renderer2D, const glm::vec2& position, const glm::vec2& size, ToolbarIcon icon, bool selected);
     void drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds);
 
+    EditorViewport& m_viewport;
+    EditorWorldDebugController& m_worldDebug;
     UIStyle m_style;
     struct EditorStyle {
         glm::vec4 toolbarFill{0.10f, 0.11f, 0.14f, 1.0f};
@@ -118,9 +125,9 @@ private:
     float m_inspectorWidth{230.0f};
     float m_consoleHeight{130.0f};
     glm::vec2 m_previousMousePosition{0.0f, 0.0f};
+    glm::vec2 m_renderSize{1.0f, 1.0f};
     int m_selectedHierarchyRow{0};
     RunState m_runState{RunState::Stopped};
-    EditorViewport m_viewport;
     bool m_showGrid{true};
     glm::vec4 m_viewportClearColor{0.055f, 0.085f, 0.14f, 1.0f};
     bool m_hierarchyVisible{true};
@@ -133,15 +140,7 @@ private:
     float m_lastLoggedExposure{0.65f};
     float m_lightIntensity{4.0f};
     glm::vec3 m_previewPosition{12.5f, -4.0f, 8.0f};
-    std::string m_loadedSpritePath;
-    std::size_t m_worldTestSpriteCount{0};
-    bool m_worldTestSpriteLoaded{false};
-    bool m_worldTestTilemap{false};
-    bool m_worldTestAnimated{false};
-    bool m_worldTestParallax{false};
-    bool m_worldTestParticles{false};
-    bool m_worldTestDebugShapes{false};
-    float m_worldTestElapsed{0.0f};
+
 };
 
 } // namespace Engine

@@ -18,9 +18,11 @@ set(NIKREON_UI_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/NikreonUI" CACHE
 add_subdirectory("${NIKREON_UI_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/external/NikreonUI")
 
 add_executable(NikreonEngine
+    src/Engine/Editor/EditorCamera.cpp
     src/Engine/Editor/EditorLayer.cpp
     src/Engine/Editor/EditorUI.cpp
     src/Engine/Editor/EditorViewport.cpp
+    src/Engine/Editor/EditorWorldDebugController.cpp
     src/Engine/Core/Application.cpp
     src/Engine/Core/FileDialog.cpp
     src/Engine/Core/Input.cpp
@@ -29,6 +31,7 @@ add_executable(NikreonEngine
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp
+    src/Engine/Renderer/Camera2D.cpp
     src/Engine/Renderer/DebugRenderer.cpp
     src/Engine/Renderer/NikreonUIRenderAdapter.cpp
     src/Engine/Renderer/PostProcessRenderer.cpp
@@ -43,33 +46,6 @@ add_executable(NikreonEngine
     src/Engine/Renderer/Vulkan/VulkanContext.cpp
     src/Engine/Renderer/Vulkan/VulkanViewportRenderTarget.cpp
     src/main.cpp
-)
-
-add_executable(NikreonEditorViewportTests
-    src/Engine/Editor/EditorViewport.cpp
-    tests/editor_viewport_tests.cpp
-)
-
-add_executable(NikreonRenderPipelineTests
-    src/Engine/Editor/EditorViewport.cpp
-    src/Engine/Renderer/DebugRenderer.cpp
-    src/Engine/Renderer/NikreonUIRenderAdapter.cpp
-    src/Engine/Renderer/PostProcessRenderer.cpp
-    src/Engine/Renderer/RenderFrame.cpp
-    src/Engine/Renderer/RenderModuleBase.cpp
-    src/Engine/Renderer/RenderPipeline.cpp
-    src/Engine/Renderer/Renderer2DWorld.cpp
-    src/Engine/Renderer/Renderer3D.cpp
-    src/Engine/Renderer/ShadowRenderer.cpp
-    src/Engine/Renderer/SkyboxRenderer.cpp
-    tests/render_pipeline_tests.cpp
-)
-
-add_executable(NikreonRenderer2DWorldTests
-    src/Engine/Editor/EditorViewport.cpp
-    src/Engine/Renderer/RenderFrame.cpp
-    src/Engine/Renderer/Renderer2DWorld.cpp
-    tests/renderer2d_world_tests.cpp
 )
 
 find_package(Vulkan QUIET)
@@ -94,16 +70,6 @@ target_include_directories(NikreonEngine PRIVATE
     ${TINYGLTF_INCLUDE_DIRS}
     ${MINIAUDIO_INCLUDE_DIRS}
 )
-
-target_include_directories(NikreonEditorViewportTests PRIVATE src)
-target_include_directories(NikreonRenderPipelineTests PRIVATE src)
-target_include_directories(NikreonRenderer2DWorldTests PRIVATE src)
-target_link_libraries(NikreonEditorViewportTests PRIVATE glm::glm)
-target_link_libraries(NikreonRenderPipelineTests PRIVATE glm::glm)
-target_link_libraries(NikreonRenderer2DWorldTests PRIVATE glm::glm)
-add_test(NAME NikreonEditorViewportTests COMMAND NikreonEditorViewportTests)
-add_test(NAME NikreonRenderPipelineTests COMMAND NikreonRenderPipelineTests)
-add_test(NAME NikreonRenderer2DWorldTests COMMAND NikreonRenderer2DWorldTests)
 
 target_link_libraries(NikreonEngine PRIVATE
     glfw

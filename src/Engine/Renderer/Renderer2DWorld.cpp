@@ -4,8 +4,6 @@
 #include <cmath>
 #include <limits>
 
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/ext/matrix_transform.hpp>
 #include <glm/common.hpp>
 #include <glm/trigonometric.hpp>
 
@@ -29,16 +27,6 @@ constexpr WorldTextureId WhiteTexture = 0;
 
 } // namespace
 
-glm::mat4 Renderer2DWorldCamera::projection() const
-{
-    const glm::vec2 halfSize = glm::max(viewportSize * 0.5f / std::max(zoom, 0.0001f), glm::vec2{0.0001f, 0.0001f});
-    return glm::ortho(-halfSize.x, halfSize.x, -halfSize.y, halfSize.y, -1000.0f, 1000.0f);
-}
-
-glm::mat4 Renderer2DWorldCamera::viewProjection() const
-{
-    return projection() * glm::translate(glm::mat4{1.0f}, {-position.x, -position.y, 0.0f});
-}
 
 WorldSpriteUV WorldSpriteAnimation::frameUV(const float elapsedSeconds) const
 {

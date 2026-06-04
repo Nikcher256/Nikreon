@@ -57,8 +57,10 @@ std::vector<UIKey> uiKeys(const Input& input)
     return keys;
 }
 
-EditorUI::EditorUI()
-    : m_playButton("toolbar.play")
+EditorUI::EditorUI(EditorViewport& viewport, EditorWorldDebugController& worldDebug)
+    : m_viewport(viewport)
+    , m_worldDebug(worldDebug)
+    , m_playButton("toolbar.play")
     , m_pauseButton("toolbar.pause")
     , m_stopButton("toolbar.stop")
     , m_toggleHierarchyButton("toolbar.toggleHierarchy")
@@ -206,45 +208,28 @@ EditorUI::EditorUI()
         }
         if (const auto selectedPath = FileDialog::openFile(options)) {
             m_spritePathInput.setValue(selectedPath->string());
-            m_loadedSpritePath = selectedPath->string();
-            m_worldTestSpriteLoaded = true;
-            if (m_worldTestSpriteCount == 0) {
-                m_worldTestSpriteCount = 1;
-            }
-            spdlog::info("Editor UI: Sprite test path set to '{}'.", m_loadedSpritePath);
+            m_worldDebug.setSpritePath(selectedPath->string());
+            m_worldDebug.addSprite();
+            spdlog::info("Editor UI: Sprite test path set to '{}'.", selectedPath->string());
         }
     });
     m_spritePathInput.setOnValueChanged([this](const std::string_view value) {
-        m_loadedSpritePath = std::string(value);
-        m_worldTestSpriteLoaded = !m_loadedSpritePath.empty();
+        m_worldDebug.setSpritePath(std::string(value));
     });
     m_addSpriteButton.setOnClick([this]() {
-        m_worldTestSpriteLoaded = true;
-        if (m_loadedSpritePath.empty()) {
-            m_loadedSpritePath = m_spritePathInput.value();
-        }
-        ++m_worldTestSpriteCount;
+        m_worldDebug.setSpritePath(m_spritePathInput.value());
+        m_worldDebug.addSprite();
     });
     m_addManySpritesButton.setOnClick([this]() {
-        m_worldTestSpriteLoaded = true;
-        if (m_loadedSpritePath.empty()) {
-            m_loadedSpritePath = m_spritePathInput.value();
-        }
-        m_worldTestSpriteCount += 96;
+        m_worldDebug.setSpritePath(m_spritePathInput.value());
+        m_worldDebug.addManySprites();
     });
-    m_addTilemapButton.setOnClick([this]() { m_worldTestTilemap = !m_worldTestTilemap; });
-    m_animateSpriteButton.setOnClick([this]() { m_worldTestAnimated = !m_worldTestAnimated; });
-    m_toggleParallaxButton.setOnClick([this]() { m_worldTestParallax = !m_worldTestParallax; });
-    m_toggleParticlesButton.setOnClick([this]() { m_worldTestParticles = !m_worldTestParticles; });
-    m_toggleDebugShapesButton.setOnClick([this]() { m_worldTestDebugShapes = !m_worldTestDebugShapes; });
-    m_clearWorldTestButton.setOnClick([this]() {
-        m_worldTestSpriteCount = 0;
-        m_worldTestTilemap = false;
-        m_worldTestAnimated = false;
-        m_worldTestParallax = false;
-        m_worldTestParticles = false;
-        m_worldTestDebugShapes = false;
-    });
+    m_addTilemapButton.setOnClick([this]() { m_worldDebug.toggleTilemap(); });
+    m_animateSpriteButton.setOnClick([this]() { m_worldDebug.toggleAnimatedSprite(); });
+    m_toggleParallaxButton.setOnClick([this]() { m_worldDebug.toggleParallax(); });
+    m_toggleParticlesButton.setOnClick([this]() { m_worldDebug.toggleParticles(); });
+    m_toggleDebugShapesButton.setOnClick([this]() { m_worldDebug.toggleDebugShapes(); });
+    m_clearWorldTestButton.setOnClick([this]() { m_worldDebug.clear(); });
 
     for (std::size_t index = 0; index < m_hierarchyRows.size(); ++index) {
         m_hierarchyRows[index].setStyleClass("hierarchy-row");
@@ -256,7 +241,7 @@ EditorUI::EditorUI()
 }
 
 // Builds the native editor shell and lets widgets handle their own state.
-void EditorUI::render(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWorld, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
+void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
 {
     m_context.beginFrame({
         input.mousePosition(),
@@ -271,6 +256,7 @@ void EditorUI::render(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWorld, 
 
     const float width = static_cast<float>(std::max(viewportSize.x, 1U));
     const float height = static_cast<float>(std::max(viewportSize.y, 1U));
+    m_renderSize = {width, height};
     layoutWidgets(width, height);
     m_clearColorPicker.registerPopupLayer(m_context);
     updatePanelSplitters(width, height);
@@ -317,29 +303,14 @@ void EditorUI::render(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWorld, 
         m_inspectorScroll.popClip(renderer2D);
     }
 
-    submitWorldRendererTestContent(renderer2DWorld);
-    renderLabels(textRenderer);
-    renderWorldRendererLabels(textRenderer, renderer2DWorld);
+    renderLabels(renderer2D, textRenderer);
     m_clearColorPicker.renderPopup(m_context, renderer2D, textRenderer, m_style);
     m_context.endFrame();
 }
 
-void EditorUI::updateEditorCamera(const float deltaTime, const Input& input)
+void EditorUI::update(const float deltaTime)
 {
-    m_worldTestElapsed += deltaTime;
-    const auto axis = [&input](const int positive, const int negative) {
-        return static_cast<float>(input.isKeyPressed(positive)) - static_cast<float>(input.isKeyPressed(negative));
-    };
-    m_viewport.updateEditorCamera(deltaTime, {
-        .moveRight = axis(GLFW_KEY_D, GLFW_KEY_A),
-        .moveUp = axis(GLFW_KEY_E, GLFW_KEY_Q),
-        .moveForward = axis(GLFW_KEY_W, GLFW_KEY_S),
-    });
-}
-
-const EditorViewport& EditorUI::viewport() const
-{
-    return m_viewport;
+    m_worldDebug.update(deltaTime);
 }
 
 // Computes responsive panel and widget bounds for the current framebuffer size.
@@ -506,11 +477,11 @@ void EditorUI::updateWidgets(TextRenderer& textRenderer)
     m_positionXInput.setValue(m_previewPosition.x);
     m_positionYInput.setValue(m_previewPosition.y);
     m_positionZInput.setValue(m_previewPosition.z);
-    m_addTilemapButton.setSelected(m_worldTestTilemap);
-    m_animateSpriteButton.setSelected(m_worldTestAnimated);
-    m_toggleParallaxButton.setSelected(m_worldTestParallax);
-    m_toggleParticlesButton.setSelected(m_worldTestParticles);
-    m_toggleDebugShapesButton.setSelected(m_worldTestDebugShapes);
+    m_addTilemapButton.setSelected(m_worldDebug.tilemapEnabled());
+    m_animateSpriteButton.setSelected(m_worldDebug.animatedSpriteEnabled());
+    m_toggleParallaxButton.setSelected(m_worldDebug.parallaxEnabled());
+    m_toggleParticlesButton.setSelected(m_worldDebug.particlesEnabled());
+    m_toggleDebugShapesButton.setSelected(m_worldDebug.debugShapesEnabled());
 
     m_playButton.update(m_context);
     m_pauseButton.update(m_context);
@@ -615,8 +586,10 @@ void EditorUI::renderPanelSplitters(Renderer2D& renderer2D)
 }
 
 // Draws the first real editor labels through the cached font atlas.
-void EditorUI::renderLabels(TextRenderer& textRenderer)
+void EditorUI::renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer)
 {
+    std::string tooltipText;
+
     if (m_hierarchyVisible) {
         drawStyledText(textRenderer, "Hierarchy", {m_hierarchyBounds.position + glm::vec2{16.0f, 8.0f}, {m_hierarchyBounds.size.x - 32.0f, 18.0f}}, "heading");
     }
@@ -627,13 +600,20 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
         drawStyledText(textRenderer, "Console", {m_consoleBounds.position + glm::vec2{16.0f, 8.0f}, {m_consoleBounds.size.x - 32.0f, 18.0f}}, "heading");
     }
     drawStyledText(textRenderer, "Viewport", {m_viewportBounds.position + glm::vec2{12.0f, 8.0f}, {m_viewportBounds.size.x - 24.0f, 18.0f}}, "muted", "viewport-title");
-    drawStyledText(textRenderer, "H", {m_toggleHierarchyButton.position(), m_toggleHierarchyButton.size()}, "toolbar-toggle");
-    drawStyledText(textRenderer, "I", {m_toggleInspectorButton.position(), m_toggleInspectorButton.size()}, "toolbar-toggle");
-    drawStyledText(textRenderer, "C", {m_toggleConsoleButton.position(), m_toggleConsoleButton.size()}, "toolbar-toggle");
-    drawStyledText(textRenderer, "Edit", {m_editModeButton.position(), m_editModeButton.size()}, "toolbar-toggle");
-    drawStyledText(textRenderer, "Play", {m_playModeButton.position(), m_playModeButton.size()}, "toolbar-toggle");
-    drawStyledText(textRenderer, "Simulate", {m_simulateModeButton.position(), m_simulateModeButton.size()}, "toolbar-toggle");
-    drawStyledText(textRenderer, "HudEdit", {m_hudEditModeButton.position(), m_hudEditModeButton.size()}, "toolbar-toggle");
+    const auto drawHoverButtonLabel = [this, &textRenderer, &tooltipText](const Button& button, const std::string_view label) {
+        const bool truncated = drawButtonLabel(textRenderer, button, label);
+        if (truncated && button.interaction().hovered) {
+            tooltipText = std::string(label);
+        }
+    };
+
+    drawHoverButtonLabel(m_toggleHierarchyButton, "H");
+    drawHoverButtonLabel(m_toggleInspectorButton, "I");
+    drawHoverButtonLabel(m_toggleConsoleButton, "C");
+    drawHoverButtonLabel(m_editModeButton, "Edit");
+    drawHoverButtonLabel(m_playModeButton, "Play");
+    drawHoverButtonLabel(m_simulateModeButton, "Simulate");
+    drawHoverButtonLabel(m_hudEditModeButton, "HudEdit");
     drawStyledText(
         textRenderer,
         editorViewportModeName(m_viewport.mode()),
@@ -719,14 +699,14 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             "Sprite Path",
             {{m_spritePathInput.position().x, m_spritePathInput.position().y - 18.0f}, {m_spritePathInput.size().x, 16.0f}},
             "control-label");
-        drawStyledText(textRenderer, "Add", {m_addSpriteButton.position(), m_addSpriteButton.size()}, "toolbar-toggle");
-        drawStyledText(textRenderer, "Add Many", {m_addManySpritesButton.position(), m_addManySpritesButton.size()}, "toolbar-toggle");
-        drawStyledText(textRenderer, "Tilemap", {m_addTilemapButton.position(), m_addTilemapButton.size()}, "toolbar-toggle");
-        drawStyledText(textRenderer, "Animate", {m_animateSpriteButton.position(), m_animateSpriteButton.size()}, "toolbar-toggle");
-        drawStyledText(textRenderer, "Parallax", {m_toggleParallaxButton.position(), m_toggleParallaxButton.size()}, "toolbar-toggle");
-        drawStyledText(textRenderer, "Particles", {m_toggleParticlesButton.position(), m_toggleParticlesButton.size()}, "toolbar-toggle");
-        drawStyledText(textRenderer, "Debug", {m_toggleDebugShapesButton.position(), m_toggleDebugShapesButton.size()}, "toolbar-toggle");
-        drawStyledText(textRenderer, "Clear Sprite Test Scene", {m_clearWorldTestButton.position(), m_clearWorldTestButton.size()}, "toolbar-toggle");
+        drawHoverButtonLabel(m_addSpriteButton, "Add");
+        drawHoverButtonLabel(m_addManySpritesButton, "Add Many");
+        drawHoverButtonLabel(m_addTilemapButton, "Tilemap");
+        drawHoverButtonLabel(m_animateSpriteButton, "Animate");
+        drawHoverButtonLabel(m_toggleParallaxButton, "Parallax");
+        drawHoverButtonLabel(m_toggleParticlesButton, "Particles");
+        drawHoverButtonLabel(m_toggleDebugShapesButton, "Debug");
+        drawHoverButtonLabel(m_clearWorldTestButton, "Clear Sprite Test Scene");
         m_inspectorScroll.popClip(textRenderer);
     }
     if (m_consoleVisible) {
@@ -736,145 +716,13 @@ void EditorUI::renderLabels(TextRenderer& textRenderer)
             {m_consoleBounds.position + glm::vec2{16.0f, 34.0f}, {m_consoleBounds.size.x - 32.0f, 18.0f}},
             "muted");
     }
-}
-
-void EditorUI::submitWorldRendererTestContent(Renderer2DWorld& renderer2DWorld)
-{
-    const auto textureFromPath = [this]() {
-        const std::string& path = m_loadedSpritePath.empty() ? m_spritePathInput.value() : m_loadedSpritePath;
-        const WorldTextureId hash = static_cast<WorldTextureId>(std::hash<std::string>{}(path));
-        return hash == 0 ? WorldTextureId{1} : hash;
-    };
-
-    renderer2DWorld.begin({
-        .position = {0.0f, 0.0f},
-        .viewportSize = glm::max(m_viewportBounds.size, glm::vec2{1.0f, 1.0f}),
-        .zoom = 1.0f,
-    });
-
-    const WorldTextureId spriteTexture = textureFromPath();
-    const std::size_t spriteCount = std::min(m_worldTestSpriteCount, std::size_t{512});
-    for (std::size_t index = 0; index < spriteCount; ++index) {
-        const float column = static_cast<float>(index % 16U);
-        const float row = static_cast<float>(index / 16U);
-        const glm::vec4 tint{
-            0.25f + 0.12f * static_cast<float>(index % 5U),
-            0.58f + 0.08f * static_cast<float>(index % 3U),
-            0.90f - 0.08f * static_cast<float>(index % 4U),
-            1.0f,
-        };
-        renderer2DWorld.drawSprite(
-            spriteTexture,
-            {
-                .position = {-220.0f + column * 28.0f, 120.0f - row * 28.0f, static_cast<float>(index % 6U)},
-                .size = {22.0f, 22.0f},
-                .rotationRadians = (m_worldTestAnimated ? m_worldTestElapsed * 0.6f : 0.0f) + static_cast<float>(index % 4U) * 0.08f,
-                .layer = static_cast<int>(index % 3U),
-            },
-            {},
-            tint,
-            static_cast<int>(index));
+    if (!tooltipText.empty()) {
+        drawTooltip(renderer2D, textRenderer, tooltipText);
     }
-
-    if (m_worldTestTilemap) {
-        WorldTilemap tilemap;
-        tilemap.columns = 8;
-        tilemap.rows = 5;
-        tilemap.tileSize = {24.0f, 24.0f};
-        tilemap.tiles.reserve(static_cast<std::size_t>(tilemap.columns) * tilemap.rows);
-        for (std::uint32_t index = 0; index < tilemap.columns * tilemap.rows; ++index) {
-            const bool gap = index % 7U == 0U;
-            tilemap.tiles.push_back({
-                .texture = spriteTexture + 10U,
-                .tint = gap ? glm::vec4{0.0f, 0.0f, 0.0f, 0.0f} : glm::vec4{0.26f, 0.72f, 0.42f, 1.0f},
-                .entityId = static_cast<int>(1000U + index),
-                .solid = !gap,
-            });
-        }
-        renderer2DWorld.drawTilemap(tilemap, {.position = {-260.0f, -80.0f, -3.0f}, .origin = {0.0f, 0.0f}, .layer = -2});
-    }
-
-    if (m_worldTestAnimated) {
-        renderer2DWorld.drawAnimatedSprite(
-            {.texture = spriteTexture + 20U, .frameGrid = {4U, 2U}, .frameCount = 8U, .framesPerSecond = 8.0f},
-            m_worldTestElapsed,
-            {.position = {0.0f, 0.0f, 8.0f}, .size = {54.0f, 54.0f}, .rotationRadians = std::sin(m_worldTestElapsed) * 0.35f, .layer = 8},
-            {1.0f, 0.78f, 0.28f, 1.0f},
-            2000);
-    }
-
-    if (m_worldTestParallax) {
-        renderer2DWorld.drawParallaxSprite(
-            spriteTexture + 30U,
-            {.position = {-150.0f + std::sin(m_worldTestElapsed * 0.7f) * 40.0f, -150.0f, -20.0f}, .size = {180.0f, 42.0f}, .layer = -10},
-            {0.35f, 0.2f},
-            {},
-            {0.24f, 0.34f, 0.70f, 0.85f},
-            3000);
-    }
-
-    if (m_worldTestParticles) {
-        std::array<WorldParticle, 24> particles{};
-        for (std::size_t index = 0; index < particles.size(); ++index) {
-            const float angle = m_worldTestElapsed * 1.8f + static_cast<float>(index) * 0.45f;
-            const float radius = 42.0f + static_cast<float>(index % 5U) * 8.0f;
-            particles[index] = {
-                .texture = spriteTexture + 40U,
-                .transform = {
-                    .position = {std::cos(angle) * radius + 160.0f, std::sin(angle) * radius - 10.0f, 5.0f},
-                    .size = {8.0f, 8.0f},
-                    .layer = 6,
-                },
-                .tint = {1.0f, 0.38f + 0.02f * static_cast<float>(index), 0.24f, 0.85f},
-                .entityId = static_cast<int>(4000U + index),
-            };
-        }
-        renderer2DWorld.drawParticles(particles);
-    }
-
-    if (m_worldTestDebugShapes) {
-        renderer2DWorld.drawDebugRect({-280.0f, -140.0f}, {220.0f, 120.0f}, {0.2f, 0.85f, 1.0f, 1.0f}, 2.0f);
-        renderer2DWorld.drawDebugCircle({110.0f, 96.0f}, 42.0f, {1.0f, 0.95f, 0.25f, 1.0f}, 2.0f, 28U);
-        renderer2DWorld.drawDebugLine({-32.0f, -32.0f, 0.0f}, {84.0f, 46.0f, 0.0f}, {1.0f, 0.22f, 0.35f, 1.0f}, 2.0f);
-    }
-
-    renderer2DWorld.end();
-}
-
-void EditorUI::renderWorldRendererLabels(TextRenderer& textRenderer, const Renderer2DWorld& renderer2DWorld)
-{
-    const Renderer2DWorldStats stats = renderer2DWorld.stats();
-
-    std::ostringstream viewportText;
-    viewportText << "World2D target: " << stats.quadCount << " quads, "
-                 << stats.drawBatchCount << " batches, "
-                 << stats.debugLineCount << " debug";
-    drawStyledText(
-        textRenderer,
-        viewportText.str(),
-        {m_viewportBounds.position + glm::vec2{12.0f, 48.0f}, {m_viewportBounds.size.x - 24.0f, 18.0f}},
-        "muted");
-
-    if (!m_inspectorVisible) {
-        return;
-    }
-
-    m_inspectorScroll.pushClip(textRenderer);
-    std::ostringstream status;
-    status << "Loaded: " << (m_worldTestSpriteLoaded ? "yes" : "no")
-           << " | Sprites: " << m_worldTestSpriteCount
-           << " | Quads: " << stats.quadCount
-           << " | Batches: " << stats.drawBatchCount;
-    drawStyledText(
-        textRenderer,
-        status.str(),
-        {{m_clearWorldTestButton.position().x, m_clearWorldTestButton.position().y + 38.0f}, {m_clearWorldTestButton.size().x, 18.0f}},
-        "muted");
-    m_inspectorScroll.popClip(textRenderer);
 }
 
 // Positions measured text inside a rectangle using the selected stylesheet class.
-void EditorUI::drawStyledText(
+bool EditorUI::drawStyledText(
     TextRenderer& textRenderer,
     const std::string_view text,
     const UIRect& bounds,
@@ -883,10 +731,29 @@ void EditorUI::drawStyledText(
 {
     const UITextStyle& style = m_style.resolveText(styleClass, id);
     if (style.scale <= 0.0f || bounds.size.x <= 0.0f || bounds.size.y <= 0.0f) {
-        return;
+        return false;
     }
 
-    const glm::vec2 textSize = textRenderer.measureText(text, style.font, style.scale);
+    std::string displayText{text};
+    bool truncated = false;
+    const float availableWidth = std::max(bounds.size.x - std::abs(style.offset.x), 0.0f);
+    if (textRenderer.measureText(displayText, style.font, style.scale).x > availableWidth) {
+        constexpr std::string_view ellipsis = "...";
+        displayText.assign(ellipsis);
+        if (textRenderer.measureText(displayText, style.font, style.scale).x <= availableWidth) {
+            std::string candidate{text};
+            while (!candidate.empty()) {
+                candidate.pop_back();
+                displayText = candidate + std::string(ellipsis);
+                if (textRenderer.measureText(displayText, style.font, style.scale).x <= availableWidth) {
+                    break;
+                }
+            }
+        }
+        truncated = true;
+    }
+
+    const glm::vec2 textSize = textRenderer.measureText(displayText, style.font, style.scale);
     glm::vec2 position = bounds.position;
 
     if (style.horizontalAlignment == UITextHorizontalAlignment::Center) {
@@ -903,7 +770,50 @@ void EditorUI::drawStyledText(
 
     glm::vec4 color = style.color;
     color.a *= std::clamp(style.opacity, 0.0f, 1.0f);
-    textRenderer.drawText(text, position + style.offset, color, style.font, style.scale);
+    textRenderer.pushClipRect({bounds.position, bounds.size});
+    textRenderer.drawText(displayText, position + style.offset, color, style.font, style.scale);
+    textRenderer.popClipRect();
+    return truncated;
+}
+
+bool EditorUI::drawButtonLabel(
+    TextRenderer& textRenderer,
+    const Button& button,
+    const std::string_view label)
+{
+    constexpr float horizontalInset = 8.0f;
+    return drawStyledText(
+        textRenderer,
+        label,
+        {
+            button.position() + glm::vec2{horizontalInset, 0.0f},
+            {std::max(button.size().x - horizontalInset * 2.0f, 0.0f), button.size().y},
+        },
+        "toolbar-toggle");
+}
+
+void EditorUI::drawTooltip(Renderer2D& renderer2D, TextRenderer& textRenderer, const std::string_view text)
+{
+    const UITextStyle& textStyle = m_style.resolveText("toolbar-toggle");
+    const glm::vec2 padding{9.0f, 6.0f};
+    const glm::vec2 textSize = textRenderer.measureText(text, textStyle.font, textStyle.scale);
+    const glm::vec2 size{textSize.x + padding.x * 2.0f, textSize.y + padding.y * 2.0f};
+    const glm::vec2 mouse = m_context.mousePosition();
+    glm::vec2 position{mouse.x + 14.0f, mouse.y + 16.0f};
+    position.x = std::clamp(position.x, 4.0f, std::max(4.0f, m_renderSize.x - size.x - 4.0f));
+    position.y = std::clamp(position.y, 4.0f, std::max(4.0f, m_renderSize.y - size.y - 4.0f));
+
+    renderer2D.drawSdfRect(
+        position,
+        size,
+        4.0f,
+        {0.045f, 0.055f, 0.075f, 0.98f},
+        {0.32f, 0.40f, 0.52f, 1.0f},
+        1.0f);
+
+    glm::vec4 color = textStyle.color;
+    color.a *= std::clamp(textStyle.opacity, 0.0f, 1.0f);
+    textRenderer.drawText(text, position + padding, color, textStyle.font, textStyle.scale);
 }
 
 // Draws a flat editor panel background and border.
@@ -953,6 +863,11 @@ void EditorUI::drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds)
     for (float y = bounds.position.y + spacing; y < bounds.position.y + bounds.size.y; y += spacing) {
         renderer2D.drawQuad({bounds.position.x, y}, {bounds.size.x, 1.0f}, m_editorStyle.viewportGrid);
     }
+}
+
+const UIRect& EditorUI::viewportBounds() const
+{
+    return m_viewportBounds;
 }
 
 } // namespace Engine

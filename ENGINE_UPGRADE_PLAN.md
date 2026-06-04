@@ -110,6 +110,50 @@ struct UISurface {
 
 For `GameHUD`, `{0, 0}` is the top-left of the game viewport or render target. In editor `Play` and `HudEdit` modes, `GameHUD` renders into the editor viewport render target. In exported game mode, it renders into the game window/swapchain. The same `GameHUD` code should work in both cases.
 
+## Camera, Viewport, and Project Mode Model
+
+Camera is a view/projection description, not a hard renderer type. The engine should not split projects into "2D project" and "3D project" modes. A single project can contain 2D scenes, 3D scenes, mixed 2D/3D scenes, UI-only menus, and HUD overlays. Each scene or level enables the render features it needs.
+
+Camera types to support:
+
+- `Camera2D`: orthographic camera for 2D games, HUD-like world layers, tilemaps, parallax, and pixel-art or vector-style worlds. Default controls are pan, zoom, and optional screen shake. It should not orbit by default.
+- `Camera3D`: perspective or orthographic camera for 3D scenes. Default editor controls can be fly, orbit, pan, dolly, and focus.
+- `EditorCamera`: editor-only camera state used in `Edit` and usually `Simulate`. It may wrap either 2D or 3D camera behavior depending on the active scene/view mode.
+- `GameCameraComponent`: scene component used by runtime/play mode. It can be 2D orthographic, 3D perspective, 3D orthographic/isometric, or another projection later.
+
+Important rules:
+
+- A 2D camera can render 3D content if the render modules are enabled; it just uses an orthographic view/projection.
+- A 3D camera can render 2D world content if the 2D world renderer is enabled; sprites can be composited in world order, foreground/background layers, or a dedicated overlay world pass.
+- Depth is a render target and pipeline concern, not a project identity. 3D passes usually need depth. 2D world passes may skip depth and sort by layer/z, or optionally write/read depth for mixed scenes.
+- `GameHUD` and menus use `UISurface` viewport-local coordinates, not scene cameras.
+- Editor panels are never inside the viewport render target. The viewport target owns the rendered scene image; `EditorUI` draws the panel frame and then the viewport texture is displayed inside it.
+- Viewport hit testing starts at editor panel coordinates, converts to viewport-local coordinates, then routes into camera-specific picking:
+  - 2D camera: screen-to-world point or 2D shape query.
+  - 3D camera: camera ray through mouse, then physics/bounds/id-buffer picking.
+  - HUD edit: viewport-local UI hit test through `NikreonUI`.
+
+Scene render feature configuration should look more like this than a hard project split:
+
+```cpp
+struct SceneRenderFeatures {
+    bool world2D;
+    bool world3D;
+    bool depth;
+    bool lighting;
+    bool shadows;
+    bool postProcess;
+    bool gameHUD;
+};
+```
+
+Examples:
+
+- 2D platformer level: `world2D`, `gameHUD`, optional `postProcess`.
+- 3D level: `world3D`, `depth`, `lighting`, `shadows`, `postProcess`, `gameHUD`.
+- Mixed game: `world3D`, `depth`, `lighting`, plus `world2D` for foreground sprites, particles, markers, or 2D level sections.
+- Menu scene: `gameHUD` only.
+
 ## Editor Debug UI During Feature Phases
 
 The editor can have a temporary debug/testing surface while the engine is being built. This is separate from the final polished editor layout.
@@ -169,6 +213,10 @@ Engine/
     Component
     Transform
     Camera
+    Camera2D
+    Camera3D
+    CameraComponent
+    SceneRenderFeatures
     MeshRendererComponent
     LightComponent
     AudioSourceComponent
@@ -189,6 +237,8 @@ Engine/
     EditorLayer
     EditorUI
     EditorPanels
+    EditorCamera
+    ViewportController
     Gizmos
     Picking
     Selection
@@ -583,15 +633,79 @@ Completed note:
 - Wired the main `Renderer` and Vulkan command-buffer recording path through the new pipeline while keeping existing `NikreonUI` editor UI/text rendering intact.
 - Added a focused non-GPU render pipeline test for stage order and command recording sequence. The test compiled and passed via direct `cl.exe`; full MSBuild is currently blocked in this shell by duplicate `Path`/`PATH` environment variables before compilation starts.
 
-## Phase 8: Engine 2D World Renderer, Sprites, and Tilemaps
+## Phase 8: Viewport-Owned 2D World Renderer Foundation
 
-Goal: add a dedicated batched GPU renderer for 2D game-world content. This is not the HUD/menu renderer.
+Goal: make the editor viewport display a real scene render target, then build the first engine-world 2D renderer on top of that target. This phase is intentionally split into smaller checkpoints because viewport ownership, cameras, sprite batching, GPU pipelines, file import, and debug UI are separate responsibilities.
 
-Current note:
+Phase 8 is not the HUD/menu renderer:
 
-- The completed early `Renderer2D` work established reusable GPU primitive techniques for UI.
-- `NikreonUI` owns UI concerns such as styled rectangles, clipping, icons, text, panels, and HUD widgets.
-- The engine still needs a separate 2D world renderer for scene content.
+- `NikreonUI` owns editor UI, `GameHUD`, menus, text input, panels, icons, and reusable widgets.
+- `Renderer2DWorld` owns game-world sprites, tilemaps, particles, parallax, sprite animation, world debug primitives, and 2D world transforms.
+- Real file texture loading is a resource-system responsibility. Temporary Phase 8 controls may accept a path or asset id, but actual PNG/JPG upload/caching belongs to ResourceManager unless this phase is explicitly expanded.
+
+### Phase 8A: Viewport Render Target Pipeline
+
+Status: mostly complete.
+
+Goal: the viewport panel should display a texture produced by an engine-owned offscreen render target. Scene content must render into that target first, then the target is drawn/copied into the editor viewport panel.
+
+Required features:
+
+- Viewport render target abstraction with color image, image view, render pass, framebuffer, and resize handling.
+- Viewport target size follows the editor viewport panel, not the full swapchain.
+- Render scene/test content into the viewport target.
+- Composite the viewport texture into the editor UI layout.
+- Keep editor panels, inspector controls, and toolbar outside the viewport target.
+- Preserve viewport-local mouse coordinates, hover, focus, and picking coordinates.
+
+Build gate:
+
+- Changing viewport clear color or test content changes only the viewport panel.
+- Editor UI remains interactive over/around the viewport.
+- Viewport can be resized without invalid Vulkan resources.
+- Engine content is no longer drawn as a fake editor overlay.
+
+Progress note:
+
+- Upgraded the editor viewport target from clear/copy-only into a real offscreen color-attachment render target with its own image view, render pass, and framebuffer.
+- Phase 8 test content is now rendered into that viewport target first, then copied into the editor viewport panel.
+- Current implementation uses the existing Vulkan 2D primitive backend to visualize submitted world quads inside the viewport target. A dedicated textured world-sprite Vulkan pipeline is still Phase 8C work.
+
+### Phase 8B: Camera Foundation
+
+Status: not complete.
+
+Goal: establish camera types and input behavior before renderer features start depending on camera assumptions.
+
+Required types:
+
+- `Camera2D`: orthographic world camera with position, rotation, zoom, viewport size, near/far, screen-to-world conversion, and optional pixel snapping.
+- `Camera3D`: perspective/orthographic 3D camera with position, orientation, FOV, near/far, aspect, view/projection matrices, and ray-from-screen conversion.
+- `EditorCamera`: editor-only wrapper/control state that can operate in 2D pan/zoom mode or 3D fly/orbit mode.
+- `GameCameraComponent`: scene camera selected by runtime/play mode.
+
+Required behavior:
+
+- `Edit` mode uses `EditorCamera`.
+- `Simulate` mode runs simulation but normally keeps `EditorCamera`.
+- `Play` mode uses the active scene `GameCameraComponent`.
+- 2D camera controls use pan/zoom/focus, not orbit.
+- 3D editor camera controls can use fly/orbit/pan/dolly/focus.
+- Viewport focus gates camera input so inspector/text input does not accidentally move the world camera.
+- Camera projection is independent from renderer choice: a 2D orthographic camera can view 3D content, and a 3D camera can include 2D world layers if those render features are enabled.
+
+Build gate:
+
+- Viewport-local mouse can produce a 2D world point for `Camera2D`.
+- Viewport-local mouse can produce a 3D picking ray for `Camera3D`.
+- Switching viewport mode chooses editor or game camera correctly.
+- Tests cover projection, screen-to-world/ray conversion, and focus-gated input.
+
+### Phase 8C: Engine 2D World Renderer GPU Path
+
+Status: partially complete.
+
+Goal: add a dedicated batched renderer for 2D game-world content. This renderer submits to the viewport/world render target and does not use `NikreonUI` to draw sprites.
 
 Required features:
 
@@ -607,7 +721,6 @@ Required features:
 - Orthographic world projection
 - 2D debug drawing
 - World-space lines, rectangle outlines, filled rectangles, and simple circles if practical
-- Editor debug UI controls for testing the 2D world renderer in the viewport
 
 Suggested API:
 
@@ -619,25 +732,6 @@ renderer2DWorld.drawParticles(particleSystem);
 renderer2DWorld.drawDebugLine(start, end, color, thickness);
 renderer2DWorld.end();
 ```
-
-Implementation notes:
-
-- Use dynamic vertex/index buffers or a ring buffer.
-- Use one shared quad index pattern.
-- For repeated rectangle-like primitives, prefer instancing where the shape is shared and per-object data varies.
-- Flush when max quads are reached.
-- Flush when texture slots are full.
-- Group by texture where reasonable.
-- Use alpha blending.
-- Do not issue one draw call per sprite.
-- Do not add HUD widget state, menu layout, text-input behavior, or editor panel composition to the engine 2D world renderer.
-- Add temporary editor controls to test this phase:
-  - `Load Sprite` path input and button, using a simple filesystem path until ResourceManager and the asset browser exist.
-  - `Add Sprite`, `Add Many Sprites`, `Add Tilemap`, `Animate Sprite`, `Toggle Parallax`, `Toggle Particles`, `Toggle Debug Shapes`, and `Clear Test Scene`.
-  - Stats labels for sprite count, quad count, batch count, texture slot flushes, and debug primitive count.
-  - Basic transform controls for selected test sprite position, rotation, scale, tint, layer, and animation frame/rate.
-- Add any missing reusable `NikreonUI` widgets needed for these controls, such as a file/path input row, compact button group, combo box/dropdown, image preview swatch, or stats table.
-- Keep these controls in a temporary debug/test panel or inspector section. The final editor layout can be reorganized later.
 
 Core vertex:
 
@@ -651,25 +745,69 @@ struct QuadVertex {
 };
 ```
 
+Implementation notes:
+
+- Use dynamic vertex/index buffers or a ring buffer.
+- Use one shared quad index pattern.
+- Flush when max quads are reached.
+- Flush when texture slots are full.
+- Group by texture where reasonable.
+- Use alpha blending.
+- Do not issue one draw call per sprite.
+- Do not add HUD widget state, menu layout, text-input behavior, or editor panel composition to the engine 2D world renderer.
+- Support a temporary fallback texture or flat-color sprite until ResourceManager owns real texture loading.
+
 Build gate:
 
-- Many game-world sprites render in batches.
-- A tilemap renders through the engine 2D world renderer.
+- Many game-world sprites render in batches through a dedicated world pipeline.
+- A tilemap renders through `Renderer2DWorld`.
 - Particle and parallax paths exist or are cleanly prepared.
 - Sprite animation and 2D camera/world transform paths exist or are cleanly prepared.
 - 2D debug drawing works without using `NikreonUI`.
-- The editor has temporary controls that can load a sprite path, spawn visible sprite/tilemap/particle/debug test content, clear the test scene, and show renderer stats.
-- New controls are built with reusable `NikreonUI` widgets or newly added reusable widgets, not one-off immediate-mode code.
+- Renderer stats report sprites, quads, batches, texture slot flushes, and debug primitive count.
 
 Progress note:
 
 - Replaced the Phase 7 `Renderer2DWorld` placeholder with an engine-world rendering core that records sprite, tilemap, particle, parallax, animated-sprite, and 2D debug primitive commands without using `NikreonUI`.
 - Added world camera/projection data, world transforms with rotation/origin/layer/z, sprite-sheet UVs, animation frame UV calculation, tilemap expansion, particle submission, parallax submission, debug lines/rects/filled rects/circles, stable sorting, quad vertices, shared quad indices, texture-slot batches, and batch flushing by max quads or texture slots.
 - Exposed the world renderer through `RenderPipeline` and `Renderer` so future scene/runtime layers can submit world content separately from editor UI and HUD/menu composition.
-- Added focused non-GPU tests for batching, texture-slot flushing, tilemaps, particles, parallax, animation UVs, and debug primitive submission. Vulkan buffer/pipeline emission for these world batches is still the remaining Phase 8 GPU work.
+- Added focused non-GPU tests for batching, texture-slot flushing, tilemaps, particles, parallax, animation UVs, and debug primitive submission.
+- Remaining work: dedicated Vulkan world-sprite buffers, shaders, descriptors, texture slots, fallback texture, and command recording for world batches.
+
+### Phase 8D: Temporary 2D World Debug UI
+
+Status: partially complete.
+
+Goal: give every Phase 8 feature something clickable in the editor so the renderer can be tested visually without waiting for the final polished editor layout.
+
+Required controls:
+
+- `Load Sprite` path input and button, using a simple filesystem path or asset id until ResourceManager and asset browser exist.
+- Native browse button where the OS supports it.
+- `Add Sprite`, `Add Many Sprites`, `Add Tilemap`, `Animate Sprite`, `Toggle Parallax`, `Toggle Particles`, `Toggle Debug Shapes`, and `Clear Test Scene`.
+- Stats labels for sprite count, quad count, batch count, texture slot flushes, and debug primitive count.
+- Basic transform controls for selected test sprite position, rotation, scale, tint, layer, and animation frame/rate.
+
+Widget rules:
+
+- Add missing reusable `NikreonUI` widgets when this debug UI needs them, such as file/path input, compact button group, combo box/dropdown, image preview swatch, asset selector, stats table, numeric vector input, or multiline/tooltip path display.
+- Keep these controls in a temporary debug/test panel or inspector section. A later editor cleanup phase will reorganize temporary controls into proper editor panels.
+- The controls submit to engine systems through clean APIs. They must not draw world content directly through editor UI primitives.
+
+Build gate:
+
+- The editor can spawn visible 2D world test content into the viewport render target.
+- The debug UI can clear the test scene and show live stats.
+- Sprite path selection changes test input state, even if real texture loading is deferred.
+- New controls are reusable `NikreonUI` widgets or cleanly added reusable widgets.
+
+Progress note:
+
 - Added temporary editor inspector controls for the 2D world renderer: sprite path input, add/add-many buttons, tilemap/animation/parallax/particles/debug toggles, clear button, and live renderer stats.
-- Upgraded the editor viewport target from clear/copy-only into a real offscreen color-attachment render target with its own image view, render pass, and framebuffer. Phase 8 test content is now rendered into that viewport target first, then copied into the editor viewport panel.
-- Replaced the loose sprite path field/load button with a reusable `NikreonUI` `FilePathInput` widget and an engine `FileDialog` helper. The browse button opens the native Windows file dialog, uses `osascript` on macOS, and tries `zenity`/`kdialog` on Linux, with text input remaining as a fallback.
+- Replaced the loose sprite path field/load button with a reusable `NikreonUI` `FilePathInput` widget and an engine `FileDialog` helper.
+- The browse button opens the native Windows file dialog, uses `osascript` on macOS, and tries `zenity`/`kdialog` on Linux, with text input remaining as a fallback.
+- Remaining work: improve narrow path display with tooltip/expandable/multiline behavior, add transform controls, and later replace raw paths with ResourceManager asset selection.
+- Refactored temporary Phase 8 editor debug ownership: `EditorLayer` now owns `EditorViewport` and `EditorWorldDebugController`, `EditorUI` uses those by reference for controls/layout, and world-debug submission happens from `EditorLayer` instead of inside the normal `EditorUI::render` path.
 
 ## Phase 9: Game HUD and Menu Layer Using NikreonUI
 
@@ -1371,6 +1509,8 @@ The upgraded engine should be able to:
 - Render HUD elements such as health bar, crosshair, ammo text, inventory, pause menu, and dialogue UI.
 - Show `GameHUD` in `Play`, exported/runtime game, and `HudEdit`, while hiding it by default in normal `Edit`.
 - Provide `Edit`, `Play`, `Simulate`, and `HudEdit` viewport modes before complex renderer work depends on them.
+- Provide separate 2D, 3D, editor, and runtime camera behavior without splitting the engine into hard 2D-only and 3D-only project types.
+- Let scenes enable 2D, 3D, mixed, HUD-only, depth, lighting, shadows, and post-process render features through configuration instead of project identity.
 - Keep `GameHUD` viewport-local so the same layout code renders into an editor viewport target or the exported game window/swapchain.
 - Render debug lines and bounding boxes.
 - Prepare editor gizmos.
@@ -1393,27 +1533,29 @@ The upgraded engine should be able to:
 8. Finish `NikreonUI` foundation: labels, text input, scrollable clipped panels, responsive panel collapse/hide rules, UI images/icons, and nine-slice panels.
 9. Add editor viewport integration and explicit `Edit`, `Play`, `Simulate`, and `HudEdit` modes before complex renderer work.
 10. Add clean renderer architecture and separate `NikreonUI`, engine 2D world, 3D world, debug, and post-process responsibilities.
-11. Add the engine 2D world renderer for sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing.
-12. Add temporary editor debug UI controls for the 2D world renderer: load sprite path, spawn sprite/tilemap/particle/debug tests, clear scene, and display renderer stats. Add missing reusable `NikreonUI` widgets needed by these controls.
-13. Compose `GameHUD` and menus through `NikreonUI` with viewport-local `UISurface` rendering. Do not create a separate HUD renderer.
-14. Add DebugRenderer for lines, boxes, and labels, plus matching editor debug controls.
-15. Add ResourceManager foundation before complex asset loading, then replace temporary path inputs with a cleaner asset import/select flow.
-16. Upgrade model loading for GLB/glTF multiple meshes/materials, plus editor import/test controls.
-17. Add material system and PBR shader basics, plus material debug controls.
-18. Add lighting system, plus lighting debug controls.
-19. Add shadows, plus shadow debug controls.
-20. Add post-processing, plus post-process debug controls.
-21. Add scene/entity/component cleanup.
-22. Add physics/raycast/picking preparation, plus picking/debug controls.
-23. Add audio/3D audio, plus audio debug controls.
-24. Add scripting preparation, plus script/component debug controls.
-25. Add editor gizmos and overlays.
-26. Add animation/bones preparation, plus animation debug controls.
-27. Add scene serialization.
-28. Add flexible render feature support.
-29. Add optional AI editor assistant support using validated structured commands.
-30. Restructure temporary debug UI into a cleaner editor layout, asset browser, inspector organization, and reusable tool panels.
-31. Complete shader organization and performance audit.
+11. Phase 8A: make the editor viewport panel display an engine-owned offscreen render target, not fake editor overlay content.
+12. Phase 8B: add camera foundation: `Camera2D`, `Camera3D`, `EditorCamera`, `GameCameraComponent`, viewport-local screen-to-world, and screen-to-ray conversion.
+13. Phase 8C: add the engine 2D world renderer GPU path for sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing.
+14. Phase 8D: add temporary editor debug UI controls for the 2D world renderer: sprite path/browse input, spawn sprite/tilemap/particle/debug tests, clear scene, transform controls, and renderer stats. Add missing reusable `NikreonUI` widgets needed by these controls.
+15. Compose `GameHUD` and menus through `NikreonUI` with viewport-local `UISurface` rendering. Do not create a separate HUD renderer.
+16. Add DebugRenderer for lines, boxes, and labels, plus matching editor debug controls.
+17. Add ResourceManager foundation before complex asset loading, then replace temporary path inputs with a cleaner asset import/select flow.
+18. Upgrade model loading for GLB/glTF multiple meshes/materials, plus editor import/test controls.
+19. Add material system and PBR shader basics, plus material debug controls.
+20. Add lighting system, plus lighting debug controls.
+21. Add shadows, plus shadow debug controls.
+22. Add post-processing, plus post-process debug controls.
+23. Add scene/entity/component cleanup and scene render feature configuration for 2D, 3D, mixed, HUD-only, and editor preview scenes.
+24. Add physics/raycast/picking preparation, plus picking/debug controls.
+25. Add audio/3D audio, plus audio debug controls.
+26. Add scripting preparation, plus script/component debug controls.
+27. Add editor gizmos and overlays.
+28. Add animation/bones preparation, plus animation debug controls.
+29. Add scene serialization.
+30. Add flexible render feature support.
+31. Add optional AI editor assistant support using validated structured commands.
+32. Restructure temporary debug UI into a cleaner editor layout, asset browser, inspector organization, and reusable tool panels.
+33. Complete shader organization and performance audit.
 
 ## Current Phase Tracker
 
@@ -1428,7 +1570,11 @@ Update this section as work progresses.
 [~] Phase 5  - Text rendering
 [x] Phase 6  - Editor viewport integration
 [x] Phase 7  - Clean render architecture
-[~] Phase 8  - Engine 2D world renderer, sprites, and tilemaps
+[~] Phase 8  - Viewport-owned 2D world renderer foundation
+[x] Phase 8A - Viewport render target pipeline
+[ ] Phase 8B - Camera foundation
+[~] Phase 8C - Engine 2D world renderer GPU path
+[~] Phase 8D - Temporary 2D world debug UI
 [ ] Phase 9  - Game HUD and menu layer using NikreonUI
 [ ] Phase 10 - Debug renderer
 [ ] Phase 11 - Resource management foundation

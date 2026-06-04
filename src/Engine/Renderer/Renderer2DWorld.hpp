@@ -11,6 +11,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
+#include "Engine/Renderer/Camera2D.hpp"
 #include "Engine/Renderer/RenderModuleBase.hpp"
 
 namespace Engine {
@@ -30,14 +31,7 @@ struct WorldSpriteUV {
     glm::vec2 maximum{1.0f, 1.0f};
 };
 
-struct Renderer2DWorldCamera {
-    glm::vec2 position{0.0f, 0.0f};
-    glm::vec2 viewportSize{1280.0f, 720.0f};
-    float zoom{1.0f};
-
-    [[nodiscard]] glm::mat4 projection() const;
-    [[nodiscard]] glm::mat4 viewProjection() const;
-};
+using Renderer2DWorldCamera = Camera2D;
 
 struct WorldQuadVertex {
     glm::vec3 position{0.0f, 0.0f, 0.0f};

@@ -54,8 +54,7 @@ void EditorViewport::updateEditorCamera(const float deltaTime, const EditorCamer
         return;
     }
 
-    constexpr float speed = 5.0f;
-    m_editorCameraPosition += glm::vec3{input.moveRight, input.moveUp, -input.moveForward} * speed * std::max(deltaTime, 0.0f);
+    m_editorCamera.update(deltaTime, input);
 }
 
 void EditorViewport::setMode(const EditorViewportMode mode)
@@ -95,7 +94,12 @@ const std::optional<glm::uvec2>& EditorViewport::pickingCoordinates() const
 
 const glm::vec3& EditorViewport::editorCameraPosition() const
 {
-    return m_editorCameraPosition;
+    return m_editorCamera.position();
+}
+
+float EditorViewport::editorCameraZoom() const
+{
+    return m_editorCamera.zoom();
 }
 
 } // namespace Engine

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Engine/Editor/EditorCamera.hpp"
+
 #include <optional>
 #include <string_view>
 
@@ -24,11 +26,6 @@ struct EditorViewportPresentation {
     glm::vec4 clearColor{0.055f, 0.085f, 0.14f, 1.0f};
 };
 
-struct EditorCameraInput {
-    float moveRight{0.0f};
-    float moveUp{0.0f};
-    float moveForward{0.0f};
-};
 
 class EditorViewport {
 public:
@@ -47,13 +44,14 @@ public:
     [[nodiscard]] const std::optional<glm::vec2>& localMousePosition() const;
     [[nodiscard]] const std::optional<glm::uvec2>& pickingCoordinates() const;
     [[nodiscard]] const glm::vec3& editorCameraPosition() const;
+    [[nodiscard]] float editorCameraZoom() const;
 
 private:
     EditorViewportPresentation m_presentation;
     EditorViewportMode m_mode{EditorViewportMode::Edit};
     std::optional<glm::vec2> m_localMousePosition;
     std::optional<glm::uvec2> m_pickingCoordinates;
-    glm::vec3 m_editorCameraPosition{0.0f, 0.0f, 5.0f};
+    EditorCamera m_editorCamera;
     bool m_hovered{false};
     bool m_focused{false};
     bool m_leftMouseWasPressed{false};
