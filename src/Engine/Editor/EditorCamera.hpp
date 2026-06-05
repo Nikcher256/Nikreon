@@ -7,10 +7,12 @@ namespace Engine {
 
 struct EditorCameraInput {
     glm::vec2 panDelta{0.0f, 0.0f};
+    glm::vec2 lookDelta{0.0f, 0.0f};
     float zoomDelta{0.0f};
     float moveRight{0.0f};
     float moveUp{0.0f};
     float moveForward{0.0f};
+    bool perspective3D{false};
 };
 
 class EditorCamera {
@@ -21,6 +23,8 @@ public:
     [[nodiscard]] float movementSpeed() const;
     [[nodiscard]] const glm::vec3& position() const;
     [[nodiscard]] float zoom() const;
+    [[nodiscard]] float yawRadians() const;
+    [[nodiscard]] float pitchRadians() const;
 
 private:
     glm::vec3 m_position{0.0f, 0.0f, 5.0f};
@@ -28,6 +32,9 @@ private:
     float m_movementSpeed{5.0f};
     float m_panSensitivity{1.0f};
     float m_zoomStep{0.12f};
+    float m_yawRadians{0.0f};
+    float m_pitchRadians{-0.58f};
+    float m_lookSensitivity{0.006f};
 };
     
 } //namespace Engine

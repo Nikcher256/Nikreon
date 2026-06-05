@@ -145,8 +145,8 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     const glm::vec4 viewportBorder = m_viewport.focused() ? m_editorStyle.viewportFocusedBorder : m_editorStyle.viewportBorder;
     renderer2D.drawRect(m_viewportBounds.position, m_viewportBounds.size, viewportBorder, 2.0f);
 
-    m_ui.render();
     renderPanelSplitters(renderer2D);
+    m_ui.render();
 
     m_context.endFrame();
     m_ui.end();

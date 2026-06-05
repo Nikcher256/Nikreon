@@ -87,6 +87,25 @@ void EditorViewport::setCameraMode(const EditorCameraMode mode)
     m_cameraMode = mode;
 }
 
+Camera3D EditorViewport::worldCamera3D(const float aspectRatio) const
+{
+    Camera3D camera;
+    const float safeZoom = std::max(editorCameraZoom(), 0.001f);
+    const glm::vec3 target = m_editorCamera.position();
+
+    camera.yawRadians = m_editorCamera.yawRadians();
+    camera.pitchRadians = m_editorCamera.pitchRadians();
+    camera.aspectRatio = std::max(aspectRatio, 0.001f);
+    camera.verticalFovRadians = 0.75f;
+    camera.nearPlane = 0.1f;
+    camera.farPlane = 2000.0f;
+    camera.projectionMode = Camera3DProjection::Perspective;
+
+    const float distance = 420.0f / safeZoom;
+    camera.position = target - camera.forward() * distance;
+    return camera;
+}
+
 EditorCameraMode EditorViewport::cameraMode() const
 {
     return m_cameraMode;

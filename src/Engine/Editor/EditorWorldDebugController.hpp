@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Engine/Renderer/Camera2D.hpp"
 
 #include <cstddef>
 #include <string>
@@ -10,6 +9,7 @@
 namespace Engine{
 
 class Renderer2DWorld;
+struct Renderer2DWorldCamera;
 
 class EditorWorldDebugController{
 public:
@@ -29,7 +29,7 @@ public:
     void toggleDebugShapes();
     void clear();
 
-    void submit(Renderer2DWorld& renderer2DWorld, const Camera2D& camera) const;
+    void submit(Renderer2DWorld& renderer2DWorld, const Renderer2DWorldCamera& camera) const;
 
     [[nodiscard]] bool spriteLoaded() const;
     [[nodiscard]] std::size_t spriteCount() const;

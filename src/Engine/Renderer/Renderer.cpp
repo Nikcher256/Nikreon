@@ -11,7 +11,10 @@
 #include <filesystem>
 #include <limits>
 #include <span>
+#include <optional>
 
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
 #include <glm/common.hpp>
 #include <spdlog/spdlog.h>
 
@@ -149,11 +152,34 @@ void Renderer::prepareViewportWorldRenderer()
         static_cast<float>(targetSize.x) * 0.5f,
         static_cast<float>(targetSize.y) * 0.5f,
     };
-    const auto toTarget = [&camera, targetCenter](const glm::vec3& worldPosition) {
+
+    const auto toTarget2D = [&camera, targetCenter](const glm::vec3& worldPosition) {
         return glm::vec2{
-            targetCenter.x + (worldPosition.x - camera.position.x) * camera.zoom,
-            targetCenter.y - (worldPosition.y - camera.position.y) * camera.zoom,
+            targetCenter.x + (worldPosition.x - camera.camera2D.position.x) * camera.camera2D.zoom,
+            targetCenter.y - (worldPosition.y - camera.camera2D.position.y) * camera.camera2D.zoom,
         };
+    };
+
+    const glm::mat4 worldToClip = camera.camera3D.viewProjection();
+    const auto toTarget3D = [&worldToClip, targetSize](const glm::vec3& worldPosition) -> std::optional<glm::vec2> {
+        const glm::vec4 clip = worldToClip * glm::vec4{worldPosition, 1.0f};
+        if (clip.w <= 0.0001f) {
+            return std::nullopt;
+        }
+
+        const glm::vec3 ndc = glm::vec3{clip} / clip.w;
+        return glm::vec2{
+            (ndc.x * 0.5f + 0.5f) * static_cast<float>(targetSize.x),
+            (0.5f - ndc.y * 0.5f) * static_cast<float>(targetSize.y),
+        };
+    };
+
+    const auto toTarget = [&camera, &toTarget2D, &toTarget3D](const glm::vec3& worldPosition) -> std::optional<glm::vec2> {
+        if (camera.mode == Renderer2DWorldCameraMode::Perspective3D) {
+            return toTarget3D(worldPosition);
+        }
+
+        return toTarget2D(worldPosition);
     };
 
     const std::span<const WorldQuadVertex> vertices = worldRenderer.vertices();
@@ -161,9 +187,19 @@ void Renderer::prepareViewportWorldRenderer()
         glm::vec2 minimum{std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
         glm::vec2 maximum{std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
         for (std::size_t corner = 0; corner < 4; ++corner) {
-            const glm::vec2 targetPosition = toTarget(vertices[index + corner].position);
-            minimum = glm::min(minimum, targetPosition);
-            maximum = glm::max(maximum, targetPosition);
+            const auto targetPosition = toTarget(vertices[index + corner].position);
+            if (!targetPosition) {
+                minimum = {};
+                maximum = {};
+                break;
+            }
+
+            minimum = glm::min(minimum, *targetPosition);
+            maximum = glm::max(maximum, *targetPosition);
+        }
+
+        if (minimum == glm::vec2{} && maximum == glm::vec2{}) {
+            continue;
         }
 
         const glm::vec2 size = glm::max(maximum - minimum, glm::vec2{1.0f, 1.0f});
@@ -173,10 +209,13 @@ void Renderer::prepareViewportWorldRenderer()
     }
 
     for (const WorldDebugLine& line : worldRenderer.debugLines()) {
-        const glm::vec2 start = toTarget(line.start);
-        const glm::vec2 end = toTarget(line.end);
-        const glm::vec2 minimum = glm::min(start, end);
-        const glm::vec2 maximum = glm::max(start, end);
+        const auto start = toTarget(line.start);
+        const auto end = toTarget(line.end);
+        if (!start || !end) {
+            continue;
+        }
+        const glm::vec2 minimum = glm::min(*start, *end);
+        const glm::vec2 maximum = glm::max(*start, *end);
         const glm::vec2 size = glm::max(maximum - minimum, glm::vec2{line.thickness, line.thickness});
         m_viewportRenderer2D->drawQuad(minimum, size, line.color);
     }

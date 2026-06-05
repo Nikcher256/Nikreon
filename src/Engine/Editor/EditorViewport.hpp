@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Engine/Editor/EditorCamera.hpp"
+#include "Engine/Renderer/Camera3D.hpp"
 
 #include <optional>
 #include <string_view>
@@ -24,6 +25,7 @@ enum class EditorCameraMode {
 };
 
 [[nodiscard]] std::string_view editorViewportModeName(EditorViewportMode mode);
+[[nodiscard]] std::string_view editorCameraModeName(EditorCameraMode mode);
 
 struct EditorViewportPresentation {
     glm::vec2 position{0.0f, 0.0f};
@@ -43,6 +45,7 @@ public:
     void setMode(EditorViewportMode mode);
     void setCameraMode(EditorCameraMode mode);
 
+    [[nodiscard]] Camera3D worldCamera3D(float aspectRatio) const;
     [[nodiscard]] EditorCameraMode cameraMode() const;
     [[nodiscard]] const EditorViewportPresentation& presentation() const;
     [[nodiscard]] EditorViewportMode mode() const;

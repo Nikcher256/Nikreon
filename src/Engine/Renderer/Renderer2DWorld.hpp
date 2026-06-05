@@ -12,6 +12,7 @@
 #include <glm/vec4.hpp>
 
 #include "Engine/Renderer/Camera2D.hpp"
+#include "Engine/Renderer/Camera3D.hpp"
 #include "Engine/Renderer/RenderModuleBase.hpp"
 
 namespace Engine {
@@ -31,7 +32,16 @@ struct WorldSpriteUV {
     glm::vec2 maximum{1.0f, 1.0f};
 };
 
-using Renderer2DWorldCamera = Camera2D;
+enum class Renderer2DWorldCameraMode {
+    Orthographic2D,
+    Perspective3D,
+};
+
+struct Renderer2DWorldCamera {
+    Renderer2DWorldCameraMode mode{Renderer2DWorldCameraMode::Orthographic2D};
+    Camera2D camera2D{};
+    Camera3D camera3D{};
+};
 
 struct WorldQuadVertex {
     glm::vec3 position{0.0f, 0.0f, 0.0f};

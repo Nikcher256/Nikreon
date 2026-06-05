@@ -726,8 +726,15 @@ void VulkanContext::recordCommandBuffer(
     renderPassInfo.pClearValues = nullptr;
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    renderer2D.record(commandBuffer);
-    textRenderer.record(commandBuffer);
+    std::vector<std::uint64_t> renderOrders;
+    renderer2D.appendRenderOrders(renderOrders);
+    textRenderer.appendRenderOrders(renderOrders);
+    std::sort(renderOrders.begin(), renderOrders.end());
+    renderOrders.erase(std::unique(renderOrders.begin(), renderOrders.end()), renderOrders.end());
+    for (const std::uint64_t renderOrder : renderOrders) {
+        renderer2D.record(commandBuffer, renderOrder);
+        textRenderer.record(commandBuffer, renderOrder);
+    }
     vkCmdEndRenderPass(commandBuffer);
 
     checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end command buffer.");

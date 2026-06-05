@@ -76,7 +76,7 @@ void EditorWorldDebugController::clear()
     m_debugShapesEnabled = false;
 }
 
-void EditorWorldDebugController::submit(Renderer2DWorld& renderer2DWorld, const Camera2D& camera) const
+void EditorWorldDebugController::submit(Renderer2DWorld& renderer2DWorld, const Renderer2DWorldCamera& camera) const
 {
     const std::string path{spritePath()};
     WorldTextureId spriteTexture = static_cast<WorldTextureId>(std::hash<std::string>{}(path));
@@ -84,8 +84,9 @@ void EditorWorldDebugController::submit(Renderer2DWorld& renderer2DWorld, const 
         spriteTexture = 1;
     }
 
-    Camera2D safeCamera = camera;
-    safeCamera.viewportSize = glm::max(safeCamera.viewportSize, glm::vec2{1.0f, 1.0f});
+    Renderer2DWorldCamera safeCamera = camera;
+    safeCamera.camera2D.viewportSize = glm::max(safeCamera.camera2D.viewportSize, glm::vec2{1.0f, 1.0f});
+    safeCamera.camera3D.aspectRatio = std::max(safeCamera.camera3D.aspectRatio, 0.001f);
     renderer2DWorld.begin(safeCamera);
 
     const std::size_t spriteCount = std::min(m_spriteCount, std::size_t{512});

@@ -67,10 +67,14 @@ RenderStage Renderer2DWorld::stage() const
 void Renderer2DWorld::beginFrame(const RenderFrameContext& context)
 {
     Renderer2DWorldCamera frameCamera = m_camera;
-    frameCamera.viewportSize = {
+    const glm::vec2 viewportSize = {
         std::max(context.editorViewport.size.x, 1.0f),
         std::max(context.editorViewport.size.y, 1.0f),
     };
+
+    frameCamera.camera2D.viewportSize = viewportSize;
+    frameCamera.camera3D.aspectRatio = viewportSize.x / viewportSize.y;
+
     begin(frameCamera);
 }
 
@@ -329,7 +333,7 @@ void Renderer2DWorld::rebuildBatches()
 void Renderer2DWorld::appendQuadVertices(const PendingQuad& quad, const float textureIndex)
 {
     const std::uint32_t firstVertex = static_cast<std::uint32_t>(m_vertices.size());
-    const glm::vec2 scaledCameraOffset = m_camera.position * (glm::vec2{1.0f, 1.0f} - quad.parallaxFactor);
+    const glm::vec2 scaledCameraOffset = m_camera.camera2D.position * (glm::vec2{1.0f, 1.0f} - quad.parallaxFactor);
     const glm::vec2 basePosition{quad.transform.position.x + scaledCameraOffset.x, quad.transform.position.y + scaledCameraOffset.y};
     const glm::vec2 originOffset = quad.transform.size * quad.transform.origin;
     const glm::vec2 localCorners[4] = {
