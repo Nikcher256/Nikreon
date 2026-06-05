@@ -2,21 +2,13 @@
 
 #include "Engine/Editor/EditorWorldDebugController.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
-#include "Engine/UI/Button.hpp"
-#include "Engine/UI/Checkbox.hpp"
-#include "Engine/UI/ColorPicker.hpp"
-#include "Engine/UI/FilePathInput.hpp"
 #include "Engine/UI/Layout.hpp"
-#include "Engine/UI/NumberInput.hpp"
-#include "Engine/UI/ScrollContainer.hpp"
-#include "Engine/UI/Slider.hpp"
-#include "Engine/UI/TextInput.hpp"
+#include "Engine/UI/UIBuilder.hpp"
 #include "Engine/UI/UIContext.hpp"
 #include "Engine/UI/UIStyle.hpp"
 
+#include <cstddef>
 #include <string>
-#include <string_view>
-#include <vector>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -26,7 +18,6 @@ namespace Engine {
 
 class Input;
 class Renderer2D;
-class Renderer2DWorld;
 class TextRenderer;
 
 class EditorUI {
@@ -44,75 +35,28 @@ private:
         Paused,
     };
 
-    enum class ToolbarIcon {
-        Play,
-        Pause,
-        Stop,
-    };
-
-    void layoutWidgets(float width, float height);
-    void updatePanelSplitters(float width, float height);
-    void updateWidgets(TextRenderer& textRenderer);
-    void renderWidgets(Renderer2D& renderer2D, TextRenderer& textRenderer);
+    void declareUI(float width, float height);
+    void syncBuilderBounds();
+    [[nodiscard]] bool updatePanelSplitters();
     void renderPanelSplitters(Renderer2D& renderer2D);
-    void renderLabels(Renderer2D& renderer2D, TextRenderer& textRenderer);
-    void renderWorldRendererLabels(TextRenderer& textRenderer, const Renderer2DWorld& renderer2DWorld);
-    bool drawStyledText(
-        TextRenderer& textRenderer,
-        std::string_view text,
-        const UIRect& bounds,
-        std::string_view styleClass,
-        std::string_view id = {});
-    [[nodiscard]] bool drawButtonLabel(
-        TextRenderer& textRenderer,
-        const Button& button,
-        std::string_view label);
-    void drawTooltip(Renderer2D& renderer2D, TextRenderer& textRenderer, std::string_view text);
-    void drawPanel(Renderer2D& renderer2D, const UIRect& bounds);
-    void drawToolbarIcon(Renderer2D& renderer2D, const glm::vec2& position, const glm::vec2& size, ToolbarIcon icon, bool selected);
     void drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds);
+    void setViewportModeFromIndex(std::size_t index);
+    void openSpriteFileDialog();
 
     EditorViewport& m_viewport;
     EditorWorldDebugController& m_worldDebug;
     UIStyle m_style;
+    UIContext m_context;
+    UIBuilder m_ui;
+
     struct EditorStyle {
-        glm::vec4 toolbarFill{0.10f, 0.11f, 0.14f, 1.0f};
         glm::vec4 viewportGrid{0.10f, 0.13f, 0.17f, 0.8f};
         glm::vec4 viewportBorder{0.25f, 0.32f, 0.42f, 1.0f};
         glm::vec4 viewportFocusedBorder{0.32f, 0.58f, 0.88f, 1.0f};
         float toolbarHeightMin{42.0f};
         float toolbarHeightMax{52.0f};
     } m_editorStyle;
-    UIContext m_context;
-    Button m_playButton;
-    Button m_pauseButton;
-    Button m_stopButton;
-    Button m_toggleHierarchyButton;
-    Button m_toggleInspectorButton;
-    Button m_toggleConsoleButton;
-    Button m_editModeButton;
-    Button m_playModeButton;
-    Button m_simulateModeButton;
-    Button m_hudEditModeButton;
-    Button m_addSpriteButton;
-    Button m_addManySpritesButton;
-    Button m_addTilemapButton;
-    Button m_animateSpriteButton;
-    Button m_toggleParallaxButton;
-    Button m_toggleParticlesButton;
-    Button m_toggleDebugShapesButton;
-    Button m_clearWorldTestButton;
-    Checkbox m_gridCheckbox;
-    ColorPicker m_clearColorPicker;
-    Slider m_exposureSlider;
-    NumberInput m_lightIntensityInput;
-    NumberInput m_positionXInput;
-    NumberInput m_positionYInput;
-    NumberInput m_positionZInput;
-    TextInput m_objectNameInput;
-    FilePathInput m_spritePathInput;
-    ScrollContainer m_inspectorScroll;
-    std::vector<Button> m_hierarchyRows;
+
     UIRect m_hierarchyBounds;
     UIRect m_inspectorBounds;
     UIRect m_consoleBounds;
@@ -140,7 +84,8 @@ private:
     float m_lastLoggedExposure{0.65f};
     float m_lightIntensity{4.0f};
     glm::vec3 m_previewPosition{12.5f, -4.0f, 8.0f};
-
+    std::string m_objectName{"Directional Light"};
+    std::string m_spritePath{"assets/sprites/test.png"};
 };
 
 } // namespace Engine

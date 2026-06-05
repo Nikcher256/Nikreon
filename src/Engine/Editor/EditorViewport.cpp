@@ -16,6 +16,16 @@ std::string_view editorViewportModeName(const EditorViewportMode mode)
     return "Edit";
 }
 
+std::string_view editorCameraModeName(const EditorCameraMode mode)
+{
+    switch (mode) {
+    case EditorCameraMode::Orthographic2D: return "2D Camera";
+    case EditorCameraMode::Perspective3D: return "3D Perspective";
+    }
+
+    return "2D Camera";
+}
+
 void EditorViewport::updateInteraction(
     const EditorViewportPresentation& presentation,
     const glm::vec2& mousePosition,
@@ -70,6 +80,16 @@ const EditorViewportPresentation& EditorViewport::presentation() const
 EditorViewportMode EditorViewport::mode() const
 {
     return m_mode;
+}
+
+void EditorViewport::setCameraMode(const EditorCameraMode mode)
+{
+    m_cameraMode = mode;
+}
+
+EditorCameraMode EditorViewport::cameraMode() const
+{
+    return m_cameraMode;
 }
 
 bool EditorViewport::hovered() const

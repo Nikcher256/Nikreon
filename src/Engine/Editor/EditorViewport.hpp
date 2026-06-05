@@ -18,6 +18,11 @@ enum class EditorViewportMode {
     HudEdit,
 };
 
+enum class EditorCameraMode {
+    Orthographic2D,
+    Perspective3D,
+};
+
 [[nodiscard]] std::string_view editorViewportModeName(EditorViewportMode mode);
 
 struct EditorViewportPresentation {
@@ -36,7 +41,9 @@ public:
     void updateEditorCamera(float deltaTime, const EditorCameraInput& input);
 
     void setMode(EditorViewportMode mode);
+    void setCameraMode(EditorCameraMode mode);
 
+    [[nodiscard]] EditorCameraMode cameraMode() const;
     [[nodiscard]] const EditorViewportPresentation& presentation() const;
     [[nodiscard]] EditorViewportMode mode() const;
     [[nodiscard]] bool hovered() const;
@@ -49,6 +56,7 @@ public:
 private:
     EditorViewportPresentation m_presentation;
     EditorViewportMode m_mode{EditorViewportMode::Edit};
+    EditorCameraMode m_cameraMode{EditorCameraMode::Orthographic2D};
     std::optional<glm::vec2> m_localMousePosition;
     std::optional<glm::uvec2> m_pickingCoordinates;
     EditorCamera m_editorCamera;

@@ -31,6 +31,7 @@ add_executable(NikreonEngine
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp
+    src/Engine/Renderer/Camera3D.cpp
     src/Engine/Renderer/Camera2D.cpp
     src/Engine/Renderer/DebugRenderer.cpp
     src/Engine/Renderer/NikreonUIRenderAdapter.cpp

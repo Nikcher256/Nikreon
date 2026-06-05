@@ -5,6 +5,7 @@
 
 ui {
     spacing: 8;
+    gap: 8;
 }
 
 panel {
@@ -13,6 +14,21 @@ panel {
     border-width: 1;
     border-radius: 6;
     padding: 12, 12;
+}
+
+panel.toolbar-panel {
+    fill: 0.10, 0.11, 0.14, 1.0;
+    border: 0;
+    border-radius: 0;
+    padding: 16, 10, 16, 10;
+    gap: 12;
+}
+
+.tooltip {
+    fill: 0.045, 0.055, 0.075, 0.98;
+    border: 1, 0.32, 0.40, 0.52, 1.0;
+    border-radius: 4;
+    padding: 9, 6;
 }
 
 field {
@@ -108,9 +124,14 @@ text {
     color: 0.66, 0.72, 0.82, 1.0;
     font: default;
     font-scale: 1;
+    font-size: 1;
     opacity: 1;
     text-align: left;
+    horizontal-align: left;
     vertical-align: top;
+    wrap: none;
+    overflow: ellipsis;
+    max-lines: 1;
     offset: 0, 0;
 }
 
