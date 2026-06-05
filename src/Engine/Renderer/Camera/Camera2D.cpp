@@ -1,4 +1,4 @@
-#include "Engine/Renderer/Camera2D.hpp"
+#include "Engine/Renderer/Camera/Camera2D.hpp"
 
 #include <algorithm>
 
@@ -27,7 +27,7 @@ glm::mat4 Camera2D::projection() const
     const float safeZoom = std::max(zoom, 0.001f);
     const float halfWidth = viewportSize.x * 0.5f / safeZoom;
     const float halfHeight = viewportSize.y * 0.5f / safeZoom;
-    return glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, nearPlane, farPlane);
+    return glm::orthoRH_ZO(-halfWidth, halfWidth, -halfHeight, halfHeight, nearPlane, farPlane);
 }
 
 glm::mat4 Camera2D::view() const

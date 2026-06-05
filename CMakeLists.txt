@@ -17,6 +17,28 @@ endif()
 set(NIKREON_UI_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/NikreonUI" CACHE PATH "Path to a NikreonUI checkout")
 add_subdirectory("${NIKREON_UI_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/external/NikreonUI")
 
+find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/Bin")
+if(NOT GLSLC_EXECUTABLE)
+    message(FATAL_ERROR "glslc was not found. Install the Vulkan SDK.")
+endif()
+
+set(NIKREON_ENGINE_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+set(NIKREON_ENGINE_SHADERS
+    world2d_instanced.vert
+    world2d_instanced.frag
+)
+
+foreach(SHADER ${NIKREON_ENGINE_SHADERS})
+    set(SHADER_OUTPUT "${NIKREON_ENGINE_SHADER_OUTPUT_DIR}/${SHADER}.spv")
+    add_custom_command(OUTPUT "${SHADER_OUTPUT}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${NIKREON_ENGINE_SHADER_OUTPUT_DIR}"
+        COMMAND "${GLSLC_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${SHADER}" -o "${SHADER_OUTPUT}"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${SHADER}" VERBATIM)
+    list(APPEND NIKREON_ENGINE_COMPILED_SHADERS "${SHADER_OUTPUT}")
+endforeach()
+
+add_custom_target(NikreonEngineShaders DEPENDS ${NIKREON_ENGINE_COMPILED_SHADERS})
+
 add_executable(NikreonEngine
     src/Engine/Editor/EditorCamera.cpp
     src/Engine/Editor/EditorLayer.cpp
@@ -31,23 +53,26 @@ add_executable(NikreonEngine
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp
-    src/Engine/Renderer/Camera3D.cpp
-    src/Engine/Renderer/Camera2D.cpp
-    src/Engine/Renderer/DebugRenderer.cpp
-    src/Engine/Renderer/NikreonUIRenderAdapter.cpp
-    src/Engine/Renderer/PostProcessRenderer.cpp
-    src/Engine/Renderer/RenderFrame.cpp
-    src/Engine/Renderer/RenderModuleBase.cpp
-    src/Engine/Renderer/RenderPipeline.cpp
-    src/Engine/Renderer/Renderer.cpp
-    src/Engine/Renderer/Renderer2DWorld.cpp
-    src/Engine/Renderer/Renderer3D.cpp
-    src/Engine/Renderer/ShadowRenderer.cpp
-    src/Engine/Renderer/SkyboxRenderer.cpp
+    src/Engine/Renderer/Camera/Camera3D.cpp
+    src/Engine/Renderer/Camera/Camera2D.cpp
+    src/Engine/Renderer/Debug/DebugRenderer.cpp
+    src/Engine/Renderer/UI/NikreonUIRenderAdapter.cpp
+    src/Engine/Renderer/PostProcess/PostProcessRenderer.cpp
+    src/Engine/Renderer/Core/RenderFrame.cpp
+    src/Engine/Renderer/Core/RenderModuleBase.cpp
+    src/Engine/Renderer/Core/RenderPipeline.cpp
+    src/Engine/Renderer/Core/Renderer.cpp
+    src/Engine/Renderer/World2D/Renderer2DWorld.cpp
+    src/Engine/Renderer/World3D/Renderer3D.cpp
+    src/Engine/Renderer/Shadow/ShadowRenderer.cpp
+    src/Engine/Renderer/Skybox/SkyboxRenderer.cpp
     src/Engine/Renderer/Vulkan/VulkanContext.cpp
+    src/Engine/Renderer/Vulkan/World2D/VulkanRenderer2DWorld.cpp
     src/Engine/Renderer/Vulkan/VulkanViewportRenderTarget.cpp
     src/main.cpp
 )
+
+add_dependencies(NikreonEngine NikreonEngineShaders)
 
 find_package(Vulkan QUIET)
 find_package(VulkanHeaders CONFIG QUIET)
@@ -122,4 +147,5 @@ endif()
 target_compile_definitions(NikreonEngine PRIVATE
     GLFW_INCLUDE_NONE
     NIKREON_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    NIKREON_ENGINE_SHADER_DIR="${NIKREON_ENGINE_SHADER_OUTPUT_DIR}"
 )

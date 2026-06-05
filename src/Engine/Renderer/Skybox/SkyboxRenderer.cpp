@@ -1,4 +1,4 @@
-#include "Engine/Renderer/SkyboxRenderer.hpp"
+#include "Engine/Renderer/Skybox/SkyboxRenderer.hpp"
 
 namespace Engine {
 

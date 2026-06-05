@@ -1,6 +1,6 @@
 #include "Engine/Editor/EditorLayer.hpp"
-#include "Engine/Renderer/Camera2D.hpp"
-#include "Engine/Renderer/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Camera/Camera2D.hpp"
+#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
 #include "Engine/Core/Input.hpp"
 
 #include <GLFW/glfw3.h>

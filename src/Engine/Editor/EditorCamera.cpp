@@ -13,8 +13,8 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
     const float safeDeltaTime = std::max(deltaTime, 0.0f);
 
     if (input.perspective3D) {
-        m_yawRadians -= -input.lookDelta.x * m_lookSensitivity;
-        m_pitchRadians -= input.lookDelta.y * m_lookSensitivity;
+        m_yawRadians += -input.lookDelta.x * m_lookSensitivity;
+        m_pitchRadians += input.lookDelta.y * m_lookSensitivity;
         m_pitchRadians = std::clamp(m_pitchRadians, -1.5f, 1.5f);
 
         const float sinYaw = std::sin(m_yawRadians);
@@ -25,12 +25,12 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
         const glm::vec3 rightGround{cosYaw, -sinYaw, 0.0f};
         const glm::vec3 up{0.0f, 0.0f, 1.0f};
 
-        const glm::vec3 cameraForward{
+        const glm::vec3 cameraForward = glm::normalize(glm::vec3{
             std::sin(m_yawRadians) * cosPitch,
             std::cos(m_yawRadians) * cosPitch,
             std::sin(m_pitchRadians),
-        };
-        const glm::vec3 cameraRight = rightGround;
+        });
+        const glm::vec3 cameraRight = glm::normalize(glm::cross(cameraForward, up));
         const glm::vec3 cameraUp = glm::normalize(glm::cross(cameraRight, cameraForward));
 
         m_position +=
@@ -40,7 +40,7 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
 
         const float safeZoom = std::max(m_zoom, 0.001f);
         m_position -= cameraRight * input.panDelta.x * m_panSensitivity / safeZoom;
-        m_position += cameraUp * input.panDelta.y * m_panSensitivity / safeZoom;
+        m_position -= cameraUp * input.panDelta.y * m_panSensitivity / safeZoom;
 
         if (input.zoomDelta != 0.0f) {
             const float zoomScale = std::pow(1.0f + m_zoomStep, input.zoomDelta);
@@ -57,8 +57,8 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
     } * m_movementSpeed *safeDeltaTime;
 
     const float safeZoom = std::max(m_zoom, 0.001f);
-    m_position.x -= input.panDelta.x * m_panSensitivity /safeZoom;
-    m_position.y += input.panDelta.y * m_panSensitivity / safeZoom;
+    m_position.x -= input.panDelta.x * m_panSensitivity / safeZoom;
+    m_position.y -= input.panDelta.y * m_panSensitivity / safeZoom;
 
     if (input.zoomDelta != 0.0f) {
         const float zoomScale = std::pow(1.0f + m_zoomStep, input.zoomDelta);

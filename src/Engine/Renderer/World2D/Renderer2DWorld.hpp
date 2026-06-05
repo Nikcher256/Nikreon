@@ -11,9 +11,9 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
-#include "Engine/Renderer/Camera2D.hpp"
-#include "Engine/Renderer/Camera3D.hpp"
-#include "Engine/Renderer/RenderModuleBase.hpp"
+#include "Engine/Renderer/Camera/Camera2D.hpp"
+#include "Engine/Renderer/Camera/Camera3D.hpp"
+#include "Engine/Renderer/Core/RenderModuleBase.hpp"
 
 namespace Engine {
 

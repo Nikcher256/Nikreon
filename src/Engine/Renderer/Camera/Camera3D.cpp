@@ -1,4 +1,4 @@
-#include "Engine/Renderer/Camera3D.hpp"
+#include "Engine/Renderer/Camera/Camera3D.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -39,11 +39,11 @@ glm::mat4 Camera3D::projection() const
     if (projectionMode == Camera3DProjection::Orthographic) {
         const float halfHeight = std::max(orthographicHeight, 0.001f) * 0.5f;
         const float halfWidth = halfHeight * safeAspect;
-        return glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, safeNear, safeFar);
+        return glm::orthoRH_ZO(-halfWidth, halfWidth, -halfHeight, halfHeight, safeNear, safeFar);
     }
 
     const float safeFov = std::clamp(verticalFovRadians, 0.05f, glm::pi<float>() - 0.05f);
-    return glm::perspective(safeFov, safeAspect, safeNear, safeFar);
+    return glm::perspectiveRH_ZO(safeFov, safeAspect, safeNear, safeFar);
 }
 
 glm::mat4 Camera3D::view() const

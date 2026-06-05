@@ -3,13 +3,13 @@
 #include <array>
 #include <span>
 
-#include "Engine/Renderer/DebugRenderer.hpp"
-#include "Engine/Renderer/NikreonUIRenderAdapter.hpp"
-#include "Engine/Renderer/PostProcessRenderer.hpp"
-#include "Engine/Renderer/Renderer2DWorld.hpp"
-#include "Engine/Renderer/Renderer3D.hpp"
-#include "Engine/Renderer/ShadowRenderer.hpp"
-#include "Engine/Renderer/SkyboxRenderer.hpp"
+#include "Engine/Renderer/Debug/DebugRenderer.hpp"
+#include "Engine/Renderer/UI/NikreonUIRenderAdapter.hpp"
+#include "Engine/Renderer/PostProcess/PostProcessRenderer.hpp"
+#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/World3D/Renderer3D.hpp"
+#include "Engine/Renderer/Shadow/ShadowRenderer.hpp"
+#include "Engine/Renderer/Skybox/SkyboxRenderer.hpp"
 
 namespace Engine {
 

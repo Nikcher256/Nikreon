@@ -4,7 +4,7 @@
 #include "Engine/Core/LayerStack.hpp"
 #include "Engine/Core/Time.hpp"
 #include "Engine/Core/Window.hpp"
-#include "Engine/Renderer/Renderer.hpp"
+#include "Engine/Renderer/Core/Renderer.hpp"
 
 namespace Engine {
 

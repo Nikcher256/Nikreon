@@ -645,7 +645,7 @@ Phase 8 is not the HUD/menu renderer:
 
 ### Phase 8A: Viewport Render Target Pipeline
 
-Status: mostly complete.
+Status: complete for the current Phase 8 scope.
 
 Goal: the viewport panel should display a texture produced by an engine-owned offscreen render target. Scene content must render into that target first, then the target is drawn/copied into the editor viewport panel.
 
@@ -669,11 +669,12 @@ Progress note:
 
 - Upgraded the editor viewport target from clear/copy-only into a real offscreen color-attachment render target with its own image view, render pass, and framebuffer.
 - Phase 8 test content is now rendered into that viewport target first, then copied into the editor viewport panel.
-- Current implementation uses the existing Vulkan 2D primitive backend to visualize submitted world quads inside the viewport target. A dedicated textured world-sprite Vulkan pipeline is still Phase 8C work.
+- The viewport target now records engine world content through `VulkanRenderer2DWorld`, not through the editor/UI `VulkanRenderer2D` primitive backend.
+- The old viewport-side UI renderer bridge was removed; the main editor UI renderer remains only for panels, widgets, text, and editor chrome.
 
 ### Phase 8B: Camera Foundation
 
-Status: not complete.
+Status: partially complete.
 
 Goal: establish camera types and input behavior before renderer features start depending on camera assumptions.
 
@@ -700,6 +701,14 @@ Build gate:
 - Viewport-local mouse can produce a 3D picking ray for `Camera3D`.
 - Switching viewport mode chooses editor or game camera correctly.
 - Tests cover projection, screen-to-world/ray conversion, and focus-gated input.
+
+Progress note:
+
+- Added `Camera2D` and `Camera3D` types with view/projection helpers and Vulkan zero-to-one depth projection.
+- Added editor camera mode selection for `2D Camera` vs `3D Perspective` and a reusable `NikreonUI` dropdown path in the toolbar.
+- Added editor camera controls for 2D pan/zoom and 3D orbit/pan/dolly-style zoom, with viewport focus/hover gating.
+- `Renderer2DWorld` now carries either a 2D orthographic camera or 3D perspective camera so world sprites can be viewed through both camera modes.
+- Remaining work: runtime `GameCameraComponent`, final camera selection rules for play mode, picking ray integration, focus/fly/focus-target polish, and tests.
 
 ### Phase 8C: Engine 2D World Renderer GPU Path
 
@@ -772,7 +781,10 @@ Progress note:
 - Added world camera/projection data, world transforms with rotation/origin/layer/z, sprite-sheet UVs, animation frame UV calculation, tilemap expansion, particle submission, parallax submission, debug lines/rects/filled rects/circles, stable sorting, quad vertices, shared quad indices, texture-slot batches, and batch flushing by max quads or texture slots.
 - Exposed the world renderer through `RenderPipeline` and `Renderer` so future scene/runtime layers can submit world content separately from editor UI and HUD/menu composition.
 - Added focused non-GPU tests for batching, texture-slot flushing, tilemaps, particles, parallax, animation UVs, and debug primitive submission.
-- Remaining work: dedicated Vulkan world-sprite buffers, shaders, descriptors, texture slots, fallback texture, and command recording for world batches.
+- Added a dedicated `VulkanRenderer2DWorld` path for viewport world content with an instanced colored-quad pipeline. It uses one instance per world quad and records through the viewport render target without using `NikreonUI`.
+- Added engine world shaders for instanced 2D quads and wired the renderer into `Renderer`/`VulkanContext`.
+- Removed the temporary viewport `VulkanRenderer2D` bridge so world content is no longer drawn through the UI primitive renderer.
+- Remaining work: texture/UV sampling, descriptors, texture slots, fallback texture, batch-by-texture command recording, depth attachment/depth testing, and stats for GPU batch/draw counts.
 
 ### Phase 8D: Temporary 2D World Debug UI
 
@@ -808,6 +820,7 @@ Progress note:
 - The browse button opens the native Windows file dialog, uses `osascript` on macOS, and tries `zenity`/`kdialog` on Linux, with text input remaining as a fallback.
 - Remaining work: improve narrow path display with tooltip/expandable/multiline behavior, add transform controls, and later replace raw paths with ResourceManager asset selection.
 - Refactored temporary Phase 8 editor debug ownership: `EditorLayer` now owns `EditorViewport` and `EditorWorldDebugController`, `EditorUI` uses those by reference for controls/layout, and world-debug submission happens from `EditorLayer` instead of inside the normal `EditorUI::render` path.
+- Added toolbar dropdowns for viewport mode and camera mode so the debug world renderer can be tested in 2D and 3D camera modes without adding one-off toolbar buttons.
 
 ## Phase 9: Game HUD and Menu Layer Using NikreonUI
 
@@ -1572,7 +1585,7 @@ Update this section as work progresses.
 [x] Phase 7  - Clean render architecture
 [~] Phase 8  - Viewport-owned 2D world renderer foundation
 [x] Phase 8A - Viewport render target pipeline
-[ ] Phase 8B - Camera foundation
+[~] Phase 8B - Camera foundation
 [~] Phase 8C - Engine 2D world renderer GPU path
 [~] Phase 8D - Temporary 2D world debug UI
 [ ] Phase 9  - Game HUD and menu layer using NikreonUI

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Engine/Editor/EditorCamera.hpp"
-#include "Engine/Renderer/Camera3D.hpp"
+#include "Engine/Renderer/Camera/Camera3D.hpp"
 
 #include <optional>
 #include <string_view>

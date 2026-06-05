@@ -5,13 +5,14 @@
 #include <glm/vec2.hpp>
 
 #include "Engine/Editor/EditorViewport.hpp"
-#include "Engine/Renderer/RenderFrame.hpp"
-#include "Engine/Renderer/RenderPipeline.hpp"
+#include "Engine/Renderer/Core/RenderFrame.hpp"
+#include "Engine/Renderer/Core/RenderPipeline.hpp"
 #include "Engine/Renderer/Vulkan/VulkanContext.hpp"
 
 namespace Engine {
 
 class Renderer2D;
+class VulkanRenderer2DWorld;
 class TextRenderer;
 class VulkanRenderer2D;
 class VulkanTextRenderer;
@@ -39,13 +40,13 @@ public:
 private:
     void createBackendRenderers();
     void recreateSwapchainResources();
-    void prepareViewportWorldRenderer();
+    void prepareViewportWorld2DRenderer();
     [[nodiscard]] RenderFrameContext frameContext() const;
 
     VulkanContext m_context;
     RenderPipeline m_renderPipeline;
+    std::unique_ptr<VulkanRenderer2DWorld> m_viewportRenderer2DWorld;
     std::unique_ptr<VulkanRenderer2D> m_renderer2D;
-    std::unique_ptr<VulkanRenderer2D> m_viewportRenderer2D;
     std::unique_ptr<VulkanTextRenderer> m_textRenderer;
     EditorViewportPresentation m_editorViewportPresentation{};
     EditorViewportMode m_editorViewportMode{EditorViewportMode::Edit};

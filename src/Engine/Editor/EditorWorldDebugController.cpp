@@ -1,6 +1,6 @@
 #include "Engine/Editor/EditorWorldDebugController.hpp"
 
-#include "Engine/Renderer/Renderer2DWorld.hpp"
+#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
 
 #include <algorithm>
 #include <array>
