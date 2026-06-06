@@ -463,7 +463,7 @@ void EditorUI::declareUI(const float width, const float height)
         .parent("inspector")
         .drawBackground(false)
         .grid(2)
-        .height(136.0f)
+        .height(172.0f)
         .padding(UIEdgeInsets::all(0.0f))
         .gap(8.0f);
 
@@ -533,6 +533,16 @@ void EditorUI::declareUI(const float width, const float height)
         .height(28.0f)
         .selected(m_worldDebug.debugShapesEnabled())
         .onClick([this]() { m_worldDebug.toggleDebugShapes(); });
+
+    m_ui.button("world2d.blendModes")
+        .parent("world2d.actions")
+        .styleClass("toolbar")
+        .text("Blend")
+        .textStyle("toolbar-toggle")
+        .height(28.0f)
+        .selected(m_worldDebug.blendModeTestEnabled())
+        .tooltip("Blend Mode Test")
+        .onClick([this]() { m_worldDebug.toggleBlendModeTest(); });
 
     m_ui.button("world2d.clear")
         .parent("world2d.actions")

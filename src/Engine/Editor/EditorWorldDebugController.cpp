@@ -66,6 +66,11 @@ void EditorWorldDebugController::toggleDebugShapes()
     m_debugShapesEnabled = !m_debugShapesEnabled;
 }
 
+void EditorWorldDebugController::toggleBlendModeTest()
+{
+    m_blendModeTestEnabled = !m_blendModeTestEnabled;
+}
+
 void EditorWorldDebugController::clear()
 {
     m_spriteCount = 0;
@@ -74,6 +79,7 @@ void EditorWorldDebugController::clear()
     m_parallaxEnabled = false;
     m_particlesEnabled = false;
     m_debugShapesEnabled = false;
+    m_blendModeTestEnabled = false;
 }
 
 void EditorWorldDebugController::submit(Renderer2DWorld& renderer2DWorld, const Renderer2DWorldCamera& camera) const
@@ -111,6 +117,67 @@ void EditorWorldDebugController::submit(Renderer2DWorld& renderer2DWorld, const 
             {},
             tint,
             static_cast<int>(index));
+    }
+
+    if (m_blendModeTestEnabled) {
+        const WorldSpriteRenderState opaqueState{
+            .blendMode = WorldBlendMode::Opaque,
+        };
+        const WorldSpriteRenderState alphaState{
+            .blendMode = WorldBlendMode::Alpha,
+        };
+        const WorldSpriteRenderState additiveState{
+            .blendMode = WorldBlendMode::Additive,
+        };
+
+        const glm::vec2 clusterPositions[3] = {
+            {-120.0f, -10.0f},
+            {0.0f, -10.0f},
+            {120.0f, -10.0f},
+        };
+
+        for (std::size_t index = 0; index < 3U; ++index) {
+            const glm::vec2 center = clusterPositions[index];
+
+            renderer2DWorld.drawSprite(
+                spriteTexture + 60U + index,
+                {
+                    .position = {center.x, center.y, 20.0f},
+                    .size = {72.0f, 72.0f},
+                    .rotationRadians = 0.18f,
+                    .layer = 20,
+                },
+                {},
+                {0.10f, 0.16f, 0.24f, 1.0f},
+                static_cast<int>(5000U + index * 10U),
+                opaqueState);
+
+            renderer2DWorld.drawSprite(
+                spriteTexture + 70U + index,
+                {
+                    .position = {center.x - 14.0f, center.y + 2.0f, 21.0f},
+                    .size = {58.0f, 58.0f},
+                    .rotationRadians = -0.22f,
+                    .layer = 20,
+                },
+                {},
+                {0.25f, 0.78f, 1.0f, 0.45f},
+                static_cast<int>(5010U + index * 10U),
+                index == 0U ? opaqueState : alphaState);
+
+            renderer2DWorld.drawSprite(
+                spriteTexture + 80U + index,
+                {
+                    .position = {center.x + 14.0f, center.y - 2.0f, 22.0f},
+                    .size = {58.0f, 58.0f},
+                    .rotationRadians = 0.28f,
+                    .layer = 20,
+                },
+                {},
+                {1.0f, 0.35f, 0.18f, 0.55f},
+                static_cast<int>(5020U + index * 10U),
+                index == 2U ? additiveState : alphaState);
+        }
     }
 
     if (m_tilemapEnabled) {
@@ -184,6 +251,11 @@ void EditorWorldDebugController::submit(Renderer2DWorld& renderer2DWorld, const 
 bool EditorWorldDebugController::spriteLoaded() const
 {
     return m_spriteLoaded;
+}
+
+bool EditorWorldDebugController::blendModeTestEnabled() const
+{
+    return m_blendModeTestEnabled;
 }
 
 std::size_t EditorWorldDebugController::spriteCount() const

@@ -108,6 +108,7 @@ void Renderer2DWorld::releaseResources()
     m_indices.clear();
     m_batches.clear();
     m_debugLines.clear();
+    m_textureSlotFlushCount = 0;
     m_recording = false;
 }
 
@@ -119,6 +120,7 @@ void Renderer2DWorld::begin(const Renderer2DWorldCamera& camera)
     m_indices.clear();
     m_batches.clear();
     m_debugLines.clear();
+    m_textureSlotFlushCount = 0;
     m_nextSequence = 0;
     m_recording = true;
 }
@@ -128,9 +130,10 @@ void Renderer2DWorld::drawSprite(
     const WorldSpriteTransform& transform,
     const WorldSpriteUV& uv,
     const glm::vec4& tint,
-    const int entityId)
+    const int entityId,
+    const WorldSpriteRenderState& renderState)
 {
-    queueQuad(texture, transform, uv, tint, {1.0f, 1.0f}, entityId);
+    queueQuad(texture, transform, uv, tint, {1.0f, 1.0f}, entityId, renderState);
 }
 
 void Renderer2DWorld::drawParallaxSprite(
@@ -139,9 +142,10 @@ void Renderer2DWorld::drawParallaxSprite(
     const glm::vec2& parallaxFactor,
     const WorldSpriteUV& uv,
     const glm::vec4& tint,
-    const int entityId)
+    const int entityId,
+    const WorldSpriteRenderState& renderState)
 {
-    queueQuad(texture, transform, uv, tint, parallaxFactor, entityId);
+    queueQuad(texture, transform, uv, tint, parallaxFactor, entityId, renderState);
 }
 
 void Renderer2DWorld::drawAnimatedSprite(
@@ -151,7 +155,7 @@ void Renderer2DWorld::drawAnimatedSprite(
     const glm::vec4& tint,
     const int entityId)
 {
-    drawSprite(animation.texture, transform, animation.frameUV(elapsedSeconds), tint, entityId);
+    drawSprite(animation.texture, transform, animation.frameUV(elapsedSeconds), tint, entityId, animation.renderState);
 }
 
 void Renderer2DWorld::drawTilemap(const WorldTilemap& tilemap, const WorldSpriteTransform& transform)
@@ -176,14 +180,14 @@ void Renderer2DWorld::drawTilemap(const WorldTilemap& tilemap, const WorldSprite
         tileTransform.position.y += static_cast<float>(row) * tilemap.tileSize.y;
         tileTransform.size = tilemap.tileSize;
         tileTransform.origin = {0.0f, 0.0f};
-        drawSprite(tile.texture, tileTransform, tile.uv, tile.tint, tile.entityId);
+        drawSprite(tile.texture, tileTransform, tile.uv, tile.tint, tile.entityId, tile.renderState);
     }
 }
 
 void Renderer2DWorld::drawParticles(const std::span<const WorldParticle> particles)
 {
     for (const WorldParticle& particle : particles) {
-        drawSprite(particle.texture, particle.transform, particle.uv, particle.tint, particle.entityId);
+        drawSprite(particle.texture, particle.transform, particle.uv, particle.tint, particle.entityId, particle.renderState);
     }
 }
 
@@ -273,6 +277,9 @@ Renderer2DWorldStats Renderer2DWorld::stats() const
         m_indices.size(),
         m_batches.size(),
         m_debugLines.size(),
+        m_textureSlotFlushCount,
+        m_maxTextureSlots,
+        m_maxQuadsPerBatch,
     };
 }
 
@@ -282,7 +289,8 @@ void Renderer2DWorld::queueQuad(
     const WorldSpriteUV& uv,
     const glm::vec4& tint,
     const glm::vec2& parallaxFactor,
-    const int entityId)
+    const int entityId,
+    const WorldSpriteRenderState& renderState)
 {
     if (!m_recording || transform.size.x <= 0.0f || transform.size.y <= 0.0f || tint.a <= 0.0f) {
         return;
@@ -294,6 +302,7 @@ void Renderer2DWorld::queueQuad(
         uv,
         tint,
         parallaxFactor,
+        renderState,
         entityId,
         m_nextSequence++,
     });
@@ -304,6 +313,7 @@ void Renderer2DWorld::rebuildBatches()
     m_vertices.clear();
     m_indices.clear();
     m_batches.clear();
+    m_textureSlotFlushCount = 0;
 
     std::stable_sort(m_pendingQuads.begin(), m_pendingQuads.end(), [](const PendingQuad& left, const PendingQuad& right) {
         if (left.transform.layer != right.transform.layer) {
@@ -312,15 +322,21 @@ void Renderer2DWorld::rebuildBatches()
         if (left.transform.position.z != right.transform.position.z) {
             return left.transform.position.z < right.transform.position.z;
         }
-        if (left.texture != right.texture) {
-            return left.texture < right.texture;
-        }
         return left.sequence < right.sequence;
     });
 
     for (const PendingQuad& quad : m_pendingQuads) {
-        if (m_batches.empty() || !currentBatchCanFit(m_batches.back(), quad.texture)) {
-            m_batches.push_back({m_vertices.size() / VerticesPerQuad, 0, {}});
+        const bool hadBatch = !m_batches.empty();
+        const bool canFit = hadBatch && currentBatchCanFit(m_batches.back(), quad);
+        if (!canFit) {
+            if (hadBatch &&
+                m_batches.back().key == batchKeyFor(quad) &&
+                std::find(m_batches.back().textures.begin(), m_batches.back().textures.end(), quad.texture) == m_batches.back().textures.end() &&
+                m_batches.back().textures.size() >= m_maxTextureSlots) {
+                ++m_textureSlotFlushCount;
+            }
+
+            m_batches.push_back({batchKeyFor(quad), m_vertices.size() / VerticesPerQuad, 0, {}});
         }
 
         WorldDrawBatch& batch = m_batches.back();
@@ -368,6 +384,16 @@ void Renderer2DWorld::appendQuadVertices(const PendingQuad& quad, const float te
     m_indices.push_back(firstVertex + 0U);
 }
 
+WorldBatchKey Renderer2DWorld::batchKeyFor(const PendingQuad& quad) const
+{
+    return {
+        quad.renderState.pipeline,
+        quad.renderState.blendMode,
+        quad.renderState.samplerMode,
+        quad.transform.layer,
+    };
+}
+
 float Renderer2DWorld::resolveTextureSlot(WorldDrawBatch& batch, const WorldTextureId texture) const
 {
     const auto found = std::find(batch.textures.begin(), batch.textures.end(), texture);
@@ -379,13 +405,17 @@ float Renderer2DWorld::resolveTextureSlot(WorldDrawBatch& batch, const WorldText
     return static_cast<float>(batch.textures.size() - 1U);
 }
 
-bool Renderer2DWorld::currentBatchCanFit(const WorldDrawBatch& batch, const WorldTextureId texture) const
+bool Renderer2DWorld::currentBatchCanFit(const WorldDrawBatch& batch, const PendingQuad& quad) const
 {
+    if (batch.key != batchKeyFor(quad)) {
+        return false;
+    }
+
     if (batch.quadCount >= m_maxQuadsPerBatch) {
         return false;
     }
 
-    return std::find(batch.textures.begin(), batch.textures.end(), texture) != batch.textures.end() ||
+    return std::find(batch.textures.begin(), batch.textures.end(), quad.texture) != batch.textures.end() ||
         batch.textures.size() < m_maxTextureSlots;
 }
 

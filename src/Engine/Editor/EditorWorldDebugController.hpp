@@ -27,11 +27,13 @@ public:
     void toggleParallax();
     void toggleParticles();
     void toggleDebugShapes();
+    void toggleBlendModeTest();
     void clear();
 
     void submit(Renderer2DWorld& renderer2DWorld, const Renderer2DWorldCamera& camera) const;
 
     [[nodiscard]] bool spriteLoaded() const;
+    [[nodiscard]] bool blendModeTestEnabled() const;
     [[nodiscard]] std::size_t spriteCount() const;
     [[nodiscard]] bool tilemapEnabled() const;
     [[nodiscard]] bool animatedSpriteEnabled() const;
@@ -51,6 +53,7 @@ private:
     bool m_parallaxEnabled{false};
     bool m_particlesEnabled{false};
     bool m_debugShapesEnabled{false};
+    bool m_blendModeTestEnabled{false};
     float m_elapsedSeconds{0.0f};
 };
 } // namespace Engine

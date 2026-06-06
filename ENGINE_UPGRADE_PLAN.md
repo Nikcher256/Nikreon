@@ -765,6 +765,7 @@ Implementation notes:
 - Do not issue one draw call per sprite.
 - Do not add HUD widget state, menu layout, text-input behavior, or editor panel composition to the engine 2D world renderer.
 - Support a temporary fallback texture or flat-color sprite until ResourceManager owns real texture loading.
+- Texture strategy: start with 16 texture slots per world-sprite batch, add atlas/spritesheet workflows for common 2D assets during resource-management phases, and consider an optional bindless texture path later for modern GPUs after the basic renderer and asset lifetime rules are stable.
 
 Build gate:
 
@@ -784,7 +785,9 @@ Progress note:
 - Added a dedicated `VulkanRenderer2DWorld` path for viewport world content with an instanced colored-quad pipeline. It uses one instance per world quad and records through the viewport render target without using `NikreonUI`.
 - Added engine world shaders for instanced 2D quads and wired the renderer into `Renderer`/`VulkanContext`.
 - Removed the temporary viewport `VulkanRenderer2D` bridge so world content is no longer drawn through the UI primitive renderer.
-- Remaining work: texture/UV sampling, descriptors, texture slots, fallback texture, batch-by-texture command recording, depth attachment/depth testing, and stats for GPU batch/draw counts.
+- Chosen texture batching direction: use 16 texture slots per batch now, add atlases for common 2D assets later, and keep bindless textures as an optional future path rather than the first implementation.
+- Added texture-ready Vulkan world-sprite instance data, shader UV/texture-slot inputs, fallback white texture upload, descriptor binding, 16 texture slots per batch, per-batch draw command recording, and real Vulkan blend pipelines for opaque, alpha, and additive world-sprite batches.
+- Remaining work: connect real loaded texture assets to world-sprite descriptor slots, add sampler-mode selection for nearest/linear once real textures make it visible, add depth attachment/depth testing, and expose stats for GPU batch/draw counts.
 
 ### Phase 8D: Temporary 2D World Debug UI
 
@@ -821,6 +824,7 @@ Progress note:
 - Remaining work: improve narrow path display with tooltip/expandable/multiline behavior, add transform controls, and later replace raw paths with ResourceManager asset selection.
 - Refactored temporary Phase 8 editor debug ownership: `EditorLayer` now owns `EditorViewport` and `EditorWorldDebugController`, `EditorUI` uses those by reference for controls/layout, and world-debug submission happens from `EditorLayer` instead of inside the normal `EditorUI::render` path.
 - Added toolbar dropdowns for viewport mode and camera mode so the debug world renderer can be tested in 2D and 3D camera modes without adding one-off toolbar buttons.
+- Added a temporary blend-mode test control that spawns overlapping opaque, alpha, and additive world sprites so CPU batch splitting and Vulkan blend-pipeline selection can be verified visually and in RenderDoc.
 
 ## Phase 9: Game HUD and Menu Layer Using NikreonUI
 
@@ -933,11 +937,37 @@ Tasks:
 - Add path-based caching.
 - Add clear cleanup order for CPU and GPU resources.
 
+### Phase 11A: Early Texture Asset Slice
+
+This slice may happen before Phase 9/10 so Phase 8C can test real sprites without turning the world renderer into a resource manager.
+
+Goal: load project image assets through a small resource layer, show them in a temporary asset/files panel, and let `Renderer2DWorld` draw selected texture assets.
+
+Initial scope:
+
+- Define a stable `AssetHandle` or `TextureHandle` type for engine resources.
+- Add `ResourceManager` texture caching by normalized path.
+- Load PNG/JPG image pixels on the CPU through `stb_image`.
+- Own Vulkan texture upload/image/view/sampler lifetime outside `VulkanRenderer2DWorld`.
+- Keep a missing-texture fallback and white fallback texture.
+- Let world sprites reference loaded texture handles instead of fake path hashes.
+- Add a temporary editor asset/file browser rooted at `assets/`.
+- Let the 2D world debug panel select a loaded texture asset and spawn sprites from it.
+- Keep import metadata minimal at first; full asset database, thumbnails, hot reload, drag/drop, and persistent import settings can wait for later resource/editor cleanup phases.
+
+Important boundary:
+
+- `Renderer2DWorld` records sprite commands and texture handles.
+- `ResourceManager` owns loaded assets and caching.
+- The Vulkan world renderer binds GPU texture resources for each batch.
+- `NikreonUI` may render the asset browser UI, but it does not own game-world sprite textures or draw world sprites.
+
 Build gate:
 
 - Loading the same logical resource twice returns the cached resource.
 - Missing resources return fallbacks.
 - Shutdown does not leak resource-owned objects.
+- A sprite selected from the temporary asset/file UI renders in the editor viewport through `Renderer2DWorld`.
 
 ## Phase 12: Modern Model Loading
 
@@ -1349,11 +1379,13 @@ Build gate:
 - Materials can request shader features without hardcoding a project style.
 - Adding an outline, unlit, ramp, voxel/block, or custom shader path later does not require rewriting `Renderer3D`.
 
-## Phase 26: AI Editor Assistant Support
+## Phase 26: AI Editor Assistant and Generated 3D Asset Support
 
-Goal: add an optional editor tool that can turn prompts into structured, validated engine data and editor commands.
+Goal: add an optional editor tool that can turn prompts into structured, validated engine data, editor commands, and generated 3D asset requests.
 
 This is an editor/productivity feature, not part of the Vulkan renderer core.
+
+For generated 3D models, use OpenAI as the prompt-structure/planning layer and Meshy AI as the external 3D model generation provider. The editor should not call either provider directly. It should talk to a small `NikreonServer` service that owns API credentials, provider requests, async task tracking, generated asset downloads, and the handoff into the engine asset/import pipeline.
 
 Possible AI-assisted actions:
 
@@ -1361,6 +1393,9 @@ Possible AI-assisted actions:
 - Add or configure components.
 - Suggest material overrides.
 - Create light setups.
+- Convert a user idea into a validated Meshy AI 3D model prompt.
+- Request Meshy AI text-to-3D preview/refine generation through `NikreonServer`.
+- Import a generated GLB/glTF model into the asset browser after user review.
 - Generate UI layout descriptions.
 - Fill script-template parameters.
 - Suggest debug/editor setup changes.
@@ -1376,15 +1411,22 @@ Important rules:
 - Raw generated code should not be compiled automatically without user review and sandboxing.
 - AI actions should be undoable through the normal editor command/undo system.
 - AI failures should leave the scene unchanged.
+- Provider API keys must stay in `NikreonServer`, never in the C++ editor or saved scene files.
+- Generated model files must enter the project through the normal asset import/resource pipeline, not by bypassing `ResourceManager`.
 
 Suggested architecture:
 
+- `NikreonServer`
+- `OpenAIPromptPlanner`
+- `MeshyModelGenerator`
+- `AIAssetJob`
 - `AIEditorAssistant`
 - `AICommandSchema`
 - `AICommandValidator`
 - `AICommandPreview`
 - `AIApplyCommand`
-- integration with `Scene`, `ResourceManager`, asset browser, component registry, material system, and scripting templates
+- `GeneratedAssetImporter`
+- integration with `Scene`, `ResourceManager`, asset browser, component registry, material system, model importer, and scripting templates
 
 Example command types:
 
@@ -1409,8 +1451,10 @@ Example command types:
 Build gate:
 
 - AI can produce a validated command list without directly mutating renderer internals.
+- `NikreonServer` can accept a generated 3D asset request, ask OpenAI for a structured Meshy prompt, create/track a Meshy AI generation job, and report status without exposing provider API keys to the editor.
 - Editor shows preview/diff before apply.
 - Invalid asset paths or component names are rejected.
+- Generated GLB/glTF assets can be reviewed before import and then enter the normal asset/resource pipeline.
 - Applying accepted commands updates the scene through normal editor command paths.
 - Raw generated code is never compiled automatically.
 
@@ -1550,25 +1594,26 @@ The upgraded engine should be able to:
 12. Phase 8B: add camera foundation: `Camera2D`, `Camera3D`, `EditorCamera`, `GameCameraComponent`, viewport-local screen-to-world, and screen-to-ray conversion.
 13. Phase 8C: add the engine 2D world renderer GPU path for sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing.
 14. Phase 8D: add temporary editor debug UI controls for the 2D world renderer: sprite path/browse input, spawn sprite/tilemap/particle/debug tests, clear scene, transform controls, and renderer stats. Add missing reusable `NikreonUI` widgets needed by these controls.
-15. Compose `GameHUD` and menus through `NikreonUI` with viewport-local `UISurface` rendering. Do not create a separate HUD renderer.
-16. Add DebugRenderer for lines, boxes, and labels, plus matching editor debug controls.
-17. Add ResourceManager foundation before complex asset loading, then replace temporary path inputs with a cleaner asset import/select flow.
-18. Upgrade model loading for GLB/glTF multiple meshes/materials, plus editor import/test controls.
-19. Add material system and PBR shader basics, plus material debug controls.
-20. Add lighting system, plus lighting debug controls.
-21. Add shadows, plus shadow debug controls.
-22. Add post-processing, plus post-process debug controls.
-23. Add scene/entity/component cleanup and scene render feature configuration for 2D, 3D, mixed, HUD-only, and editor preview scenes.
-24. Add physics/raycast/picking preparation, plus picking/debug controls.
-25. Add audio/3D audio, plus audio debug controls.
-26. Add scripting preparation, plus script/component debug controls.
-27. Add editor gizmos and overlays.
-28. Add animation/bones preparation, plus animation debug controls.
-29. Add scene serialization.
-30. Add flexible render feature support.
-31. Add optional AI editor assistant support using validated structured commands.
-32. Restructure temporary debug UI into a cleaner editor layout, asset browser, inspector organization, and reusable tool panels.
-33. Complete shader organization and performance audit.
+15. Add the early Phase 11A texture asset slice: `ResourceManager` texture cache, fallback texture resources, temporary `assets/` browser/selector, and world-sprite rendering from loaded texture handles.
+16. Compose `GameHUD` and menus through `NikreonUI` with viewport-local `UISurface` rendering. Do not create a separate HUD renderer.
+17. Add DebugRenderer for lines, boxes, and labels, plus matching editor debug controls.
+18. Continue ResourceManager foundation before complex asset loading, then replace temporary path inputs with a cleaner asset import/select flow.
+19. Upgrade model loading for GLB/glTF multiple meshes/materials, plus editor import/test controls.
+20. Add material system and PBR shader basics, plus material debug controls.
+21. Add lighting system, plus lighting debug controls.
+22. Add shadows, plus shadow debug controls.
+23. Add post-processing, plus post-process debug controls.
+24. Add scene/entity/component cleanup and scene render feature configuration for 2D, 3D, mixed, HUD-only, and editor preview scenes.
+25. Add physics/raycast/picking preparation, plus picking/debug controls.
+26. Add audio/3D audio, plus audio debug controls.
+27. Add scripting preparation, plus script/component debug controls.
+28. Add editor gizmos and overlays.
+29. Add animation/bones preparation, plus animation debug controls.
+30. Add scene serialization.
+31. Add flexible render feature support.
+32. Add optional AI editor assistant support using validated structured commands, plus `NikreonServer` support for OpenAI prompt planning and Meshy AI generated 3D models.
+33. Restructure temporary debug UI into a cleaner editor layout, asset browser, inspector organization, and reusable tool panels.
+34. Complete shader organization and performance audit.
 
 ## Current Phase Tracker
 
@@ -1590,7 +1635,7 @@ Update this section as work progresses.
 [~] Phase 8D - Temporary 2D world debug UI
 [ ] Phase 9  - Game HUD and menu layer using NikreonUI
 [ ] Phase 10 - Debug renderer
-[ ] Phase 11 - Resource management foundation
+[~] Phase 11 - Resource management foundation
 [ ] Phase 12 - GLB/glTF model loading
 [ ] Phase 13 - Material/PBR system
 [ ] Phase 14 - Lighting
@@ -1605,7 +1650,7 @@ Update this section as work progresses.
 [ ] Phase 23 - Resource management completion
 [ ] Phase 24 - Scene serialization
 [ ] Phase 25 - Flexible render features
-[ ] Phase 26 - AI editor assistant
+[ ] Phase 26 - AI editor assistant and Meshy AI generated 3D assets
 [ ] Phase 27 - Shader organization
 [ ] Phase 28 - Performance audit
 ```

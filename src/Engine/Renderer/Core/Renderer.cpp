@@ -106,6 +106,8 @@ void Renderer::createBackendRenderers()
     m_viewportRenderer2DWorld = std::make_unique<VulkanRenderer2DWorld>(
         m_context.device(),
         m_context.physicalDevice(),
+        m_context.graphicsQueue(),
+        m_context.commandPool(),
         m_context.viewportRenderPass());
     m_textRenderer = std::make_unique<VulkanTextRenderer>(
         m_context.device(),

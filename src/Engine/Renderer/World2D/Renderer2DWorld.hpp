@@ -19,6 +19,43 @@ namespace Engine {
 
 using WorldTextureId = std::uintptr_t;
 
+enum class WorldSpritePipeline {
+    Sprite, // normal world sprites
+    Debug,
+};
+
+enum class WorldBlendMode {
+    Opaque, // for solid sprites, no transparency blending
+    Alpha, // normal sprite transparency
+    Additive, // glow/fire/light/particles style blending
+};
+
+enum class WorldSamplerMode {
+    Nearest, // pixel-art sharp edges
+    Linear, // smooth texture filtering
+};
+
+struct WorldSpriteRenderState {
+    WorldSpritePipeline pipeline{WorldSpritePipeline::Sprite};
+    WorldBlendMode blendMode{WorldBlendMode::Alpha};
+    WorldSamplerMode samplerMode{WorldSamplerMode::Linear};
+};
+
+struct WorldBatchKey {
+    WorldSpritePipeline pipeline{WorldSpritePipeline::Sprite};
+    WorldBlendMode blendMode{WorldBlendMode::Alpha};
+    WorldSamplerMode samplerMode{WorldSamplerMode::Linear};
+    int layer{0};
+
+    [[nodiscard]] friend bool operator==(const WorldBatchKey& left, const WorldBatchKey& right)
+    {
+        return left.pipeline == right.pipeline &&
+            left.blendMode == right.blendMode &&
+            left.samplerMode == right.samplerMode &&
+            left.layer == right.layer;
+    }
+};
+
 struct WorldSpriteTransform {
     glm::vec3 position{0.0f, 0.0f, 0.0f};
     glm::vec2 size{1.0f, 1.0f};
@@ -52,6 +89,7 @@ struct WorldQuadVertex {
 };
 
 struct WorldDrawBatch {
+    WorldBatchKey key{};
     std::size_t firstQuad{0};
     std::size_t quadCount{0};
     std::vector<WorldTextureId> textures;
@@ -61,6 +99,7 @@ struct WorldTile {
     WorldTextureId texture{0};
     WorldSpriteUV uv{};
     glm::vec4 tint{1.0f, 1.0f, 1.0f, 1.0f};
+    WorldSpriteRenderState renderState{};
     int entityId{-1};
     bool solid{true};
 };
@@ -77,6 +116,7 @@ struct WorldParticle {
     WorldSpriteTransform transform{};
     WorldSpriteUV uv{};
     glm::vec4 tint{1.0f, 1.0f, 1.0f, 1.0f};
+    WorldSpriteRenderState renderState{};
     int entityId{-1};
 };
 
@@ -85,6 +125,7 @@ struct WorldSpriteAnimation {
     glm::uvec2 frameGrid{1U, 1U};
     std::uint32_t frameCount{1U};
     float framesPerSecond{12.0f};
+    WorldSpriteRenderState renderState{};
 
     [[nodiscard]] WorldSpriteUV frameUV(float elapsedSeconds) const;
 };
@@ -103,6 +144,9 @@ struct Renderer2DWorldStats {
     std::size_t indexCount{0};
     std::size_t drawBatchCount{0};
     std::size_t debugLineCount{0};
+    std::size_t textureSlotFlushCount{0};
+    std::size_t maxTextureSlots{0};
+    std::size_t maxQuadsPerBatch{0};
 };
 
 class Renderer2DWorld final : public RenderModule {
@@ -123,14 +167,16 @@ public:
         const WorldSpriteTransform& transform,
         const WorldSpriteUV& uv = {},
         const glm::vec4& tint = {1.0f, 1.0f, 1.0f, 1.0f},
-        int entityId = -1);
+        int entityId = -1,
+        const WorldSpriteRenderState& renderState = {});
     void drawParallaxSprite(
         WorldTextureId texture,
         const WorldSpriteTransform& transform,
         const glm::vec2& parallaxFactor,
         const WorldSpriteUV& uv = {},
         const glm::vec4& tint = {1.0f, 1.0f, 1.0f, 1.0f},
-        int entityId = -1);
+        int entityId = -1,
+        const WorldSpriteRenderState& renderState = {});
     void drawAnimatedSprite(
         const WorldSpriteAnimation& animation,
         float elapsedSeconds,
@@ -159,6 +205,7 @@ private:
         WorldSpriteUV uv{};
         glm::vec4 tint{1.0f, 1.0f, 1.0f, 1.0f};
         glm::vec2 parallaxFactor{1.0f, 1.0f};
+        WorldSpriteRenderState renderState{};
         int entityId{-1};
         std::uint64_t sequence{0};
     };
@@ -169,11 +216,13 @@ private:
         const WorldSpriteUV& uv,
         const glm::vec4& tint,
         const glm::vec2& parallaxFactor,
-        int entityId);
+        int entityId,
+        const WorldSpriteRenderState& renderState);
     void rebuildBatches();
     void appendQuadVertices(const PendingQuad& quad, float textureIndex);
+    [[nodiscard]] WorldBatchKey batchKeyFor(const PendingQuad& quad) const;
     [[nodiscard]] float resolveTextureSlot(WorldDrawBatch& batch, WorldTextureId texture) const;
-    [[nodiscard]] bool currentBatchCanFit(const WorldDrawBatch& batch, WorldTextureId texture) const;
+    [[nodiscard]] bool currentBatchCanFit(const WorldDrawBatch& batch, const PendingQuad& quad) const;
 
     Renderer2DWorldCamera m_camera{};
     glm::uvec2 m_lastResize{0U, 0U};
@@ -184,6 +233,7 @@ private:
     std::vector<std::uint32_t> m_indices;
     std::vector<WorldDrawBatch> m_batches;
     std::vector<WorldDebugLine> m_debugLines;
+    std::size_t m_textureSlotFlushCount{0};
     std::uint64_t m_nextSequence{0};
     bool m_recording{false};
 };
