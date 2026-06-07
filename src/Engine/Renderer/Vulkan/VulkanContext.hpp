@@ -48,7 +48,7 @@ public:
         RenderPipeline& renderPipeline,
         const RenderFrameContext& frameContext);
     void waitIdle() const;
-    void recreateSwapchain();
+    [[nodiscard]] bool recreateSwapchain();
     void setEditorViewport(const EditorViewportPresentation& presentation, EditorViewportMode mode);
     [[nodiscard]] bool setPresentMode(PresentMode presentMode);
     [[nodiscard]] PresentMode presentMode() const;
@@ -86,7 +86,7 @@ private:
     void createSurface();
     void pickPhysicalDevice();
     void createLogicalDevice();
-    void createSwapchain();
+    void createSwapchain(VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
     void createImageViews();
     void createRenderPass();
     void createFramebuffers();
@@ -99,6 +99,7 @@ private:
     void prepareViewportRenderTarget();
 
     void cleanupSwapchain();
+    void cleanupSwapchainImageResources();
 
     void recordCommandBuffer(
         VkCommandBuffer commandBuffer,

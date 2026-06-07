@@ -159,12 +159,14 @@ void Renderer::createBackendRenderers()
 
 void Renderer::recreateSwapchainResources()
 {
-    m_context.waitIdle();
-    m_textRenderer.reset();
-    m_viewportRenderer2DWorld.reset();
-    m_renderer2D.reset();
-    m_context.recreateSwapchain();
-    createBackendRenderers();
+    const bool renderPassChanged = m_context.recreateSwapchain();
+    if (renderPassChanged) {
+        m_context.waitIdle();
+        m_textRenderer.reset();
+        m_viewportRenderer2DWorld.reset();
+        m_renderer2D.reset();
+        createBackendRenderers();
+    }
     m_renderPipeline.resize(m_context.swapchainSize());
 }
 

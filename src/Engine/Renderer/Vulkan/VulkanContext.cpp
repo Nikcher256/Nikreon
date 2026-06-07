@@ -431,7 +431,7 @@ void VulkanContext::createLogicalDevice()
     vkGetDeviceQueue(m_device, indices.presentFamily, 0, &m_presentQueue);
 }
 
-void VulkanContext::createSwapchain()
+void VulkanContext::createSwapchain(const VkSwapchainKHR oldSwapchain)
 {
     const SwapchainSupportDetails support = querySwapchainSupport(m_physicalDevice);
     const VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(support.formats);
@@ -474,7 +474,7 @@ void VulkanContext::createSwapchain()
     createInfo.presentMode = presentMode;
     m_activePresentMode = presentMode;
     createInfo.clipped = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
+    createInfo.oldSwapchain = oldSwapchain;
 
     checkVk(vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain), "Failed to create swapchain.");
 
@@ -667,15 +667,20 @@ void VulkanContext::prepareViewportRenderTarget()
 
 void VulkanContext::cleanupSwapchain()
 {
-    for (const auto framebuffer : m_swapchainFramebuffers) {
-        vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-    }
-    m_swapchainFramebuffers.clear();
+    cleanupSwapchainImageResources();
 
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_device, m_renderPass, nullptr);
         m_renderPass = VK_NULL_HANDLE;
     }
+}
+
+void VulkanContext::cleanupSwapchainImageResources()
+{
+    for (const auto framebuffer : m_swapchainFramebuffers) {
+        vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+    }
+    m_swapchainFramebuffers.clear();
 
     destroyRenderFinishedSemaphores();
 
@@ -691,21 +696,41 @@ void VulkanContext::cleanupSwapchain()
     }
 }
 
-void VulkanContext::recreateSwapchain()
+bool VulkanContext::recreateSwapchain()
 {
     while (m_window.width() == 0 || m_window.height() == 0) {
         glfwWaitEvents();
     }
 
     vkDeviceWaitIdle(m_device);
-    m_viewportRenderTarget.reset();
-    cleanupSwapchain();
-    createSwapchain();
-    createViewportRenderTarget();
+
+    const VkFormat oldFormat = m_swapchainImageFormat;
+    const VkSwapchainKHR oldSwapchain = m_swapchain;
+    m_swapchain = VK_NULL_HANDLE;
+
+    cleanupSwapchainImageResources();
+    createSwapchain(oldSwapchain);
+    if (oldSwapchain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(m_device, oldSwapchain, nullptr);
+    }
+
+    const bool swapchainFormatChanged = oldFormat != VK_FORMAT_UNDEFINED && oldFormat != m_swapchainImageFormat;
+    if (swapchainFormatChanged) {
+        m_viewportRenderTarget.reset();
+        if (m_renderPass != VK_NULL_HANDLE) {
+            vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+            m_renderPass = VK_NULL_HANDLE;
+        }
+        createViewportRenderTarget();
+        createRenderPass();
+    } else if (m_renderPass == VK_NULL_HANDLE) {
+        createRenderPass();
+    }
+
     createImageViews();
-    createRenderPass();
     createFramebuffers();
     createRenderFinishedSemaphores();
+    return swapchainFormatChanged;
 }
 
 void VulkanContext::recordCommandBuffer(
