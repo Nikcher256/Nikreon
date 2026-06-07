@@ -533,7 +533,7 @@ VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureRe
     vkUnmapMemory(m_device, stagingMemory);
 
     GpuTextureResource texture;
-    createImage(width, height, VK_FORMAT_R8G8B8A8_UNORM, texture.image, texture.memory);
+    createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, texture.image, texture.memory);
     transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     copyBufferToImage(stagingBuffer, texture.image, width, height);
     transitionImageLayout(texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -545,7 +545,7 @@ VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureRe
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = texture.image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.layerCount = 1;

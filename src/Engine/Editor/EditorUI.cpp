@@ -907,6 +907,16 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
     UIFrame frame{m_context, renderer2D, textRenderer, m_style};
     UICompositeRenderScope previewRenderScope{frame};
 
+    struct PreviewItem {
+        const TextureAssetInfo* asset{nullptr};
+        UIRect bounds{};
+        glm::vec2 previewPosition{0.0f};
+        glm::vec2 previewSize{48.0f};
+    };
+
+    std::vector<PreviewItem> items;
+    items.reserve(visibleAssetCount);
+
     for (std::size_t index = 0; index < visibleAssetCount; ++index) {
         const TextureAssetInfo& asset = m_textureAssets[index];
         const std::string id = "assets.texture." + std::to_string(index);
@@ -915,9 +925,20 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
             continue;
         }
 
-        const glm::vec2 previewPosition = bounds.position + glm::vec2{6.0f, 6.0f};
-        const glm::vec2 previewSize{48.0f, 48.0f};
-        renderer2D.drawSdfRect(previewPosition, previewSize, 3.0f, m_style.field.fill, m_style.field.border, 1.0f);
+        items.push_back({
+            &asset,
+            bounds,
+            bounds.position + glm::vec2{6.0f, 6.0f},
+            {48.0f, 48.0f},
+        });
+    }
+
+    for (const PreviewItem& item : items) {
+        renderer2D.drawSdfRect(item.previewPosition, item.previewSize, 3.0f, m_style.field.fill, m_style.field.border, 1.0f);
+    }
+
+    for (const PreviewItem& item : items) {
+        const TextureAssetInfo& asset = *item.asset;
 
         if (asset.handle) {
             const TextureResource* texture = resources.tryTexture(asset.handle);
@@ -928,17 +949,25 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
                     texture->pixels.height,
                     texture->pixels.rgba8.data(),
                     texture->pixels.rgba8.size());
-                renderer2D.drawImage(asset.handle.value(), previewPosition, previewSize);
-                renderer2D.drawRect(previewPosition, previewSize, m_style.field.border, 1.0f);
+                renderer2D.drawImage(asset.handle.value(), item.previewPosition, item.previewSize);
             }
         }
+    }
 
+    for (const PreviewItem& item : items) {
+        if (item.asset->handle) {
+            renderer2D.drawRect(item.previewPosition, item.previewSize, m_style.field.border, 1.0f);
+        }
+    }
+
+    for (const PreviewItem& item : items) {
+        const TextureAssetInfo& asset = *item.asset;
         std::string label = asset.displayPath;
         if (label.size() > 34U) {
             label = label.substr(0U, 31U) + "...";
         }
 
-        const glm::vec2 labelPosition = bounds.position + glm::vec2{64.0f, 11.0f};
+        const glm::vec2 labelPosition = item.bounds.position + glm::vec2{64.0f, 11.0f};
         textRenderer.drawText(label, labelPosition, labelText.color, labelText.font, labelText.scale);
 
         std::string sizeText = asset.loaded ? "Loaded" : "Missing";
