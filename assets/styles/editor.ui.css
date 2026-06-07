@@ -202,6 +202,13 @@ text.toolbar-toggle {
     vertical-align: center;
 }
 
+text.fps-counter {
+    color: 0.66, 0.82, 0.62, 1.0;
+    font-scale: 0.82;
+    text-align: right;
+    vertical-align: center;
+}
+
 text.muted#viewport-title {
     color: 0.56, 0.70, 0.88, 1.0;
     text-align: right;

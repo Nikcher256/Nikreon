@@ -828,7 +828,17 @@ Progress note:
 
 ## Phase 9: Game HUD and Menu Layer Using NikreonUI
 
-Goal: compose in-game HUD and menus with `NikreonUI`. Do not create a separate HUD renderer.
+Status: deferred until after real texture assets, 2D/3D render composition, post-processing, and scene/runtime camera rules are clearer.
+
+Goal: compose in-game HUD and menus with `NikreonUI`. Do not create a separate low-level HUD renderer.
+
+Design decision:
+
+- Use `NikreonUI` for HUD layout, input, widget state, text, styles, image widgets, icons, nine-slice panels, pause menus, inventory UI, dialogue UI, and game menus.
+- Keep `GameHUD` as a separate composition layer from `EditorUI`; both can share `NikreonUI`, but they should not share editor-specific state.
+- Do not create a duplicate HUD renderer for basic widgets. Custom game looks should come from texture-backed styles, image widgets, nine-slice frames, custom widgets, and project-specific UI composition.
+- If a game needs special world-space UI, shader effects, diegetic displays, or 3D panels, route those through the appropriate world renderer/material path and compose them with the HUD intentionally.
+- Delay implementation until the engine has real asset handles, texture-backed UI styling, and stable render ordering for 2D, 3D, post-process, and viewport-local overlays.
 
 Required widgets:
 
@@ -1595,15 +1605,15 @@ The upgraded engine should be able to:
 13. Phase 8C: add the engine 2D world renderer GPU path for sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing.
 14. Phase 8D: add temporary editor debug UI controls for the 2D world renderer: sprite path/browse input, spawn sprite/tilemap/particle/debug tests, clear scene, transform controls, and renderer stats. Add missing reusable `NikreonUI` widgets needed by these controls.
 15. Add the early Phase 11A texture asset slice: `ResourceManager` texture cache, fallback texture resources, temporary `assets/` browser/selector, and world-sprite rendering from loaded texture handles.
-16. Compose `GameHUD` and menus through `NikreonUI` with viewport-local `UISurface` rendering. Do not create a separate HUD renderer.
-17. Add DebugRenderer for lines, boxes, and labels, plus matching editor debug controls.
-18. Continue ResourceManager foundation before complex asset loading, then replace temporary path inputs with a cleaner asset import/select flow.
-19. Upgrade model loading for GLB/glTF multiple meshes/materials, plus editor import/test controls.
-20. Add material system and PBR shader basics, plus material debug controls.
-21. Add lighting system, plus lighting debug controls.
-22. Add shadows, plus shadow debug controls.
-23. Add post-processing, plus post-process debug controls.
-24. Add scene/entity/component cleanup and scene render feature configuration for 2D, 3D, mixed, HUD-only, and editor preview scenes.
+16. Add DebugRenderer for lines, boxes, and labels, plus matching editor debug controls.
+17. Continue ResourceManager foundation before complex asset loading, then replace temporary path inputs with a cleaner asset import/select flow.
+18. Upgrade model loading for GLB/glTF multiple meshes/materials, plus editor import/test controls.
+19. Add material system and PBR shader basics, plus material debug controls.
+20. Add lighting system, plus lighting debug controls.
+21. Add shadows, plus shadow debug controls.
+22. Add post-processing, plus post-process debug controls.
+23. Add scene/entity/component cleanup and scene render feature configuration for 2D, 3D, mixed, HUD-only, and editor preview scenes.
+24. Compose `GameHUD` and menus through `NikreonUI` with viewport-local `UISurface` rendering, texture-backed styling, image/nine-slice widgets, and custom game composition hooks. Do not create a separate low-level HUD renderer.
 25. Add physics/raycast/picking preparation, plus picking/debug controls.
 26. Add audio/3D audio, plus audio debug controls.
 27. Add scripting preparation, plus script/component debug controls.
@@ -1633,7 +1643,7 @@ Update this section as work progresses.
 [~] Phase 8B - Camera foundation
 [~] Phase 8C - Engine 2D world renderer GPU path
 [~] Phase 8D - Temporary 2D world debug UI
-[ ] Phase 9  - Game HUD and menu layer using NikreonUI
+[ ] Phase 9  - Game HUD and menu layer using NikreonUI (deferred until after assets, post-process, and scene/render composition)
 [ ] Phase 10 - Debug renderer
 [~] Phase 11 - Resource management foundation
 [ ] Phase 12 - GLB/glTF model loading

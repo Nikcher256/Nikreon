@@ -85,6 +85,16 @@ TextRenderer& Renderer::textRenderer()
     return *m_textRenderer;
 }
 
+ResourceManager& Renderer::resources()
+{
+    return m_resources;
+}
+
+const ResourceManager& Renderer::resources() const
+{
+    return m_resources;
+}
+
 glm::uvec2 Renderer::viewportSize() const
 {
     return m_context.swapchainSize();
@@ -97,11 +107,25 @@ void Renderer::setEditorViewport(const EditorViewportPresentation& presentation,
     m_context.setEditorViewport(presentation, mode);
 }
 
+void Renderer::setPresentMode(const VulkanContext::PresentMode presentMode)
+{
+    if (m_context.setPresentMode(presentMode)) {
+        recreateSwapchainResources();
+    }
+}
+
+VulkanContext::PresentMode Renderer::presentMode() const
+{
+    return m_context.presentMode();
+}
+
 void Renderer::createBackendRenderers()
 {
     m_renderer2D = std::make_unique<VulkanRenderer2D>(
         m_context.device(),
         m_context.physicalDevice(),
+        m_context.graphicsQueue(),
+        m_context.commandPool(),
         m_context.renderPass());
     m_viewportRenderer2DWorld = std::make_unique<VulkanRenderer2DWorld>(
         m_context.device(),
@@ -148,7 +172,7 @@ void Renderer::prepareViewportWorld2DRenderer()
 {
     const glm::uvec2 targetSize = m_context.viewportRenderTargetSize();
     m_viewportRenderer2DWorld->begin(targetSize);
-    m_viewportRenderer2DWorld->submit(m_renderPipeline.renderer2DWorld());
+    m_viewportRenderer2DWorld->submit(m_renderPipeline.renderer2DWorld(), m_resources);
     m_viewportRenderer2DWorld->end();
 }
 

@@ -44,7 +44,6 @@ add_executable(NikreonEngine
     src/Engine/Editor/EditorLayer.cpp
     src/Engine/Editor/EditorUI.cpp
     src/Engine/Editor/EditorViewport.cpp
-    src/Engine/Editor/EditorWorldDebugController.cpp
     src/Engine/Core/Application.cpp
     src/Engine/Core/FileDialog.cpp
     src/Engine/Core/Input.cpp
@@ -53,6 +52,9 @@ add_executable(NikreonEngine
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp
+    src/Engine/Scene/Scene2DSubmitter.cpp
+    src/Engine/Scene/Scene.cpp
+    src/Engine/Resources/ResourceManager.cpp
     src/Engine/Renderer/Camera/Camera3D.cpp
     src/Engine/Renderer/Camera/Camera2D.cpp
     src/Engine/Renderer/Debug/DebugRenderer.cpp

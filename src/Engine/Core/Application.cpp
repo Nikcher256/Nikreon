@@ -87,7 +87,13 @@ void Application::render()
     m_renderingFrame = true;
 
     if (m_renderer.beginFrame()) {
-        m_layers.render(m_renderer.renderer2D(), m_renderer.renderer2DWorld(), m_renderer.textRenderer(), m_renderer.viewportSize(), m_input);
+        m_layers.render(
+            m_renderer.renderer2D(),
+            m_renderer.renderer2DWorld(),
+            m_renderer.textRenderer(),
+            m_renderer.resources(),
+            m_renderer.viewportSize(),
+            m_input);
         m_renderer.setEditorViewport(m_editorLayer->viewport().presentation(), m_editorLayer->viewport().mode());
         m_renderer.endFrame();
     }

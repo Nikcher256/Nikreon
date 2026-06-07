@@ -4,6 +4,7 @@
 
 namespace Engine {
 
+class ResourceManager;
 class Input;
 class Renderer2D;
 class Renderer2DWorld;
@@ -18,6 +19,7 @@ public:
         Renderer2D& renderer2D,
         Renderer2DWorld& renderer2DWorld,
         TextRenderer& textRenderer,
+        ResourceManager& resources,
         const glm::uvec2& viewportSize,
         const Input& input);
 };

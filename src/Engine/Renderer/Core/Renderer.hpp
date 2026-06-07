@@ -8,6 +8,7 @@
 #include "Engine/Renderer/Core/RenderFrame.hpp"
 #include "Engine/Renderer/Core/RenderPipeline.hpp"
 #include "Engine/Renderer/Vulkan/VulkanContext.hpp"
+#include "Engine/Resources/ResourceManager.hpp"
 
 namespace Engine {
 
@@ -34,8 +35,12 @@ public:
     [[nodiscard]] Renderer2D& renderer2D();
     [[nodiscard]] Renderer2DWorld& renderer2DWorld();
     [[nodiscard]] TextRenderer& textRenderer();
+    [[nodiscard]] ResourceManager& resources();
+    [[nodiscard]] const ResourceManager& resources() const;
     [[nodiscard]] glm::uvec2 viewportSize() const;
     void setEditorViewport(const EditorViewportPresentation& presentation, EditorViewportMode mode);
+    void setPresentMode(VulkanContext::PresentMode presentMode);
+    [[nodiscard]] VulkanContext::PresentMode presentMode() const;
 
 private:
     void createBackendRenderers();
@@ -44,6 +49,7 @@ private:
     [[nodiscard]] RenderFrameContext frameContext() const;
 
     VulkanContext m_context;
+    ResourceManager m_resources;
     RenderPipeline m_renderPipeline;
     std::unique_ptr<VulkanRenderer2DWorld> m_viewportRenderer2DWorld;
     std::unique_ptr<VulkanRenderer2D> m_renderer2D;

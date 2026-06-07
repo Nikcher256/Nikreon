@@ -22,6 +22,12 @@ class Window;
 
 class VulkanContext {
 public:
+    enum class PresentMode {
+        Immediate,
+        Mailbox,
+        Fifo,
+    };
+
     enum class FrameResult {
         Rendered,
         RecreateSwapchain,
@@ -44,6 +50,8 @@ public:
     void waitIdle() const;
     void recreateSwapchain();
     void setEditorViewport(const EditorViewportPresentation& presentation, EditorViewportMode mode);
+    [[nodiscard]] bool setPresentMode(PresentMode presentMode);
+    [[nodiscard]] PresentMode presentMode() const;
 
     [[nodiscard]] bool isDrawable() const;
     [[nodiscard]] bool shouldRecreateSwapchain();
@@ -132,6 +140,8 @@ private:
     VkSwapchainKHR m_swapchain{VK_NULL_HANDLE};
     VkFormat m_swapchainImageFormat{VK_FORMAT_UNDEFINED};
     VkExtent2D m_swapchainExtent{};
+    PresentMode m_requestedPresentMode{PresentMode::Mailbox};
+    VkPresentModeKHR m_activePresentMode{VK_PRESENT_MODE_FIFO_KHR};
     std::vector<VkImage> m_swapchainImages;
     std::vector<VkImageView> m_swapchainImageViews;
     VkRenderPass m_renderPass{VK_NULL_HANDLE};

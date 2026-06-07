@@ -14,12 +14,14 @@ void Layer::onRender(
     Renderer2D& renderer2D,
     Renderer2DWorld& renderer2DWorld,
     TextRenderer& textRenderer,
+    ResourceManager& resources,
     const glm::uvec2& viewportSize,
     const Input& input)
 {
     (void)renderer2D;
     (void)renderer2DWorld;
     (void)textRenderer;
+    (void)resources;
     (void)viewportSize;
     (void)input;
 }

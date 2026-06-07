@@ -1,9 +1,9 @@
 #include "Engine/Editor/EditorUI.hpp"
 
-#include "Engine/Core/FileDialog.hpp"
 #include "Engine/Core/Input.hpp"
 #include "Engine/Renderer/Renderer2D.hpp"
 #include "Engine/Renderer/TextRenderer.hpp"
+#include "Engine/UI/UIFrame.hpp"
 #include "Engine/UI/UIStyleParser.hpp"
 
 #include <algorithm>
@@ -74,6 +74,14 @@ void drawQuadIfPositive(Renderer2D& renderer2D, const glm::vec2& position, const
     renderer2D.drawQuad(position, size, color);
 }
 
+bool containsPoint(const UIRect& rect, const glm::vec2& point)
+{
+    return point.x >= rect.position.x &&
+        point.y >= rect.position.y &&
+        point.x <= rect.position.x + rect.size.x &&
+        point.y <= rect.position.y + rect.size.y;
+}
+
 void drawEditorBackgroundOutsideViewport(Renderer2D& renderer2D, const glm::vec2& canvasSize, const UIRect& viewportBounds, const glm::vec4& color)
 {
     const float left = std::clamp(viewportBounds.position.x, 0.0f, canvasSize.x);
@@ -87,11 +95,54 @@ void drawEditorBackgroundOutsideViewport(Renderer2D& renderer2D, const glm::vec2
     drawQuadIfPositive(renderer2D, {right, top}, {canvasSize.x - right, bottom - top}, color);
 }
 
+std::size_t blendModeIndex(const WorldBlendMode mode)
+{
+    switch (mode) {
+    case WorldBlendMode::Opaque:
+        return 0U;
+    case WorldBlendMode::Alpha:
+        return 1U;
+    case WorldBlendMode::Additive:
+        return 2U;
+    }
+
+    return 1U;
+}
+
+WorldBlendMode blendModeFromIndex(const std::size_t index)
+{
+    switch (index) {
+    case 0U:
+        return WorldBlendMode::Opaque;
+    case 2U:
+        return WorldBlendMode::Additive;
+    default:
+        return WorldBlendMode::Alpha;
+    }
+}
+
+std::size_t samplerModeIndex(const WorldSamplerMode mode)
+{
+    switch (mode) {
+    case WorldSamplerMode::Nearest:
+        return 0U;
+    case WorldSamplerMode::Linear:
+        return 1U;
+    }
+
+    return 1U;
+}
+
+WorldSamplerMode samplerModeFromIndex(const std::size_t index)
+{
+    return index == 0U ? WorldSamplerMode::Nearest : WorldSamplerMode::Linear;
+}
+
 } // namespace
 
-EditorUI::EditorUI(EditorViewport& viewport, EditorWorldDebugController& worldDebug)
+EditorUI::EditorUI(EditorViewport& viewport, Scene& scene)
     : m_viewport(viewport)
-    , m_worldDebug(worldDebug)
+    , m_scene(scene)
 {
     std::string styleError;
     if (!UIStyleParser::loadFile(NIKREON_ASSET_DIR "/styles/editor.ui.css", m_style, styleError)) {
@@ -99,7 +150,7 @@ EditorUI::EditorUI(EditorViewport& viewport, EditorWorldDebugController& worldDe
     }
 }
 
-void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
+void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, ResourceManager& resources, const glm::uvec2& viewportSize, const Input& input)
 {
     m_context.beginFrame({
         input.mousePosition(),
@@ -116,15 +167,22 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
     const float height = static_cast<float>(std::max(viewportSize.y, 1U));
     m_renderSize = {width, height};
 
+    if (m_textureAssetsDirty) {
+        refreshTextureAssets(resources);
+    }
+
     m_ui.begin(m_context, renderer2D, textRenderer, m_style, {{0.0f, 0.0f}, {width, height}});
-    declareUI(width, height);
+    declareUI(width, height, resources);
     m_ui.layout();
     syncBuilderBounds();
+    handleAssetContextActions(resources, input);
     if (updatePanelSplitters()) {
-        declareUI(width, height);
+        declareUI(width, height, resources);
         m_ui.layout();
         syncBuilderBounds();
+        handleAssetContextActions(resources, input);
     }
+    updateAssetContextMenu(resources, input);
     m_ui.update();
 
     drawEditorBackgroundOutsideViewport(renderer2D, {width, height}, m_viewportBounds, m_style.windowBackground);
@@ -147,6 +205,8 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
 
     renderPanelSplitters(renderer2D);
     m_ui.render();
+    renderAssetPreviews(resources, renderer2D, textRenderer);
+    renderAssetContextMenu(renderer2D, textRenderer);
 
     m_context.endFrame();
     m_ui.end();
@@ -154,10 +214,19 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, const 
 
 void EditorUI::update(const float deltaTime)
 {
-    m_worldDebug.update(deltaTime);
+    if (deltaTime > 0.0f && std::isfinite(deltaTime)) {
+        m_fpsAccumulatedTime += deltaTime;
+        ++m_fpsFrameCount;
+
+        if (m_fpsAccumulatedTime >= 0.25f) {
+            m_displayFps = static_cast<float>(m_fpsFrameCount) / m_fpsAccumulatedTime;
+            m_fpsAccumulatedTime = 0.0f;
+            m_fpsFrameCount = 0;
+        }
+    }
 }
 
-void EditorUI::declareUI(const float width, const float height)
+void EditorUI::declareUI(const float width, const float height, ResourceManager& resources)
 {
     const float gap = m_style.gap;
     m_toolbarHeight = std::clamp(height * 0.07f, m_editorStyle.toolbarHeightMin, m_editorStyle.toolbarHeightMax);
@@ -172,6 +241,7 @@ void EditorUI::declareUI(const float width, const float height)
     const float availableWorkWidth = std::max(width - gap * 2.0f, 1.0f);
     const float hierarchyWidth = std::min(m_hierarchyWidth, availableWorkWidth * 0.28f);
     const float inspectorWidth = std::min(m_inspectorWidth, availableWorkWidth * 0.34f);
+    SceneObject* selectedObject = selectedSceneObject();
 
     m_ui.panel("toolbar")
         .dock(UIDock::Top)
@@ -240,9 +310,9 @@ void EditorUI::declareUI(const float width, const float height)
     m_ui.button("toolbar.toggleConsole")
         .parent("toolbar")
         .styleClass("toolbar-toggle")
-        .text("C")
+        .text("A")
         .textStyle("toolbar-toggle")
-        .tooltip("Toggle console")
+        .tooltip("Toggle assets")
         .width(28.0f)
         .onClick([this]() { m_consoleCollapsed = !m_consoleCollapsed; });
 
@@ -266,6 +336,18 @@ void EditorUI::declareUI(const float width, const float height)
             m_viewport.setCameraMode(index == 1 ? EditorCameraMode::Perspective3D : EditorCameraMode::Orthographic2D);
         });
 
+    m_ui.panel("toolbar.spacer")
+        .parent("toolbar")
+        .drawBackground(false)
+        .grow(1.0f);
+
+    m_ui.label("toolbar.fps")
+        .parent("toolbar")
+        .text(fpsCounterText())
+        .textStyle("fps-counter")
+        .width(92.0f)
+        .height(24.0f);
+
     m_ui.panel("console")
         .dock(UIDock::Bottom)
         .height(m_consoleHeight)
@@ -274,17 +356,66 @@ void EditorUI::declareUI(const float width, const float height)
         .padding({16.0f, 8.0f, 16.0f, 16.0f})
         .gap(8.0f);
 
-    m_ui.label("console.title")
+    m_ui.panel("assets.header")
         .parent("console")
-        .text("Console")
-        .textStyle("heading")
-        .height(18.0f);
+        .drawBackground(false)
+        .horizontal()
+        .height(28.0f)
+        .padding(UIEdgeInsets::all(0.0f))
+        .gap(8.0f);
 
-    m_ui.label("console.message")
+    m_ui.label("assets.title")
+        .parent("assets.header")
+        .text("Assets")
+        .textStyle("heading")
+        .width(90.0f)
+        .height(22.0f);
+
+    m_ui.button("assets.refresh")
+        .parent("assets.header")
+        .styleClass("toolbar")
+        .text("Refresh")
+        .textStyle("toolbar-toggle")
+        .width(92.0f)
+        .height(24.0f)
+        .onClick([this, &resources]() {
+            refreshTextureAssets(resources);
+            spdlog::info("Editor UI: refreshed texture asset list.");
+        });
+
+    const std::size_t visibleAssetCount = std::min(m_textureAssets.size(), std::size_t{12});
+    m_ui.panel("assets.list")
         .parent("console")
-        .text("Editor initialized. Text atlas rendering active.")
-        .textStyle("muted")
-        .height(18.0f);
+        .drawBackground(false)
+        .grid(4)
+        .height(std::max(28.0f, m_consoleHeight - 62.0f))
+        .padding(UIEdgeInsets::all(0.0f))
+        .gap(6.0f);
+
+    if (visibleAssetCount == 0U) {
+        m_ui.label("assets.empty")
+            .parent("assets.list")
+            .text("No PNG/JPG assets found")
+            .textStyle("muted")
+            .height(22.0f);
+    }
+
+    for (std::size_t index = 0; index < visibleAssetCount; ++index) {
+        const TextureAssetInfo& asset = m_textureAssets[index];
+        const std::string id = "assets.texture." + std::to_string(index);
+        const bool selected =
+            selectedObject != nullptr &&
+            selectedObject->sprite2D &&
+            std::filesystem::path{selectedObject->sprite2D->texturePath}.lexically_normal() == asset.path.lexically_normal();
+
+        m_ui.button(id)
+            .parent("assets.list")
+            .styleClass("hierarchy-row")
+            .text("")
+            .textStyle("hierarchy-row")
+            .height(62.0f)
+            .selected(selected);
+    }
 
     m_ui.panel("hierarchy")
         .dock(UIDock::Left)
@@ -439,119 +570,152 @@ void EditorUI::declareUI(const float width, const float height)
         .placeholder("Object name")
         .onTextChanged([this](const std::string_view value) { m_objectName = std::string(value); });
 
-    m_ui.label("world2d.title")
-        .parent("inspector")
-        .text("2D World Sprite Test")
-        .textStyle("heading")
-        .height(18.0f);
+    if (selectedObject != nullptr) {
+        m_ui.label("sceneObject.title")
+            .parent("inspector")
+            .text(selectedObject->hasSprite2D() ? "Selected Sprite" : "Selected Object")
+            .textStyle("heading")
+            .height(18.0f);
 
-    m_ui.filePathInput("world2d.spritePath")
-        .parent("inspector")
-        .styleClass("inspector")
-        .label("Sprite Path")
-        .labelStyle("control-label")
-        .value(m_spritePath)
-        .buttonLabel("Browse")
-        .browseButtonWidth(78.0f)
-        .onBrowse([this]() { openSpriteFileDialog(); })
-        .onTextChanged([this](const std::string_view value) {
-            m_spritePath = std::string(value);
-            m_worldDebug.setSpritePath(m_spritePath);
-        });
+        m_ui.textInput("sceneObject.name")
+            .parent("inspector")
+            .styleClass("inspector")
+            .label("Name")
+            .labelStyle("control-label")
+            .value(selectedObject->name)
+            .placeholder("Object name")
+            .onTextChanged([selectedObject](const std::string_view value) { selectedObject->name = std::string(value); });
 
-    m_ui.panel("world2d.actions")
-        .parent("inspector")
-        .drawBackground(false)
-        .grid(2)
-        .height(172.0f)
-        .padding(UIEdgeInsets::all(0.0f))
-        .gap(8.0f);
+        m_ui.panel("sceneObject.position-grid")
+            .parent("inspector")
+            .drawBackground(false)
+            .grid(3)
+            .height(28.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(6.0f);
 
-    m_ui.button("world2d.addSprite")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Add")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .onClick([this]() {
-            m_worldDebug.setSpritePath(m_spritePath);
-            m_worldDebug.addSprite();
-        });
+        m_ui.numberFloat("sceneObject.position.x")
+            .parent("sceneObject.position-grid")
+            .styleClass("plain")
+            .value(selectedObject->transform.position.x)
+            .range(-10000.0f, 10000.0f)
+            .precision(2)
+            .sensitivity(0.1f)
+            .onChanged([selectedObject](const float value) { selectedObject->transform.position.x = value; });
 
-    m_ui.button("world2d.addManySprites")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Add Many")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .onClick([this]() {
-            m_worldDebug.setSpritePath(m_spritePath);
-            m_worldDebug.addManySprites();
-        });
+        m_ui.numberFloat("sceneObject.position.y")
+            .parent("sceneObject.position-grid")
+            .styleClass("plain")
+            .value(selectedObject->transform.position.y)
+            .range(-10000.0f, 10000.0f)
+            .precision(2)
+            .sensitivity(0.1f)
+            .onChanged([selectedObject](const float value) { selectedObject->transform.position.y = value; });
 
-    m_ui.button("world2d.tilemap")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Tilemap")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .selected(m_worldDebug.tilemapEnabled())
-        .onClick([this]() { m_worldDebug.toggleTilemap(); });
+        m_ui.numberFloat("sceneObject.position.z")
+            .parent("sceneObject.position-grid")
+            .styleClass("plain")
+            .value(selectedObject->transform.position.z)
+            .range(-10000.0f, 10000.0f)
+            .precision(2)
+            .sensitivity(0.1f)
+            .onChanged([selectedObject](const float value) { selectedObject->transform.position.z = value; });
 
-    m_ui.button("world2d.animate")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Animate")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .selected(m_worldDebug.animatedSpriteEnabled())
-        .onClick([this]() { m_worldDebug.toggleAnimatedSprite(); });
+        m_ui.panel("sceneObject.scale-grid")
+            .parent("inspector")
+            .drawBackground(false)
+            .grid(2)
+            .height(28.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(6.0f);
 
-    m_ui.button("world2d.parallax")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Parallax")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .selected(m_worldDebug.parallaxEnabled())
-        .onClick([this]() { m_worldDebug.toggleParallax(); });
+        m_ui.numberFloat("sceneObject.scale.x")
+            .parent("sceneObject.scale-grid")
+            .styleClass("plain")
+            .value(selectedObject->transform.scale.x)
+            .range(0.01f, 100.0f)
+            .precision(2)
+            .sensitivity(0.05f)
+            .onChanged([selectedObject](const float value) { selectedObject->transform.scale.x = value; });
 
-    m_ui.button("world2d.particles")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Particles")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .selected(m_worldDebug.particlesEnabled())
-        .onClick([this]() { m_worldDebug.toggleParticles(); });
+        m_ui.numberFloat("sceneObject.scale.y")
+            .parent("sceneObject.scale-grid")
+            .styleClass("plain")
+            .value(selectedObject->transform.scale.y)
+            .range(0.01f, 100.0f)
+            .precision(2)
+            .sensitivity(0.05f)
+            .onChanged([selectedObject](const float value) { selectedObject->transform.scale.y = value; });
 
-    m_ui.button("world2d.debugShapes")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Debug")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .selected(m_worldDebug.debugShapesEnabled())
-        .onClick([this]() { m_worldDebug.toggleDebugShapes(); });
+        if (selectedObject->sprite2D) {
+            Sprite2DComponent* sprite = &*selectedObject->sprite2D;
 
-    m_ui.button("world2d.blendModes")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Blend")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .selected(m_worldDebug.blendModeTestEnabled())
-        .tooltip("Blend Mode Test")
-        .onClick([this]() { m_worldDebug.toggleBlendModeTest(); });
+            m_ui.filePathInput("sceneObject.spritePath")
+                .parent("inspector")
+                .styleClass("inspector")
+                .label("Texture")
+                .labelStyle("control-label")
+                .value(sprite->texturePath)
+                .buttonLabel("Browse")
+                .browseButtonWidth(78.0f)
+                .onTextChanged([sprite](const std::string_view value) { sprite->texturePath = std::string(value); });
 
-    m_ui.button("world2d.clear")
-        .parent("world2d.actions")
-        .styleClass("toolbar")
-        .text("Clear Sprite Test Scene")
-        .textStyle("toolbar-toggle")
-        .height(28.0f)
-        .tooltip("Clear Sprite Test Scene")
-        .onClick([this]() { m_worldDebug.clear(); });
+            m_ui.panel("sceneObject.size-grid")
+                .parent("inspector")
+                .drawBackground(false)
+                .grid(2)
+                .height(28.0f)
+                .padding(UIEdgeInsets::all(0.0f))
+                .gap(6.0f);
+
+            m_ui.numberFloat("sceneObject.size.x")
+                .parent("sceneObject.size-grid")
+                .styleClass("plain")
+                .value(sprite->size.x)
+                .range(1.0f, 10000.0f)
+                .precision(2)
+                .sensitivity(0.5f)
+                .onChanged([sprite](const float value) { sprite->size.x = value; });
+
+            m_ui.numberFloat("sceneObject.size.y")
+                .parent("sceneObject.size-grid")
+                .styleClass("plain")
+                .value(sprite->size.y)
+                .range(1.0f, 10000.0f)
+                .precision(2)
+                .sensitivity(0.5f)
+                .onChanged([sprite](const float value) { sprite->size.y = value; });
+
+            m_ui.colorPicker("sceneObject.tint")
+                .parent("inspector")
+                .label("Tint")
+                .labelStyle("control-label")
+                .color(sprite->tint)
+                .onColorChanged([sprite](const glm::vec4& color) { sprite->tint = color; });
+
+            m_ui.dropdown("sceneObject.blendMode")
+                .parent("inspector")
+                .styleClass("inspector")
+                .label("Blend")
+                .labelStyle("control-label")
+                .items({"Opaque", "Alpha", "Additive"})
+                .selectedIndex(blendModeIndex(sprite->renderState.blendMode))
+                .onSelectionChanged([sprite](const std::size_t index, std::string_view) {
+                    sprite->renderState.blendMode = blendModeFromIndex(index);
+                });
+
+            m_ui.dropdown("sceneObject.samplerMode")
+                .parent("inspector")
+                .styleClass("inspector")
+                .label("Sampler")
+                .labelStyle("control-label")
+                .items({"Nearest", "Linear"})
+                .selectedIndex(samplerModeIndex(sprite->renderState.samplerMode))
+                .onSelectionChanged([sprite](const std::size_t index, std::string_view) {
+                    sprite->renderState.samplerMode = samplerModeFromIndex(index);
+                });
+        }
+    }
 
     m_ui.panel("viewport")
         .dock(UIDock::Fill)
@@ -666,26 +830,240 @@ void EditorUI::setViewportModeFromIndex(const std::size_t index)
     }
 }
 
-void EditorUI::openSpriteFileDialog()
+void EditorUI::handleAssetContextActions(ResourceManager&, const Input& input)
 {
-    FileDialogOptions options;
-    options.title = "Load Sprite";
-    options.filters = {
-        {"Image files", {"*.png", "*.jpg", "*.jpeg", "*.bmp", "*.tga"}},
-        {"All files", {"*.*"}},
+    const bool rightMousePressed = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+    const bool rightClick = rightMousePressed && !m_rightMouseWasPressed;
+    m_rightMouseWasPressed = rightMousePressed;
+
+    if (!rightClick) {
+        return;
+    }
+
+    const std::size_t visibleAssetCount = std::min(m_textureAssets.size(), std::size_t{12});
+    const glm::vec2 mouse = input.mousePosition();
+    for (std::size_t index = 0; index < visibleAssetCount; ++index) {
+        const std::string id = "assets.texture." + std::to_string(index);
+        const UIRect bounds = m_ui.bounds(id);
+
+        if (containsPoint(bounds, mouse)) {
+            m_assetContextMenuOpen = true;
+            m_assetContextAssetIndex = index;
+            m_assetContextMenuPosition = mouse;
+            return;
+        }
+    }
+
+    m_assetContextMenuOpen = false;
+}
+
+UIRect EditorUI::assetContextMenuBounds() const
+{
+    const glm::vec2 size{156.0f, 28.0f};
+    glm::vec2 position = m_assetContextMenuPosition + glm::vec2{6.0f, 6.0f};
+
+    position.x = std::clamp(position.x, 4.0f, std::max(4.0f, m_renderSize.x - size.x - 4.0f));
+    position.y = std::clamp(position.y, 4.0f, std::max(4.0f, m_renderSize.y - size.y - 4.0f));
+
+    return {position, size};
+}
+
+void EditorUI::updateAssetContextMenu(ResourceManager& resources, const Input& input)
+{
+    if (!m_assetContextMenuOpen) {
+        return;
+    }
+
+    if (m_assetContextAssetIndex >= m_textureAssets.size()) {
+        m_assetContextMenuOpen = false;
+        return;
+    }
+
+    const UIRect menuBounds = assetContextMenuBounds();
+    m_context.registerLayer("assets.contextMenu", 160, {menuBounds.position, menuBounds.size}, false);
+    m_context.pushLayer("assets.contextMenu");
+
+    constexpr float rowHeight = 28.0f;
+    const glm::vec2 rowSize{menuBounds.size.x, rowHeight};
+    const glm::vec2 addPosition{menuBounds.position.x, menuBounds.position.y};
+
+    if (m_context.button("assets.contextMenu.add", addPosition, rowSize)) {
+        createSceneSpriteFromAsset(m_textureAssets[m_assetContextAssetIndex], resources);
+        m_assetContextMenuOpen = false;
+    }
+
+    m_context.popLayer();
+
+    if (m_assetContextMenuOpen && m_context.primaryMousePressed() && !containsPoint(menuBounds, input.mousePosition())) {
+        m_assetContextMenuOpen = false;
+    }
+}
+
+void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& renderer2D, TextRenderer& textRenderer)
+{
+    const UITextStyle& labelText = m_style.resolveText("hierarchy-row");
+    const UITextStyle& mutedText = m_style.resolveText("muted");
+    const std::size_t visibleAssetCount = std::min(m_textureAssets.size(), std::size_t{12});
+    UIFrame frame{m_context, renderer2D, textRenderer, m_style};
+    UICompositeRenderScope previewRenderScope{frame};
+
+    for (std::size_t index = 0; index < visibleAssetCount; ++index) {
+        const TextureAssetInfo& asset = m_textureAssets[index];
+        const std::string id = "assets.texture." + std::to_string(index);
+        const UIRect bounds = m_ui.bounds(id);
+        if (bounds.size.x <= 0.0f || bounds.size.y <= 0.0f) {
+            continue;
+        }
+
+        const glm::vec2 previewPosition = bounds.position + glm::vec2{6.0f, 6.0f};
+        const glm::vec2 previewSize{48.0f, 48.0f};
+        renderer2D.drawSdfRect(previewPosition, previewSize, 3.0f, m_style.field.fill, m_style.field.border, 1.0f);
+
+        if (asset.handle) {
+            const TextureResource* texture = resources.tryTexture(asset.handle);
+            if (texture != nullptr && !texture->pixels.rgba8.empty()) {
+                renderer2D.uploadImage(
+                    asset.handle.value(),
+                    texture->pixels.width,
+                    texture->pixels.height,
+                    texture->pixels.rgba8.data(),
+                    texture->pixels.rgba8.size());
+                renderer2D.drawImage(asset.handle.value(), previewPosition, previewSize);
+                renderer2D.drawRect(previewPosition, previewSize, m_style.field.border, 1.0f);
+            }
+        }
+
+        std::string label = asset.displayPath;
+        if (label.size() > 34U) {
+            label = label.substr(0U, 31U) + "...";
+        }
+
+        const glm::vec2 labelPosition = bounds.position + glm::vec2{64.0f, 11.0f};
+        textRenderer.drawText(label, labelPosition, labelText.color, labelText.font, labelText.scale);
+
+        std::string sizeText = asset.loaded ? "Loaded" : "Missing";
+        if (asset.handle) {
+            if (const TextureResource* texture = resources.tryTexture(asset.handle)) {
+                sizeText = texture->fallback == TextureFallbackKind::Missing
+                    ? "Missing"
+                    : std::to_string(texture->pixels.width) + " x " + std::to_string(texture->pixels.height);
+            }
+        }
+        textRenderer.drawText(sizeText, labelPosition + glm::vec2{0.0f, 20.0f}, mutedText.color, mutedText.font, mutedText.scale);
+    }
+}
+
+void EditorUI::renderAssetContextMenu(Renderer2D& renderer2D, TextRenderer& textRenderer)
+{
+    if (!m_assetContextMenuOpen || m_assetContextAssetIndex >= m_textureAssets.size()) {
+        return;
+    }
+
+    const UIRect menuBounds = assetContextMenuBounds();
+
+    const UIButtonStyle& buttonStyle = m_style.resolveButton("toolbar");
+    const UITextStyle& buttonText = m_style.resolveText("toolbar-toggle");
+    UIFrame frame{m_context, renderer2D, textRenderer, m_style};
+    UICompositeRenderScope menuRenderScope{frame};
+
+    renderer2D.drawQuad(menuBounds.position, menuBounds.size, m_style.panel.fill);
+    renderer2D.drawRect(menuBounds.position, menuBounds.size, m_style.panel.border, 1.0f);
+
+    const auto drawMenuRow = [&](const std::string_view id, const std::string_view label, const std::size_t rowIndex) {
+        constexpr float rowHeight = 28.0f;
+        const glm::vec2 position{menuBounds.position.x, menuBounds.position.y + static_cast<float>(rowIndex) * rowHeight};
+        const glm::vec2 size{menuBounds.size.x, rowHeight};
+        const glm::vec4 fill = m_context.isActive(id)
+            ? buttonStyle.pressed
+            : m_context.isHot(id)
+                ? buttonStyle.hovered
+                : glm::vec4{0.0f, 0.0f, 0.0f, 0.0f};
+
+        if (fill.a > 0.0f) {
+            renderer2D.drawQuad(position, size, fill);
+        }
+
+        frame.drawText(label, {position + glm::vec2{10.0f, 0.0f}, {std::max(size.x - 20.0f, 0.0f), size.y}}, buttonText);
     };
 
-    if (!m_spritePath.empty()) {
-        const std::filesystem::path currentPath = m_spritePath;
-        options.initialDirectory = currentPath.has_parent_path() ? currentPath.parent_path() : std::filesystem::current_path();
+    drawMenuRow("assets.contextMenu.add", "Add To Scene", 0U);
+}
+
+void EditorUI::createSceneSpriteFromAsset(const TextureAssetInfo& asset, ResourceManager& resources)
+{
+    const std::filesystem::path texturePath = asset.path;
+    const std::string displayPath = asset.displayPath;
+    const TextureHandle handle = resources.loadTexture(texturePath);
+
+    SceneObject& object = m_scene.createSprite2D(
+        "Sprite " + std::to_string(m_scene.sprite2DCount() + 1U),
+        texturePath.string());
+
+    object.transform.position = {0.0f, 0.0f, 0.0f};
+
+    if (handle) {
+        const TextureResource& texture = resources.texture(handle);
+        const float width = static_cast<float>(std::max(texture.pixels.width, 1U));
+        const float height = static_cast<float>(std::max(texture.pixels.height, 1U));
+        const float maxDimension = std::max(width, height);
+        const float scale = maxDimension > 128.0f ? 128.0f / maxDimension : 1.0f;
+
+        if (object.sprite2D) {
+            object.sprite2D->size = {width * scale, height * scale};
+        }
     }
 
-    if (const auto selectedPath = FileDialog::openFile(options)) {
-        m_spritePath = selectedPath->string();
-        m_worldDebug.setSpritePath(m_spritePath);
-        m_worldDebug.addSprite();
-        spdlog::info("Editor UI: Sprite test path set to '{}'.", m_spritePath);
+    m_selectedSceneObjectId = object.id;
+    refreshTextureAssets(resources);
+
+    spdlog::info("Editor UI: added scene sprite from asset '{}'.", displayPath);
+}
+
+void EditorUI::refreshTextureAssets(ResourceManager& resources)
+{
+    m_textureAssets = resources.scanTextureAssets(NIKREON_ASSET_DIR);
+    for (TextureAssetInfo& asset : m_textureAssets) {
+        const TextureHandle handle = resources.loadTexture(asset.path);
+        if (handle) {
+            asset.loaded = handle != resources.missingTexture();
+            asset.handle = handle;
+        }
     }
+    m_textureAssetsDirty = false;
+}
+
+void EditorUI::setSelectedSceneObject(const SceneObjectId objectId)
+{
+    m_selectedSceneObjectId = objectId;
+}
+
+SceneObjectId EditorUI::selectedSceneObjectId() const
+{
+    return m_selectedSceneObjectId;
+}
+
+SceneObject* EditorUI::selectedSceneObject()
+{
+    if (m_selectedSceneObjectId == InvalidSceneObjectId) {
+        return nullptr;
+    }
+
+    SceneObject* object = m_scene.findObject(m_selectedSceneObjectId);
+    if (object == nullptr) {
+        m_selectedSceneObjectId = InvalidSceneObjectId;
+    }
+    return object;
+}
+
+std::string EditorUI::fpsCounterText() const
+{
+    if (m_displayFps <= 0.0f) {
+        return "-- FPS";
+    }
+
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(0) << m_displayFps << " FPS";
+    return text.str();
 }
 
 const UIRect& EditorUI::viewportBounds() const

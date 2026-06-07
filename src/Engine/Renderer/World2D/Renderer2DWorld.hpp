@@ -14,10 +14,16 @@
 #include "Engine/Renderer/Camera/Camera2D.hpp"
 #include "Engine/Renderer/Camera/Camera3D.hpp"
 #include "Engine/Renderer/Core/RenderModuleBase.hpp"
+#include "Engine/Resources/ResourceHandle.hpp"
 
 namespace Engine {
 
-using WorldTextureId = std::uintptr_t;
+using WorldTextureId = std::uint64_t;
+
+[[nodiscard]] constexpr WorldTextureId worldTextureId(TextureHandle handle) noexcept
+{
+    return handle.value();
+}
 
 enum class WorldSpritePipeline {
     Sprite, // normal world sprites

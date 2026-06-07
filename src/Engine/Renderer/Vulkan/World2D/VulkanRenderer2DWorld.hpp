@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 #include <glm/mat4x4.hpp>
@@ -14,7 +15,9 @@
 namespace Engine {
 
 class Renderer2DWorld;
+class ResourceManager;
 enum class WorldBlendMode;
+enum class WorldSamplerMode;
 
 class VulkanRenderer2DWorld final {
 public:
@@ -48,7 +51,7 @@ public:
     VulkanRenderer2DWorld& operator=(VulkanRenderer2DWorld&&) = delete;
 
     void begin(const glm::uvec2& viewportSize);
-    void submit(const Renderer2DWorld& worldRenderer);
+    void submit(const Renderer2DWorld& worldRenderer, ResourceManager& resources);
     void end();
     void record(VkCommandBuffer commandBuffer) const;
 
@@ -57,23 +60,33 @@ public:
     [[nodiscard]] std::size_t drawCommandCount() const;
 
 private:
-    struct TextureResource {
+    struct GpuTextureResource {
         VkImage image{VK_NULL_HANDLE};
         VkDeviceMemory memory{VK_NULL_HANDLE};
         VkImageView imageView{VK_NULL_HANDLE};
         VkSampler sampler{VK_NULL_HANDLE};
+        VkDescriptorSet descriptorSet{VK_NULL_HANDLE};
     };
 
     struct DrawCommand {
         std::uint32_t firstInstance{0};
         std::uint32_t instanceCount{0};
         WorldBlendMode blendMode{};
+        VkDescriptorSet descriptorSet{VK_NULL_HANDLE};
     };
 
     std::vector<DrawCommand> m_drawCommands;
     void createDescriptorResources();
     void createFallbackTexture();
     void destroyFallbackTexture();
+    void destroyTextureResource(GpuTextureResource& texture);
+    void destroyUploadedTextures();
+    [[nodiscard]] VkDescriptorSet descriptorSetForTexture(std::uint64_t texture, WorldSamplerMode samplerMode, ResourceManager& resources);
+    GpuTextureResource createTextureResource(
+        const std::uint8_t* rgba8,
+        std::uint32_t width,
+        std::uint32_t height,
+        WorldSamplerMode samplerMode);
 
     void createImage(std::uint32_t width, std::uint32_t height, VkFormat format, VkImage& image, VkDeviceMemory& memory);
     void transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
@@ -124,8 +137,8 @@ private:
 
     VkDescriptorSetLayout m_descriptorSetLayout{VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
-    VkDescriptorSet m_fallbackDescriptorSet{VK_NULL_HANDLE};
-    TextureResource m_fallbackTexture{};
+    GpuTextureResource m_fallbackTexture{};
+    std::unordered_map<std::uint64_t, GpuTextureResource> m_uploadedTextures;
 };
 
 } // namespace Engine

@@ -185,6 +185,21 @@ void VulkanContext::setEditorViewport(const EditorViewportPresentation& presenta
     m_editorViewportMode = mode;
 }
 
+bool VulkanContext::setPresentMode(const PresentMode presentMode)
+{
+    if (m_requestedPresentMode == presentMode) {
+        return false;
+    }
+
+    m_requestedPresentMode = presentMode;
+    return true;
+}
+
+VulkanContext::PresentMode VulkanContext::presentMode() const
+{
+    return m_requestedPresentMode;
+}
+
 bool VulkanContext::isDrawable() const
 {
     return m_window.width() > 0 && m_window.height() > 0;
@@ -457,6 +472,7 @@ void VulkanContext::createSwapchain()
     createInfo.preTransform = support.capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
+    m_activePresentMode = presentMode;
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
@@ -469,7 +485,12 @@ void VulkanContext::createSwapchain()
     m_swapchainImageFormat = surfaceFormat.format;
     m_swapchainExtent = extent;
 
-    spdlog::info("Swapchain created: {} images ({}x{})", imageCount, extent.width, extent.height);
+    spdlog::info(
+        "Swapchain created: {} images ({}x{}, present mode {})",
+        imageCount,
+        extent.width,
+        extent.height,
+        static_cast<int>(m_activePresentMode));
 }
 
 void VulkanContext::createImageViews()
@@ -834,10 +855,29 @@ VkSurfaceFormatKHR VulkanContext::chooseSwapSurfaceFormat(const std::vector<VkSu
 
 VkPresentModeKHR VulkanContext::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes) const
 {
-    for (const auto availablePresentMode : presentModes) {
-        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            return availablePresentMode;
+    const auto supports = [&presentModes](const VkPresentModeKHR presentMode) {
+        return std::find(presentModes.begin(), presentModes.end(), presentMode) != presentModes.end();
+    };
+
+    switch (m_requestedPresentMode) {
+    case PresentMode::Immediate:
+        if (supports(VK_PRESENT_MODE_IMMEDIATE_KHR)) {
+            return VK_PRESENT_MODE_IMMEDIATE_KHR;
         }
+        if (supports(VK_PRESENT_MODE_MAILBOX_KHR)) {
+            return VK_PRESENT_MODE_MAILBOX_KHR;
+        }
+        break;
+    case PresentMode::Mailbox:
+        if (supports(VK_PRESENT_MODE_MAILBOX_KHR)) {
+            return VK_PRESENT_MODE_MAILBOX_KHR;
+        }
+        if (supports(VK_PRESENT_MODE_IMMEDIATE_KHR)) {
+            return VK_PRESENT_MODE_IMMEDIATE_KHR;
+        }
+        break;
+    case PresentMode::Fifo:
+        break;
     }
 
     return VK_PRESENT_MODE_FIFO_KHR;

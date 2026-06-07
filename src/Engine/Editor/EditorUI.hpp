@@ -1,14 +1,17 @@
 #pragma once
 
-#include "Engine/Editor/EditorWorldDebugController.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
+#include "Engine/Renderer/Vulkan/VulkanContext.hpp"
+#include "Engine/Resources/ResourceManager.hpp"
 #include "Engine/UI/Layout.hpp"
 #include "Engine/UI/UIBuilder.hpp"
 #include "Engine/UI/UIContext.hpp"
 #include "Engine/UI/UIStyle.hpp"
+#include "Engine/Scene/Scene.hpp"
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -22,11 +25,14 @@ class TextRenderer;
 
 class EditorUI {
 public:
-    explicit EditorUI(EditorViewport& viewport, EditorWorldDebugController& worldDebug);
+    explicit EditorUI(EditorViewport& viewport, Scene& scene);
 
     void update(float deltaTime);
-    void render(Renderer2D& renderer2D, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input);
+    void render(Renderer2D& renderer2D, TextRenderer& textRenderer, ResourceManager& resources, const glm::uvec2& viewportSize, const Input& input);
+    void setSelectedSceneObject(SceneObjectId objectId);
+    [[nodiscard]] SceneObjectId selectedSceneObjectId() const;
     [[nodiscard]] const UIRect& viewportBounds() const;
+    [[nodiscard]] VulkanContext::PresentMode presentMode() const;
 
 private:
     enum class RunState {
@@ -35,16 +41,24 @@ private:
         Paused,
     };
 
-    void declareUI(float width, float height);
+    void declareUI(float width, float height, ResourceManager& resources);
     void syncBuilderBounds();
     [[nodiscard]] bool updatePanelSplitters();
     void renderPanelSplitters(Renderer2D& renderer2D);
     void drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds);
     void setViewportModeFromIndex(std::size_t index);
-    void openSpriteFileDialog();
+    void refreshTextureAssets(ResourceManager& resources);
+    void createSceneSpriteFromAsset(const TextureAssetInfo& asset, ResourceManager& resources);
+    void handleAssetContextActions(ResourceManager& resources, const Input& input);
+    void updateAssetContextMenu(ResourceManager& resources, const Input& input);
+    void renderAssetPreviews(ResourceManager& resources, Renderer2D& renderer2D, TextRenderer& textRenderer);
+    void renderAssetContextMenu(Renderer2D& renderer2D, TextRenderer& textRenderer);
+    [[nodiscard]] UIRect assetContextMenuBounds() const;
+    [[nodiscard]] SceneObject* selectedSceneObject();
+    [[nodiscard]] std::string fpsCounterText() const;
 
     EditorViewport& m_viewport;
-    EditorWorldDebugController& m_worldDebug;
+    Scene& m_scene;
     UIStyle m_style;
     UIContext m_context;
     UIBuilder m_ui;
@@ -85,7 +99,17 @@ private:
     float m_lightIntensity{4.0f};
     glm::vec3 m_previewPosition{12.5f, -4.0f, 8.0f};
     std::string m_objectName{"Directional Light"};
-    std::string m_spritePath{"assets/sprites/test.png"};
+    VulkanContext::PresentMode m_presentMode{VulkanContext::PresentMode::Mailbox};
+    SceneObjectId m_selectedSceneObjectId{InvalidSceneObjectId};
+    std::vector<TextureAssetInfo> m_textureAssets;
+    bool m_textureAssetsDirty{true};
+    bool m_rightMouseWasPressed{false};
+    bool m_assetContextMenuOpen{false};
+    std::size_t m_assetContextAssetIndex{0};
+    glm::vec2 m_assetContextMenuPosition{0.0f, 0.0f};
+    float m_fpsAccumulatedTime{0.0f};
+    float m_displayFps{0.0f};
+    int m_fpsFrameCount{0};
 };
 
 } // namespace Engine

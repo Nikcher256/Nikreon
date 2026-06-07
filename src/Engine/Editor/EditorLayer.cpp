@@ -3,13 +3,14 @@
 #include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
 #include "Engine/Core/Input.hpp"
 
+#include <algorithm>
+
 #include <GLFW/glfw3.h>
 
 namespace Engine {
 
 EditorLayer::EditorLayer()
-    : m_worldDebug("assets/sprites/test.png")
-    , m_ui(m_viewport, m_worldDebug)
+    : m_ui(m_viewport, m_scene)
 {
 }
 
@@ -26,9 +27,15 @@ const EditorViewport& EditorLayer::viewport() const
 }
 
 // Draws the editor layer after the renderer has started a frame.
-void EditorLayer::onRender(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWorld, TextRenderer& textRenderer, const glm::uvec2& viewportSize, const Input& input)
+void EditorLayer::onRender(
+    Renderer2D& renderer2D,
+    Renderer2DWorld& renderer2DWorld,
+    TextRenderer& textRenderer,
+    ResourceManager& resources,
+    const glm::uvec2& viewportSize,
+    const Input& input)
 {
-    m_ui.render(renderer2D, textRenderer, viewportSize, input);
+        m_ui.render(renderer2D, textRenderer, resources, viewportSize, input);
     
     Renderer2DWorldCamera worldCamera;
     worldCamera.mode = m_viewport.cameraMode() == EditorCameraMode::Perspective3D
@@ -45,7 +52,72 @@ void EditorLayer::onRender(Renderer2D& renderer2D, Renderer2DWorld& renderer2DWo
     const glm::vec2 viewportBoundsSize = glm::max(m_ui.viewportBounds().size, glm::vec2{1.0f, 1.0f});
     worldCamera.camera3D = m_viewport.worldCamera3D(viewportBoundsSize.x / viewportBoundsSize.y);
 
-    m_worldDebug.submit(renderer2DWorld, worldCamera);
+    Renderer2DWorldCamera safeCamera = worldCamera;
+    safeCamera.camera2D.viewportSize = glm::max(safeCamera.camera2D.viewportSize, glm::vec2{1.0f, 1.0f});
+    safeCamera.camera3D.aspectRatio = std::max(safeCamera.camera3D.aspectRatio, 0.001f);
+
+    updateViewportSelection(input, safeCamera.camera2D);
+
+    renderer2DWorld.begin(safeCamera);
+    m_scene2DSubmitter.submit(m_scene, renderer2DWorld, resources);
+    drawSelectedSpriteOutline(renderer2DWorld);
+    renderer2DWorld.end();
+}
+
+void EditorLayer::updateViewportSelection(const Input& input, const Camera2D& camera)
+{
+    const bool leftMousePressed = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+    const bool leftClick = leftMousePressed && !m_leftMouseWasPressed;
+    m_leftMouseWasPressed = leftMousePressed;
+
+    if (!leftClick || !m_viewport.hovered() || m_viewport.cameraMode() != EditorCameraMode::Orthographic2D) {
+        return;
+    }
+
+    const std::optional<glm::vec2>& localMouse = m_viewport.localMousePosition();
+    if (!localMouse) {
+        return;
+    }
+
+    m_ui.setSelectedSceneObject(pickSpriteAt(camera.screenToWorld(*localMouse)));
+}
+
+SceneObjectId EditorLayer::pickSpriteAt(const glm::vec2& worldPosition) const
+{
+    const std::span<const SceneObject> objects = m_scene.objects();
+    for (auto iterator = objects.rbegin(); iterator != objects.rend(); ++iterator) {
+        const SceneObject& object = *iterator;
+        if (!object.sprite2D) {
+            continue;
+        }
+
+        const Sprite2DComponent& sprite = *object.sprite2D;
+        const glm::vec2 size = sprite.size * glm::vec2{object.transform.scale.x, object.transform.scale.y};
+        const glm::vec2 minimum = glm::vec2{object.transform.position.x, object.transform.position.y} - size * sprite.origin;
+        const glm::vec2 maximum = minimum + size;
+
+        if (worldPosition.x >= minimum.x &&
+            worldPosition.y >= minimum.y &&
+            worldPosition.x <= maximum.x &&
+            worldPosition.y <= maximum.y) {
+            return object.id;
+        }
+    }
+
+    return InvalidSceneObjectId;
+}
+
+void EditorLayer::drawSelectedSpriteOutline(Renderer2DWorld& renderer2DWorld) const
+{
+    const SceneObject* selected = m_scene.findObject(m_ui.selectedSceneObjectId());
+    if (selected == nullptr || !selected->sprite2D) {
+        return;
+    }
+
+    const Sprite2DComponent& sprite = *selected->sprite2D;
+    const glm::vec2 size = sprite.size * glm::vec2{selected->transform.scale.x, selected->transform.scale.y};
+    const glm::vec2 minimum = glm::vec2{selected->transform.position.x, selected->transform.position.y} - size * sprite.origin;
+    renderer2DWorld.drawDebugRect(minimum, size, {0.42f, 0.72f, 1.0f, 1.0f}, 2.0f);
 }
 
 void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)

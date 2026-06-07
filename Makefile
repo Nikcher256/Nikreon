@@ -12,6 +12,7 @@ DEPS_CMD := powershell -ExecutionPolicy Bypass -File scripts/bootstrap-deps.ps1 
 CONFIGURE_CMD := powershell -ExecutionPolicy Bypass -File scripts/configure.ps1 -BuildDir "$(BUILD_DIR)" -Config "$(CONFIG)" -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)"
 BUILD_CMD := powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -BuildDir "$(BUILD_DIR)" -Config "$(CONFIG)" -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)"
 RUN_CMD := powershell -ExecutionPolicy Bypass -File scripts/run.ps1 -BuildDir "$(BUILD_DIR)" -Config "$(CONFIG)" -Triplet "$(TRIPLET)" -VcpkgRoot "$(VCPKG_ROOT)" $(RUN_ARGS)
+PROJECT_STATS_CMD := powershell -ExecutionPolicy Bypass -File scripts/project-stats.ps1 -BuildDir "$(BUILD_DIR)"
 CLEAN_CMD := powershell -NoProfile -Command "if (Test-Path '$(BUILD_DIR)') { Remove-Item -Recurse -Force '$(BUILD_DIR)' }"
 DISTCLEAN_CMD := powershell -NoProfile -Command "if (Test-Path '$(VCPKG_ROOT)') { Remove-Item -Recurse -Force '$(VCPKG_ROOT)' }"
 else
@@ -38,11 +39,12 @@ DEPS_CMD := sh scripts/bootstrap-deps.sh "$(TRIPLET)" "$(VCPKG_ROOT)"
 CONFIGURE_CMD := sh scripts/configure.sh "$(BUILD_DIR)" "$(CONFIG)" "$(TRIPLET)" "$(VCPKG_ROOT)"
 BUILD_CMD := sh scripts/build.sh "$(BUILD_DIR)" "$(CONFIG)" "$(TRIPLET)" "$(VCPKG_ROOT)"
 RUN_CMD := sh scripts/run.sh "$(BUILD_DIR)" "$(CONFIG)" "$(TRIPLET)" "$(VCPKG_ROOT)" $(RUN_ARGS)
+PROJECT_STATS_CMD := sh scripts/project-stats.sh "$(BUILD_DIR)"
 CLEAN_CMD := rm -rf "$(BUILD_DIR)"
 DISTCLEAN_CMD := rm -rf "$(VCPKG_ROOT)"
 endif
 
-.PHONY: help deps configure build run clean distclean git-status
+.PHONY: help deps configure build run clean distclean git-status projectStats
 
 help:
 > @echo Available targets:
@@ -54,6 +56,7 @@ help:
 > @echo   make clean      - remove CMake build directory
 > @echo   make distclean  - remove build directory and local vcpkg checkout
 > @echo   make git-status - show git status
+> @echo   make projectStats - write build/project-stats.md and .html with project metrics
 
 deps:
 > $(DEPS_CMD)
@@ -75,3 +78,6 @@ distclean: clean
 
 git-status:
 > git status --short
+
+projectStats:
+> $(PROJECT_STATS_CMD)
