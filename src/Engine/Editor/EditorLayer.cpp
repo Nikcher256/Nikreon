@@ -71,12 +71,7 @@ void EditorLayer::onRender(
 
 void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
 {
-    const glm::vec2 mousePosition = input.mousePosition();
-    const glm::vec2 mouseDelta = mousePosition - m_previousMousePosition;
-    m_previousMousePosition = mousePosition;
-
     const bool perspective3D = m_viewport.cameraMode() == EditorCameraMode::Perspective3D;
-    const bool viewportActive = m_viewport.focused() && m_viewport.hovered();
     const bool altDown =
         input.isKeyPressed(GLFW_KEY_LEFT_ALT) ||
         input.isKeyPressed(GLFW_KEY_RIGHT_ALT);
@@ -86,6 +81,30 @@ void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
     const bool leftMouse = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
     const bool middleMouse = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_MIDDLE);
     const bool rightMouse = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+    const bool cameraGestureCandidate = perspective3D
+        ? ((altDown && leftMouse) || middleMouse || rightMouse)
+        : middleMouse;
+
+    if (!cameraGestureCandidate) {
+        m_cameraMouseGestureActive = false;
+    } else if (!m_cameraMouseGestureActive && m_viewport.focused() && m_viewport.hovered()) {
+        m_cameraMouseGestureActive = true;
+    }
+
+    glm::vec2 mousePosition = input.mousePosition();
+    const glm::vec2 wrappedMousePosition = wrapCameraMouseIfNeeded(input, mousePosition, m_cameraMouseGestureActive);
+    const bool wrappedMouse =
+        wrappedMousePosition.x != mousePosition.x ||
+        wrappedMousePosition.y != mousePosition.y;
+    mousePosition = wrappedMousePosition;
+    if (wrappedMouse) {
+        m_previousMousePosition = mousePosition;
+    }
+
+    const glm::vec2 mouseDelta = mousePosition - m_previousMousePosition;
+    m_previousMousePosition = mousePosition;
+
+    const bool viewportActive = m_viewport.focused() && (m_viewport.hovered() || m_cameraMouseGestureActive);
 
     const bool unrealOrbiting = perspective3D && viewportActive && altDown && leftMouse;
     const bool blenderOrbiting = perspective3D && viewportActive && !altDown && !shiftDown && middleMouse;
@@ -144,6 +163,48 @@ EditorLayer::CameraFocusTarget EditorLayer::selectedCameraFocusTarget() const
     }
 
     return target;
+}
+
+glm::vec2 EditorLayer::wrapCameraMouseIfNeeded(
+    const Input& input,
+    const glm::vec2& mousePosition,
+    const bool cameraMouseGestureActive)
+{
+    if (!cameraMouseGestureActive) {
+        return mousePosition;
+    }
+
+    const EditorViewportPresentation& presentation = m_viewport.presentation();
+    const glm::vec2 viewportPosition = presentation.position;
+    const glm::vec2 viewportSize = presentation.size;
+    if (viewportSize.x <= 2.0f || viewportSize.y <= 2.0f) {
+        return mousePosition;
+    }
+
+    constexpr float WrapPadding = 2.0f;
+    const float left = viewportPosition.x;
+    const float right = viewportPosition.x + viewportSize.x;
+    const float top = viewportPosition.y;
+    const float bottom = viewportPosition.y + viewportSize.y;
+
+    glm::vec2 wrappedMousePosition = mousePosition;
+    if (wrappedMousePosition.x < left) {
+        wrappedMousePosition.x = right - WrapPadding;
+    } else if (wrappedMousePosition.x >= right) {
+        wrappedMousePosition.x = left + WrapPadding;
+    }
+
+    if (wrappedMousePosition.y < top) {
+        wrappedMousePosition.y = bottom - WrapPadding;
+    } else if (wrappedMousePosition.y >= bottom) {
+        wrappedMousePosition.y = top + WrapPadding;
+    }
+
+    if (wrappedMousePosition.x != mousePosition.x || wrappedMousePosition.y != mousePosition.y) {
+        input.setMousePosition(wrappedMousePosition);
+    }
+
+    return wrappedMousePosition;
 }
 
 } // namespace Engine

@@ -182,6 +182,24 @@ double Window::mouseY() const
     return y;
 }
 
+void Window::setMousePosition(const double x, const double y) const
+{
+    if (m_handle == nullptr || m_width == 0U || m_height == 0U) {
+        return;
+    }
+
+    int windowWidth = 0;
+    int windowHeight = 0;
+    glfwGetWindowSize(m_handle, &windowWidth, &windowHeight);
+    if (windowWidth <= 0 || windowHeight <= 0) {
+        return;
+    }
+
+    const double windowX = x * static_cast<double>(windowWidth) / static_cast<double>(m_width);
+    const double windowY = y * static_cast<double>(windowHeight) / static_cast<double>(m_height);
+    glfwSetCursorPos(m_handle, windowX, windowY);
+}
+
 // Reports whether this window is currently fullscreen.
 bool Window::isFullscreen() const
 {

@@ -904,6 +904,8 @@ Build gate:
 
 ## Phase 10: Debug Renderer, Editor Overlays, and Gizmo Prep
 
+Status: complete for the initial debug renderer/editor viewport foundation.
+
 Goal: add GPU-rendered debug and editor overlay primitives.
 
 Required features:
@@ -934,6 +936,16 @@ Build gate:
 - Debug lines and boxes render in world space.
 - Debug labels render through text.
 - Debug pass does not interfere with game HUD.
+
+Completed note:
+
+- Added the `DebugRenderer` module with world-space lines, wire rectangles, wire boxes, circles, and a viewport grid request path.
+- Added a Vulkan debug renderer path for debug lines and a procedural grid shader with distance fade for the editor viewport.
+- Added editor overlay/controller integration so the grid and selection outlines render inside the viewport without using `NikreonUI` as a world renderer.
+- Added 2D sprite selection/dragging support, selected sprite bounds overlays, and camera focus support.
+- Improved 2D and 3D editor camera controls with Unreal/Blender-style orbit, fly/look, pan/track, dolly/zoom, focus, cursor wrapping during camera gestures, and stable full 3D orbit math.
+- Deferred polished debug labels, raycast/physics visualization, camera/light gizmo icons, and transform gizmo handles to the later picking, physics, and editor gizmo phases.
+- Verified with `scripts/build.ps1` and `build\Debug\NikreonEngine.exe --smoke-test`.
 
 ## Phase 11: Resource Management Foundation
 
@@ -1644,7 +1656,7 @@ Update this section as work progresses.
 [~] Phase 8C - Engine 2D world renderer GPU path
 [~] Phase 8D - Temporary 2D world debug UI
 [ ] Phase 9  - Game HUD and menu layer using NikreonUI (deferred until after assets, post-process, and scene/render composition)
-[ ] Phase 10 - Debug renderer
+[x] Phase 10 - Debug renderer
 [~] Phase 11 - Resource management foundation
 [ ] Phase 12 - GLB/glTF model loading
 [ ] Phase 13 - Material/PBR system

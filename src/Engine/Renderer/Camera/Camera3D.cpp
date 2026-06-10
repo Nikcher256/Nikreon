@@ -28,6 +28,41 @@ glm::vec3 safeNormalize(const glm::vec3& value, const glm::vec3& fallback)
     return value / length;
 }
 
+glm::vec3 forwardFromAngles(const float yawRadians, const float pitchRadians)
+{
+    const float cosPitch = std::cos(pitchRadians);
+    return safeNormalize(
+        {
+            std::sin(yawRadians) * cosPitch,
+            std::cos(yawRadians) * cosPitch,
+            std::sin(pitchRadians),
+        },
+        {0.0f, 1.0f, 0.0f});
+}
+
+glm::vec3 rightFromYaw(const float yawRadians)
+{
+    return safeNormalize(
+        {
+            std::cos(yawRadians),
+            -std::sin(yawRadians),
+            0.0f,
+        },
+        {1.0f, 0.0f, 0.0f});
+}
+
+glm::vec3 upFromAngles(const float yawRadians, const float pitchRadians)
+{
+    const float sinPitch = std::sin(pitchRadians);
+    return safeNormalize(
+        {
+            -std::sin(yawRadians) * sinPitch,
+            -std::cos(yawRadians) * sinPitch,
+            std::cos(pitchRadians),
+        },
+        WorldUp);
+}
+
 } //namespace
 
 glm::mat4 Camera3D::projection() const
@@ -58,24 +93,17 @@ glm::mat4 Camera3D::viewProjection() const
 
 glm::vec3 Camera3D::forward() const
 {
-    const float cosPitch = std::cos(pitchRadians);
-    return safeNormalize(
-        {
-            std::sin(yawRadians) * cosPitch,
-            std::cos(yawRadians) * cosPitch,
-            std::sin(pitchRadians),
-        },
-        {0.0f, 1.0f, 0.0f});
+    return forwardFromAngles(yawRadians, pitchRadians);
 }
 
 glm::vec3 Camera3D::right() const
 {
-    return safeNormalize(glm::cross(forward(), WorldUp), {1.0f, 0.0f, 0.0f});
+    return rightFromYaw(yawRadians);
 }
 
 glm::vec3 Camera3D::up() const
 {
-    return safeNormalize(glm::cross(right(), forward()), WorldUp);
+    return upFromAngles(yawRadians, pitchRadians);
 }
 
 Ray3D Camera3D::screenPointToRay(const glm::vec2& screenPosition, const glm::vec2& viewportSize) const

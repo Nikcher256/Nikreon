@@ -46,8 +46,10 @@ private:
 
     void updateEditorCamera(float deltaTime, const Input& input);
     [[nodiscard]] CameraFocusTarget selectedCameraFocusTarget() const;
+    [[nodiscard]] glm::vec2 wrapCameraMouseIfNeeded(const Input& input, const glm::vec2& mousePosition, bool cameraMouseGestureActive);
 
     glm::vec2 m_previousMousePosition{0.0f, 0.0f};
+    bool m_cameraMouseGestureActive{false};
     
     EditorViewport m_viewport;
     Scene m_scene;

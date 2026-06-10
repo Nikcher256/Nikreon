@@ -46,6 +46,7 @@ public:
     [[nodiscard]] double scrollY() const;
     [[nodiscard]] double mouseX() const;
     [[nodiscard]] double mouseY() const;
+    void setMousePosition(double x, double y) const;
     [[nodiscard]] bool isFullscreen() const;
     [[nodiscard]] std::uint32_t width() const;
     [[nodiscard]] std::uint32_t height() const;

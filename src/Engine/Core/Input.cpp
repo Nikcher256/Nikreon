@@ -30,6 +30,11 @@ glm::vec2 Input::mousePosition() const
     };
 }
 
+void Input::setMousePosition(const glm::vec2& position) const
+{
+    m_window.setMousePosition(position.x, position.y);
+}
+
 glm::vec2 Input::scrollDelta() const
 {
     return {
