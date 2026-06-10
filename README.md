@@ -75,6 +75,25 @@ Pass engine arguments through `RUN_ARGS`:
 make run RUN_ARGS="--frames 180"
 ```
 
+## Performance / fake Release build
+
+The default `make build` and `make run` use `CONFIG=Debug` so debug iteration stays unchanged. Debug builds usually disable optimization, such as `-O0` on GCC/Clang or `/Od` on MSVC, so they are not suitable for FPS benchmarking.
+
+For optimized FPS testing with debug symbols, use the release-style wrapper:
+
+```sh
+make run-rel
+```
+
+`run-rel` builds in `REL_BUILD_DIR=build-rel` with `REL_CONFIG=RelWithDebInfo`. Standard CMake build types enable optimization for release-style configs: `RelWithDebInfo` normally uses optimized code with debug info, and `Release` normally uses optimization such as `-O2`/`-O3` on GCC/Clang or `/O2` on MSVC. These configs also define `NDEBUG`.
+
+To benchmark a plain Release build:
+
+```sh
+make run-rel REL_CONFIG=Release
+make run-rel REL_BUILD_DIR=build-release REL_CONFIG=Release
+```
+
 On Windows, `make run` builds the executable and then launches it from the build
 folder. If Windows Application Control blocks `NikreonEngine.exe`, the build is
 still valid, but the machine policy must allow unsigned local debug builds,

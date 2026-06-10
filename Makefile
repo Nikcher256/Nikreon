@@ -2,6 +2,8 @@
 
 BUILD_DIR ?= build
 CONFIG ?= Debug
+REL_BUILD_DIR ?= build-rel
+REL_CONFIG ?= RelWithDebInfo
 VCPKG_ROOT ?= external/vcpkg
 CMAKE ?= cmake
 
@@ -44,7 +46,7 @@ CLEAN_CMD := rm -rf "$(BUILD_DIR)"
 DISTCLEAN_CMD := rm -rf "$(VCPKG_ROOT)"
 endif
 
-.PHONY: help deps configure build run clean distclean git-status projectStats
+.PHONY: help deps configure build run configure-rel build-rel run-rel clean distclean git-status projectStats
 
 help:
 > @echo Available targets:
@@ -53,6 +55,7 @@ help:
 > @echo   make configure  - configure CMake using the vcpkg toolchain
 > @echo   make build      - build the engine
 > @echo   make run        - run the engine executable
+> @echo   make run-rel    - run an optimized RelWithDebInfo build for FPS testing
 > @echo   make clean      - remove CMake build directory
 > @echo   make distclean  - remove build directory and local vcpkg checkout
 > @echo   make git-status - show git status
@@ -69,6 +72,15 @@ build:
 
 run:
 > $(RUN_CMD)
+
+configure-rel:
+> $(MAKE) configure BUILD_DIR="$(REL_BUILD_DIR)" CONFIG="$(REL_CONFIG)"
+
+build-rel:
+> $(MAKE) build BUILD_DIR="$(REL_BUILD_DIR)" CONFIG="$(REL_CONFIG)"
+
+run-rel:
+> $(MAKE) run BUILD_DIR="$(REL_BUILD_DIR)" CONFIG="$(REL_CONFIG)"
 
 clean:
 > $(CLEAN_CMD)

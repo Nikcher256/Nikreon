@@ -12,6 +12,29 @@ make run
 
 `make build` and `make configure` automatically initialize a missing `external/NikreonUI` Git submodule checkout before running CMake.
 
+## Performance / fake Release build
+
+The default build configuration is still `Debug`, so normal `make build` and `make run` stay focused on debug iteration. Debug builds usually compile without optimization, such as `-O0` on GCC/Clang or `/Od` on MSVC, which makes them a poor fit for FPS measurements.
+
+Use the release-style targets for optimized FPS testing:
+
+```sh
+make configure-rel
+make build-rel
+make run-rel
+```
+
+These targets are wrappers around the normal configure/build/run commands with `REL_BUILD_DIR=build-rel` and `REL_CONFIG=RelWithDebInfo`. `RelWithDebInfo` keeps debug symbols while enabling optimization through CMake's standard release-style build type defaults.
+
+For a plain Release benchmark:
+
+```sh
+make run-rel REL_CONFIG=Release
+make run-rel REL_BUILD_DIR=build-release REL_CONFIG=Release
+```
+
+With standard CMake build types, `Release` and `RelWithDebInfo` enable optimization, such as `-O2`/`-O3` on GCC/Clang or `/O2` on MSVC, and define `NDEBUG`. This is why FPS should be measured with `make run-rel` or `REL_CONFIG=Release`, not normal `make run`.
+
 ## Default Triplets
 
 The Makefile picks a default vcpkg triplet based on the host:

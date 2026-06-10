@@ -1,0 +1,129 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Editor\EditorCamera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Editor\EditorLayer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Editor\EditorUI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Editor\EditorViewport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\Application.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\FileDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\Input.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\Layer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\LayerStack.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\Log.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\Time.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Core\Window.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Scene\Scene2DSubmitter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Scene\Scene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Editor\EditorViewportSelectionController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Resources\ResourceManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Camera\Camera3D.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Camera\Camera2D.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Editor\EditorViewportOverlayController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\DebugDraw\DebugRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\UI\NikreonUIRenderAdapter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\PostProcess\PostProcessRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Core\RenderFrame.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Core\RenderModuleBase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Core\RenderPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Core\Renderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Vulkan\DebugDraw\VulkanDebugRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\World2D\Renderer2DWorld.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\World3D\Renderer3D.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Shadow\ShadowRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Skybox\SkyboxRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Vulkan\VulkanContext.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Vulkan\World2D\VulkanRenderer2DWorld.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Renderer\Vulkan\VulkanViewportRenderTarget.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\nikit\OneDrive\documents\Nikreon\src\Engine\Editor\EditorSelectionState.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\nikit\OneDrive\documents\Nikreon\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="C:\Users\nikit\OneDrive\documents\Nikreon\build-rel\vcpkg_installed\x64-windows\share\nlohmann_json\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{3B55B332-1657-365A-BE0B-7D25C57E213E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{CF037A71-1167-3348-BF99-0A12F88B328B}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
