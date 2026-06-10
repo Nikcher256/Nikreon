@@ -45,7 +45,10 @@ private:
     [[nodiscard]] bool updatePanelSplitters();
     void renderPanelSplitters(Renderer2D& renderer2D);
     void setViewportModeFromIndex(std::size_t index);
-    void refreshTextureAssets(ResourceManager& resources);
+    void refreshAssets(ResourceManager& resources);
+    void loadSpriteAsset(ResourceManager& resources);
+    void loadModelAsset(ResourceManager& resources);
+    void loadModelAssetAt(std::size_t index, ResourceManager& resources);
     void createSceneSpriteFromAsset(const TextureAssetInfo& asset, ResourceManager& resources);
     void handleAssetContextActions(ResourceManager& resources, const Input& input);
     void updateAssetContextMenu(ResourceManager& resources, const Input& input);
@@ -79,7 +82,7 @@ private:
     float m_toolbarHeight{48.0f};
     float m_hierarchyWidth{192.0f};
     float m_inspectorWidth{230.0f};
-    float m_consoleHeight{130.0f};
+    float m_consoleHeight{220.0f};
     glm::vec2 m_previousMousePosition{0.0f, 0.0f};
     glm::vec2 m_renderSize{1.0f, 1.0f};
     int m_selectedHierarchyRow{0};
@@ -98,7 +101,8 @@ private:
     std::string m_objectName{"Directional Light"};
     VulkanContext::PresentMode m_presentMode{VulkanContext::PresentMode::Mailbox};
     std::vector<TextureAssetInfo> m_textureAssets;
-    bool m_textureAssetsDirty{true};
+    std::vector<ModelAssetInfo> m_modelAssets;
+    bool m_assetsDirty{true};
     bool m_rightMouseWasPressed{false};
     bool m_assetContextMenuOpen{false};
     std::size_t m_assetContextAssetIndex{0};

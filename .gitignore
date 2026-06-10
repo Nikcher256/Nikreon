@@ -9,6 +9,8 @@ Debug/
 Release/
 RelWithDebInfo/
 MinSizeRel/
+assets/models/
+assets/sprites/
 
 # Local dependency checkout
 external/vcpkg/

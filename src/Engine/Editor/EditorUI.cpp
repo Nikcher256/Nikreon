@@ -1,5 +1,6 @@
 #include "Engine/Editor/EditorUI.hpp"
 
+#include "Engine/Core/FileDialog.hpp"
 #include "Engine/Core/Input.hpp"
 #include "Engine/Renderer/Renderer2D.hpp"
 #include "Engine/Renderer/TextRenderer.hpp"
@@ -9,14 +10,20 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cctype>
+#include <cstdint>
+#include <fstream>
 #include <filesystem>
 #include <iomanip>
+#include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <GLFW/glfw3.h>
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 namespace Engine {
@@ -138,6 +145,252 @@ WorldSamplerMode samplerModeFromIndex(const std::size_t index)
     return index == 0U ? WorldSamplerMode::Nearest : WorldSamplerMode::Linear;
 }
 
+std::string truncateAssetLabel(const std::string& label, const std::size_t maxCharacters)
+{
+    if (label.size() <= maxCharacters) {
+        return label;
+    }
+
+    if (maxCharacters <= 3U) {
+        return label.substr(0U, maxCharacters);
+    }
+
+    return label.substr(0U, maxCharacters - 3U) + "...";
+}
+
+std::string assetTileLabel(const std::string& label)
+{
+    const std::filesystem::path path{label};
+    const std::string filename = path.filename().generic_string();
+    if (!filename.empty()) {
+        return truncateAssetLabel(filename, 44U);
+    }
+
+    return truncateAssetLabel(label, 44U);
+}
+
+void drawWrappedTextClipped(
+    TextRenderer& textRenderer,
+    std::string_view text,
+    const UIRect& bounds,
+    const UITextStyle& style,
+    const TextAlignment alignment = TextAlignment::Left,
+    const bool wordWrap = true)
+{
+    if (bounds.size.x <= 0.0f || bounds.size.y <= 0.0f || text.empty()) {
+        return;
+    }
+
+    constexpr float textClipTopPadding = 1.0f;
+    constexpr float textClipBottomPadding = 3.0f;
+    const UIClipRect clipBounds{
+        bounds.position - glm::vec2{0.0f, textClipTopPadding},
+        bounds.size + glm::vec2{0.0f, textClipTopPadding + textClipBottomPadding},
+    };
+
+    textRenderer.pushClipRect(clipBounds);
+    textRenderer.drawText(
+        text,
+        bounds.position,
+        style.color,
+        style.font,
+        style.scale,
+        alignment,
+        {
+            bounds.size.x,
+            1.0f,
+            wordWrap,
+        });
+    textRenderer.popClipRect();
+}
+
+int assetGridColumnsForWidth(const float width)
+{
+    return std::clamp(static_cast<int>(width / 280.0f), 1, 5);
+}
+
+std::string modelBoundsText(const MeshBounds& bounds)
+{
+    if (!bounds.valid) {
+        return "Bounds unavailable";
+    }
+
+    const glm::vec3 size = bounds.maximum - bounds.minimum;
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(1)
+         << "Bounds "
+         << size.x << " x "
+         << size.y << " x "
+         << size.z;
+    return text.str();
+}
+
+std::string assetDisplayPath(const std::filesystem::path& path)
+{
+    std::error_code error;
+    const std::filesystem::path assetRoot = std::filesystem::absolute(NIKREON_ASSET_DIR, error);
+    if (!error) {
+        std::filesystem::path relativePath = std::filesystem::relative(path, assetRoot, error);
+        const std::string relativeText = relativePath.generic_string();
+        if (!error && !relativeText.empty() && relativeText.rfind("..", 0U) != 0U) {
+            return relativeText;
+        }
+    }
+
+    return path.filename().generic_string();
+}
+
+bool isPathInsideAssets(const std::filesystem::path& path)
+{
+    std::error_code error;
+    const std::filesystem::path assetRoot = std::filesystem::absolute(NIKREON_ASSET_DIR, error);
+    if (error) {
+        return false;
+    }
+
+    const std::filesystem::path relativePath = std::filesystem::relative(path, assetRoot, error);
+    const std::string relativeText = relativePath.generic_string();
+    return !error && !relativeText.empty() && relativeText.rfind("..", 0U) != 0U;
+}
+
+std::string lowercaseExtension(const std::filesystem::path& path)
+{
+    std::string extension = path.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) {
+        return static_cast<char>(std::tolower(value));
+    });
+    return extension;
+}
+
+bool gltfUriIsExternalFile(const std::string& uri)
+{
+    return !uri.empty() &&
+        uri.find(':') == std::string::npos &&
+        uri.rfind("data:", 0U) != 0U;
+}
+
+void collectGltfUrisFromArray(
+    const nlohmann::json& document,
+    const char* key,
+    std::set<std::filesystem::path>& relativePaths)
+{
+    const auto found = document.find(key);
+    if (found == document.end() || !found->is_array()) {
+        return;
+    }
+
+    for (const nlohmann::json& item : *found) {
+        const auto uri = item.find("uri");
+        if (uri == item.end() || !uri->is_string()) {
+            continue;
+        }
+
+        const std::string uriText = uri->get<std::string>();
+        if (gltfUriIsExternalFile(uriText)) {
+            relativePaths.insert(std::filesystem::path{uriText}.lexically_normal());
+        }
+    }
+}
+
+std::set<std::filesystem::path> gltfSidecarPaths(const std::filesystem::path& gltfPath)
+{
+    std::set<std::filesystem::path> relativePaths;
+    if (lowercaseExtension(gltfPath) != ".gltf") {
+        return relativePaths;
+    }
+
+    std::ifstream input{gltfPath};
+    if (!input) {
+        return relativePaths;
+    }
+
+    try {
+        const nlohmann::json document = nlohmann::json::parse(input);
+        collectGltfUrisFromArray(document, "buffers", relativePaths);
+        collectGltfUrisFromArray(document, "images", relativePaths);
+    } catch (const std::exception& exception) {
+        spdlog::warn("Editor UI: failed to inspect glTF sidecar files for '{}': {}.", gltfPath.string(), exception.what());
+    }
+
+    return relativePaths;
+}
+
+void copyGltfSidecars(
+    const std::filesystem::path& sourceGltf,
+    const std::filesystem::path& targetDirectory)
+{
+    const std::set<std::filesystem::path> sidecars = gltfSidecarPaths(sourceGltf);
+    for (const std::filesystem::path& relativeSidecar : sidecars) {
+        std::error_code error;
+        const std::filesystem::path sourceSidecar = (sourceGltf.parent_path() / relativeSidecar).lexically_normal();
+        if (!std::filesystem::is_regular_file(sourceSidecar, error)) {
+            spdlog::warn("Editor UI: glTF sidecar file was not found: '{}'.", sourceSidecar.string());
+            continue;
+        }
+
+        const std::filesystem::path targetSidecar = (targetDirectory / relativeSidecar).lexically_normal();
+        std::filesystem::create_directories(targetSidecar.parent_path(), error);
+        if (error) {
+            spdlog::warn("Editor UI: failed to create glTF sidecar directory '{}': {}.", targetSidecar.parent_path().string(), error.message());
+            continue;
+        }
+
+        if (std::filesystem::equivalent(sourceSidecar, targetSidecar, error)) {
+            error.clear();
+            continue;
+        }
+
+        std::filesystem::copy_file(sourceSidecar, targetSidecar, std::filesystem::copy_options::overwrite_existing, error);
+        if (error) {
+            spdlog::warn("Editor UI: failed to copy glTF sidecar '{}' to '{}': {}.", sourceSidecar.string(), targetSidecar.string(), error.message());
+        }
+    }
+
+}
+
+std::optional<std::filesystem::path> importAssetFile(const std::filesystem::path& sourcePath, const std::filesystem::path& assetSubdirectory)
+{
+    std::error_code error;
+    const std::filesystem::path absoluteSource = std::filesystem::absolute(sourcePath, error);
+    if (error || !std::filesystem::is_regular_file(absoluteSource, error)) {
+        spdlog::warn("Editor UI: asset import source is not a file: '{}'.", sourcePath.string());
+        return std::nullopt;
+    }
+
+    if (isPathInsideAssets(absoluteSource)) {
+        return absoluteSource;
+    }
+
+    const std::filesystem::path targetDirectory = std::filesystem::path{NIKREON_ASSET_DIR} / assetSubdirectory;
+    std::filesystem::create_directories(targetDirectory, error);
+    if (error) {
+        spdlog::warn("Editor UI: failed to create asset import directory '{}': {}.", targetDirectory.string(), error.message());
+        return std::nullopt;
+    }
+
+    const std::filesystem::path sourceFilename = absoluteSource.filename();
+    const std::filesystem::path sourceStem = sourceFilename.stem();
+    const std::filesystem::path sourceExtension = sourceFilename.extension();
+    std::filesystem::path targetPath = targetDirectory / sourceFilename;
+
+    for (std::uint32_t copyIndex = 1U; std::filesystem::exists(targetPath, error); ++copyIndex) {
+        targetPath = targetDirectory / (sourceStem.string() + "_" + std::to_string(copyIndex) + sourceExtension.string());
+        error.clear();
+    }
+
+    std::filesystem::copy_file(absoluteSource, targetPath, std::filesystem::copy_options::none, error);
+    if (error) {
+        spdlog::warn("Editor UI: failed to copy asset '{}' to '{}': {}.", absoluteSource.string(), targetPath.string(), error.message());
+        return std::nullopt;
+    }
+
+    if (lowercaseExtension(absoluteSource) == ".gltf") {
+        copyGltfSidecars(absoluteSource, targetDirectory);
+    }
+
+    return std::filesystem::absolute(targetPath, error);
+}
+
 } // namespace
 
 EditorUI::EditorUI(EditorViewport& viewport, Scene& scene, EditorSelectionState& selection)
@@ -168,15 +421,21 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, Resour
     const float height = static_cast<float>(std::max(viewportSize.y, 1U));
     m_renderSize = {width, height};
 
-    if (m_textureAssetsDirty) {
-        refreshTextureAssets(resources);
+    if (m_assetsDirty) {
+        refreshAssets(resources);
     }
 
     m_ui.begin(m_context, renderer2D, textRenderer, m_style, {{0.0f, 0.0f}, {width, height}});
     declareUI(width, height, resources);
     m_ui.layout();
     syncBuilderBounds();
+    const bool assetContextMenuWasOpen = m_assetContextMenuOpen;
     handleAssetContextActions(resources, input);
+    if (assetContextMenuWasOpen != m_assetContextMenuOpen) {
+        declareUI(width, height, resources);
+        m_ui.layout();
+        syncBuilderBounds();
+    }
     if (updatePanelSplitters()) {
         declareUI(width, height, resources);
         m_ui.layout();
@@ -201,9 +460,10 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, Resour
     renderer2D.drawRect(m_viewportBounds.position, m_viewportBounds.size, viewportBorder, 2.0f);
 
     renderPanelSplitters(renderer2D);
-    m_ui.render();
+    m_ui.renderBaseLayer();
     renderAssetPreviews(resources, renderer2D, textRenderer);
     renderAssetContextMenu(renderer2D, textRenderer);
+    m_ui.renderTopLayer();
 
     m_context.endFrame();
     m_ui.end();
@@ -233,7 +493,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
 
     m_hierarchyWidth = std::clamp(m_hierarchyWidth, 150.0f, 320.0f);
     m_inspectorWidth = std::clamp(m_inspectorWidth, 190.0f, 380.0f);
-    m_consoleHeight = std::clamp(m_consoleHeight, 96.0f, 260.0f);
+    m_consoleHeight = std::clamp(m_consoleHeight, 116.0f, 360.0f);
 
     const float availableWorkWidth = std::max(width - gap * 2.0f, 1.0f);
     const float hierarchyWidth = std::min(m_hierarchyWidth, availableWorkWidth * 0.28f);
@@ -373,18 +633,43 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .styleClass("toolbar")
         .text("Refresh")
         .textStyle("toolbar-toggle")
-        .width(92.0f)
+        .width(84.0f)
         .height(24.0f)
         .onClick([this, &resources]() {
-            refreshTextureAssets(resources);
-            spdlog::info("Editor UI: refreshed texture asset list.");
+            refreshAssets(resources);
+            spdlog::info("Editor UI: refreshed asset list.");
         });
 
-    const std::size_t visibleAssetCount = std::min(m_textureAssets.size(), std::size_t{12});
+    m_ui.button("assets.loadSprite")
+        .parent("assets.header")
+        .styleClass("toolbar")
+        .text("Load Sprite")
+        .textStyle("toolbar-toggle")
+        .width(104.0f)
+        .height(24.0f)
+        .onClick([this, &resources]() {
+            loadSpriteAsset(resources);
+        });
+
+    m_ui.button("assets.loadModel")
+        .parent("assets.header")
+        .styleClass("toolbar")
+        .text("Load Model")
+        .textStyle("toolbar-toggle")
+        .width(104.0f)
+        .height(24.0f)
+        .onClick([this, &resources]() {
+            loadModelAsset(resources);
+        });
+
+    const std::size_t visibleTextureCount = m_textureAssets.size();
+    const std::size_t visibleModelCount = m_modelAssets.size();
+    const std::size_t visibleAssetCount = visibleTextureCount + visibleModelCount;
     m_ui.panel("assets.list")
         .parent("console")
         .drawBackground(false)
-        .grid(4)
+        .grid(assetGridColumnsForWidth(width))
+        .scrollable(true)
         .height(std::max(28.0f, m_consoleHeight - 62.0f))
         .padding(UIEdgeInsets::all(0.0f))
         .gap(6.0f);
@@ -392,12 +677,12 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
     if (visibleAssetCount == 0U) {
         m_ui.label("assets.empty")
             .parent("assets.list")
-            .text("No PNG/JPG assets found")
+            .text("No sprite/model assets found")
             .textStyle("muted")
             .height(22.0f);
     }
 
-    for (std::size_t index = 0; index < visibleAssetCount; ++index) {
+    for (std::size_t index = 0; index < visibleTextureCount; ++index) {
         const TextureAssetInfo& asset = m_textureAssets[index];
         const std::string id = "assets.texture." + std::to_string(index);
         const bool selected =
@@ -410,8 +695,23 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .styleClass("hierarchy-row")
             .text("")
             .textStyle("hierarchy-row")
-            .height(62.0f)
-            .selected(selected);
+            .height(82.0f)
+            .selected(selected)
+            .tooltip(m_assetContextMenuOpen ? "" : asset.displayPath);
+    }
+
+    for (std::size_t index = 0; index < visibleModelCount; ++index) {
+        const std::string id = "assets.model." + std::to_string(index);
+        m_ui.button(id)
+            .parent("assets.list")
+            .styleClass("hierarchy-row")
+            .text("")
+            .textStyle("hierarchy-row")
+            .height(82.0f)
+            .tooltip(m_assetContextMenuOpen ? "" : m_modelAssets[index].displayPath)
+            .onClick([this, index, &resources]() {
+                loadModelAssetAt(index, resources);
+            });
     }
 
     m_ui.panel("hierarchy")
@@ -768,7 +1068,7 @@ bool EditorUI::updatePanelSplitters()
         changed = true;
     }
     if (m_consoleVisible && m_context.interact("splitter.console", m_consoleSplitterBounds.position, m_consoleSplitterBounds.size).held) {
-        m_consoleHeight = std::clamp(m_consoleHeight - delta.y, 96.0f, 260.0f);
+        m_consoleHeight = std::clamp(m_consoleHeight - delta.y, 116.0f, 360.0f);
         changed = true;
     }
 
@@ -824,9 +1124,8 @@ void EditorUI::handleAssetContextActions(ResourceManager&, const Input& input)
         return;
     }
 
-    const std::size_t visibleAssetCount = std::min(m_textureAssets.size(), std::size_t{12});
     const glm::vec2 mouse = input.mousePosition();
-    for (std::size_t index = 0; index < visibleAssetCount; ++index) {
+    for (std::size_t index = 0; index < m_textureAssets.size(); ++index) {
         const std::string id = "assets.texture." + std::to_string(index);
         const UIRect bounds = m_ui.bounds(id);
 
@@ -887,21 +1186,36 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
 {
     const UITextStyle& labelText = m_style.resolveText("hierarchy-row");
     const UITextStyle& mutedText = m_style.resolveText("muted");
-    const std::size_t visibleAssetCount = std::min(m_textureAssets.size(), std::size_t{12});
+    UITextStyle metadataText = mutedText;
+    metadataText.scale = std::min(metadataText.scale, labelText.scale);
+    const std::size_t visibleTextureCount = m_textureAssets.size();
+    const std::size_t visibleModelCount = m_modelAssets.size();
     UIFrame frame{m_context, renderer2D, textRenderer, m_style};
     UICompositeRenderScope previewRenderScope{frame};
 
-    struct PreviewItem {
+    const UIRect listBounds = m_ui.bounds("assets.list");
+    if (listBounds.size.x <= 0.0f || listBounds.size.y <= 0.0f) {
+        return;
+    }
+
+    struct TexturePreviewItem {
         const TextureAssetInfo* asset{nullptr};
         UIRect bounds{};
         glm::vec2 previewPosition{0.0f};
         glm::vec2 previewSize{48.0f};
     };
 
-    std::vector<PreviewItem> items;
-    items.reserve(visibleAssetCount);
+    struct ModelPreviewItem {
+        const ModelAssetInfo* asset{nullptr};
+        UIRect bounds{};
+        glm::vec2 previewPosition{0.0f};
+        glm::vec2 previewSize{48.0f};
+    };
 
-    for (std::size_t index = 0; index < visibleAssetCount; ++index) {
+    std::vector<TexturePreviewItem> textureItems;
+    textureItems.reserve(visibleTextureCount);
+
+    for (std::size_t index = 0; index < visibleTextureCount; ++index) {
         const TextureAssetInfo& asset = m_textureAssets[index];
         const std::string id = "assets.texture." + std::to_string(index);
         const UIRect bounds = m_ui.bounds(id);
@@ -909,19 +1223,43 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
             continue;
         }
 
-        items.push_back({
+        constexpr float thumbnailSize = 54.0f;
+        textureItems.push_back({
             &asset,
             bounds,
-            bounds.position + glm::vec2{6.0f, 6.0f},
-            {48.0f, 48.0f},
+            bounds.position + glm::vec2{10.0f, 14.0f},
+            {thumbnailSize, thumbnailSize},
         });
     }
 
-    for (const PreviewItem& item : items) {
+    std::vector<ModelPreviewItem> modelItems;
+    modelItems.reserve(visibleModelCount);
+
+    for (std::size_t index = 0; index < visibleModelCount; ++index) {
+        const ModelAssetInfo& asset = m_modelAssets[index];
+        const std::string id = "assets.model." + std::to_string(index);
+        const UIRect bounds = m_ui.bounds(id);
+        if (bounds.size.x <= 0.0f || bounds.size.y <= 0.0f) {
+            continue;
+        }
+
+        constexpr float thumbnailSize = 54.0f;
+        modelItems.push_back({
+            &asset,
+            bounds,
+            bounds.position + glm::vec2{10.0f, 14.0f},
+            {thumbnailSize, thumbnailSize},
+        });
+    }
+
+    renderer2D.pushClipRect({listBounds.position, listBounds.size});
+    textRenderer.pushClipRect({listBounds.position, listBounds.size});
+
+    for (const TexturePreviewItem& item : textureItems) {
         renderer2D.drawSdfRect(item.previewPosition, item.previewSize, 3.0f, m_style.field.fill, m_style.field.border, 1.0f);
     }
 
-    for (const PreviewItem& item : items) {
+    for (const TexturePreviewItem& item : textureItems) {
         const TextureAssetInfo& asset = *item.asset;
 
         if (asset.handle) {
@@ -938,21 +1276,15 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
         }
     }
 
-    for (const PreviewItem& item : items) {
+    for (const TexturePreviewItem& item : textureItems) {
         if (item.asset->handle) {
             renderer2D.drawRect(item.previewPosition, item.previewSize, m_style.field.border, 1.0f);
         }
     }
 
-    for (const PreviewItem& item : items) {
+    for (const TexturePreviewItem& item : textureItems) {
         const TextureAssetInfo& asset = *item.asset;
-        std::string label = asset.displayPath;
-        if (label.size() > 34U) {
-            label = label.substr(0U, 31U) + "...";
-        }
-
-        const glm::vec2 labelPosition = item.bounds.position + glm::vec2{64.0f, 11.0f};
-        textRenderer.drawText(label, labelPosition, labelText.color, labelText.font, labelText.scale);
+        const std::string label = assetTileLabel(asset.displayPath);
 
         std::string sizeText = asset.loaded ? "Loaded" : "Missing";
         if (asset.handle) {
@@ -962,8 +1294,98 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
                     : std::to_string(texture->pixels.width) + " x " + std::to_string(texture->pixels.height);
             }
         }
-        textRenderer.drawText(sizeText, labelPosition + glm::vec2{0.0f, 20.0f}, mutedText.color, mutedText.font, mutedText.scale);
+
+        drawWrappedTextClipped(
+            textRenderer,
+            label,
+            {
+                item.bounds.position + glm::vec2{74.0f, 10.0f},
+                {std::max(0.0f, item.bounds.size.x - 84.0f), 38.0f},
+            },
+            labelText);
+        drawWrappedTextClipped(
+            textRenderer,
+            sizeText,
+            {
+                item.bounds.position + glm::vec2{74.0f, 56.0f},
+                {std::max(0.0f, item.bounds.size.x - 84.0f), 20.0f},
+            },
+            metadataText,
+            TextAlignment::Left,
+            false);
     }
+
+    for (const ModelPreviewItem& item : modelItems) {
+        renderer2D.drawSdfRect(item.previewPosition, item.previewSize, 3.0f, m_style.field.fill, m_style.field.border, 1.0f);
+
+        const glm::vec4 modelFill{0.20f, 0.30f, 0.36f, 1.0f};
+        const glm::vec4 modelAccent{0.45f, 0.72f, 0.78f, 1.0f};
+        const glm::vec2 innerSize = item.previewSize * glm::vec2{0.52f, 0.46f};
+        const glm::vec2 innerPosition = item.previewPosition + (item.previewSize - innerSize) * 0.5f + glm::vec2{-2.0f, 2.0f};
+        renderer2D.drawQuad(innerPosition + glm::vec2{5.0f, -5.0f}, innerSize, glm::vec4{modelFill.r, modelFill.g, modelFill.b, 0.45f});
+        renderer2D.drawRect(innerPosition + glm::vec2{5.0f, -5.0f}, innerSize, modelAccent, 1.0f);
+        renderer2D.drawQuad(innerPosition, innerSize, modelFill);
+        renderer2D.drawRect(innerPosition, innerSize, modelAccent, 1.0f);
+        renderer2D.drawQuad(
+            item.previewPosition + glm::vec2{item.previewSize.x * 0.18f, item.previewSize.y * 0.78f},
+            {item.previewSize.x * 0.64f, 3.0f},
+            glm::vec4{modelAccent.r, modelAccent.g, modelAccent.b, 0.55f});
+
+        textRenderer.drawText("3D", item.previewPosition + glm::vec2{item.previewSize.x * 0.30f, item.previewSize.y * 0.33f}, modelAccent, labelText.font, labelText.scale);
+    }
+
+    for (const ModelPreviewItem& item : modelItems) {
+        const ModelAssetInfo& asset = *item.asset;
+        const std::string label = assetTileLabel(asset.displayPath);
+
+        std::string summary = asset.loaded ? "Loaded model" : "Not loaded";
+        std::string bounds = "Click to load";
+        if (asset.handle) {
+            if (const ModelResource* model = resources.tryModel(asset.handle)) {
+                summary = std::to_string(model->meshes.size()) + " mesh";
+                if (model->meshes.size() != 1U) {
+                    summary += "es";
+                }
+                summary += ", " + std::to_string(model->materials.size()) + " material";
+                if (model->materials.size() != 1U) {
+                    summary += "s";
+                }
+                bounds = modelBoundsText(model->bounds);
+            }
+        }
+
+        drawWrappedTextClipped(
+            textRenderer,
+            label,
+            {
+                item.bounds.position + glm::vec2{74.0f, 8.0f},
+                {std::max(0.0f, item.bounds.size.x - 84.0f), 34.0f},
+            },
+            labelText);
+        drawWrappedTextClipped(
+            textRenderer,
+            summary,
+            {
+                item.bounds.position + glm::vec2{74.0f, 44.0f},
+                {std::max(0.0f, item.bounds.size.x - 84.0f), 20.0f},
+            },
+            metadataText,
+            TextAlignment::Left,
+            false);
+        drawWrappedTextClipped(
+            textRenderer,
+            bounds,
+            {
+                item.bounds.position + glm::vec2{74.0f, 61.0f},
+                {std::max(0.0f, item.bounds.size.x - 84.0f), 20.0f},
+            },
+            metadataText,
+            TextAlignment::Left,
+            false);
+    }
+
+    textRenderer.popClipRect();
+    renderer2D.popClipRect();
 }
 
 void EditorUI::renderAssetContextMenu(Renderer2D& renderer2D, TextRenderer& textRenderer)
@@ -1027,12 +1449,114 @@ void EditorUI::createSceneSpriteFromAsset(const TextureAssetInfo& asset, Resourc
     }
 
     m_selection.select(object.id);
-    refreshTextureAssets(resources);
+    refreshAssets(resources);
 
     spdlog::info("Editor UI: added scene sprite from asset '{}'.", displayPath);
 }
 
-void EditorUI::refreshTextureAssets(ResourceManager& resources)
+void EditorUI::loadSpriteAsset(ResourceManager& resources)
+{
+    const std::optional<std::filesystem::path> selectedPath = FileDialog::openFile({
+        "Load Sprite Asset",
+        NIKREON_ASSET_DIR,
+        {
+            {"Sprite Images", {"*.png", "*.jpg", "*.jpeg"}},
+            {"All Files", {"*.*"}},
+        },
+    });
+
+    if (!selectedPath) {
+        return;
+    }
+
+    const std::optional<std::filesystem::path> importedPath = importAssetFile(*selectedPath, "sprites");
+    if (!importedPath) {
+        return;
+    }
+
+    const TextureHandle handle = resources.loadTexture(*importedPath);
+    TextureAssetInfo imported;
+    imported.path = *importedPath;
+    imported.displayPath = assetDisplayPath(*importedPath);
+    imported.loaded = handle && handle != resources.missingTexture();
+    imported.handle = handle;
+
+    const std::string normalizedPath = resources.normalizePath(imported.path);
+    const auto found = std::find_if(m_textureAssets.begin(), m_textureAssets.end(), [&resources, &normalizedPath](const TextureAssetInfo& asset) {
+        return resources.normalizePath(asset.path) == normalizedPath;
+    });
+
+    if (found == m_textureAssets.end()) {
+        m_textureAssets.insert(m_textureAssets.begin(), std::move(imported));
+    } else {
+        *found = std::move(imported);
+    }
+
+    m_assetsDirty = false;
+    spdlog::info("Editor UI: imported sprite asset '{}'.", normalizedPath);
+}
+
+void EditorUI::loadModelAsset(ResourceManager& resources)
+{
+    const std::optional<std::filesystem::path> selectedPath = FileDialog::openFile({
+        "Load Model Asset",
+        NIKREON_ASSET_DIR,
+        {
+            {"glTF Models", {"*.glb", "*.gltf"}},
+            {"All Files", {"*.*"}},
+        },
+    });
+
+    if (!selectedPath) {
+        return;
+    }
+
+    const std::optional<std::filesystem::path> importedPath = importAssetFile(*selectedPath, "models");
+    if (!importedPath) {
+        return;
+    }
+
+    const ModelHandle handle = resources.loadModel(*importedPath);
+    ModelAssetInfo imported;
+    imported.path = *importedPath;
+    imported.displayPath = assetDisplayPath(*importedPath);
+    imported.loaded = static_cast<bool>(handle);
+    imported.handle = handle;
+
+    const std::string normalizedPath = resources.normalizePath(imported.path);
+    const auto found = std::find_if(m_modelAssets.begin(), m_modelAssets.end(), [&resources, &normalizedPath](const ModelAssetInfo& asset) {
+        return resources.normalizePath(asset.path) == normalizedPath;
+    });
+
+    if (found == m_modelAssets.end()) {
+        m_modelAssets.insert(m_modelAssets.begin(), std::move(imported));
+    } else {
+        *found = std::move(imported);
+    }
+
+    m_assetsDirty = false;
+    spdlog::info("Editor UI: imported model asset '{}'.", normalizedPath);
+}
+
+void EditorUI::loadModelAssetAt(const std::size_t index, ResourceManager& resources)
+{
+    if (index >= m_modelAssets.size()) {
+        return;
+    }
+
+    ModelAssetInfo& asset = m_modelAssets[index];
+    const ModelHandle handle = resources.loadModel(asset.path);
+    asset.loaded = static_cast<bool>(handle);
+    asset.handle = handle;
+
+    if (handle) {
+        spdlog::info("Editor UI: loaded model asset '{}'.", asset.displayPath);
+    } else {
+        spdlog::warn("Editor UI: model asset '{}' could not be loaded.", asset.displayPath);
+    }
+}
+
+void EditorUI::refreshAssets(ResourceManager& resources)
 {
     m_textureAssets = resources.scanTextureAssets(NIKREON_ASSET_DIR);
     for (TextureAssetInfo& asset : m_textureAssets) {
@@ -1042,7 +1566,17 @@ void EditorUI::refreshTextureAssets(ResourceManager& resources)
             asset.handle = handle;
         }
     }
-    m_textureAssetsDirty = false;
+
+    m_modelAssets = resources.scanModelAssets(NIKREON_ASSET_DIR);
+    for (ModelAssetInfo& asset : m_modelAssets) {
+        const ModelHandle handle = resources.loadModel(asset.path);
+        if (handle) {
+            asset.loaded = true;
+            asset.handle = handle;
+        }
+    }
+
+    m_assetsDirty = false;
 }
 
 SceneObject* EditorUI::selectedSceneObject()

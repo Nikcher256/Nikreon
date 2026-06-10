@@ -153,6 +153,7 @@ text.hierarchy-row {
 }
 
 text.control-label {
+    font-scale: 0.95;
     vertical-align: center;
 }
 
