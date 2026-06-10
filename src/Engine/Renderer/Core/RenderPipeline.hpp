@@ -3,7 +3,7 @@
 #include <array>
 #include <span>
 
-#include "Engine/Renderer/Debug/DebugRenderer.hpp"
+#include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
 #include "Engine/Renderer/UI/NikreonUIRenderAdapter.hpp"
 #include "Engine/Renderer/PostProcess/PostProcessRenderer.hpp"
 #include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
@@ -31,6 +31,8 @@ public:
 
     [[nodiscard]] Renderer2DWorld& renderer2DWorld();
     [[nodiscard]] const Renderer2DWorld& renderer2DWorld() const;
+    [[nodiscard]] DebugRenderer& debugRenderer();
+    [[nodiscard]] const DebugRenderer& debugRenderer() const;
     [[nodiscard]] std::span<const RenderStage> stageSequence() const;
 
 private:

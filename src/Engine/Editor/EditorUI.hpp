@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engine/Editor/EditorSelectionState.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/Renderer/Vulkan/VulkanContext.hpp"
 #include "Engine/Resources/ResourceManager.hpp"
@@ -25,12 +26,10 @@ class TextRenderer;
 
 class EditorUI {
 public:
-    explicit EditorUI(EditorViewport& viewport, Scene& scene);
+    EditorUI(EditorViewport& viewport, Scene& scene, EditorSelectionState& selection);
 
     void update(float deltaTime);
     void render(Renderer2D& renderer2D, TextRenderer& textRenderer, ResourceManager& resources, const glm::uvec2& viewportSize, const Input& input);
-    void setSelectedSceneObject(SceneObjectId objectId);
-    [[nodiscard]] SceneObjectId selectedSceneObjectId() const;
     [[nodiscard]] const UIRect& viewportBounds() const;
     [[nodiscard]] VulkanContext::PresentMode presentMode() const;
 
@@ -45,7 +44,6 @@ private:
     void syncBuilderBounds();
     [[nodiscard]] bool updatePanelSplitters();
     void renderPanelSplitters(Renderer2D& renderer2D);
-    void drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds);
     void setViewportModeFromIndex(std::size_t index);
     void refreshTextureAssets(ResourceManager& resources);
     void createSceneSpriteFromAsset(const TextureAssetInfo& asset, ResourceManager& resources);
@@ -59,12 +57,12 @@ private:
 
     EditorViewport& m_viewport;
     Scene& m_scene;
+    EditorSelectionState& m_selection;
     UIStyle m_style;
     UIContext m_context;
     UIBuilder m_ui;
 
     struct EditorStyle {
-        glm::vec4 viewportGrid{0.10f, 0.13f, 0.17f, 0.8f};
         glm::vec4 viewportBorder{0.25f, 0.32f, 0.42f, 1.0f};
         glm::vec4 viewportFocusedBorder{0.32f, 0.58f, 0.88f, 1.0f};
         float toolbarHeightMin{42.0f};
@@ -86,7 +84,6 @@ private:
     glm::vec2 m_renderSize{1.0f, 1.0f};
     int m_selectedHierarchyRow{0};
     RunState m_runState{RunState::Stopped};
-    bool m_showGrid{true};
     glm::vec4 m_viewportClearColor{0.055f, 0.085f, 0.14f, 1.0f};
     bool m_hierarchyVisible{true};
     bool m_inspectorVisible{true};
@@ -100,7 +97,6 @@ private:
     glm::vec3 m_previewPosition{12.5f, -4.0f, 8.0f};
     std::string m_objectName{"Directional Light"};
     VulkanContext::PresentMode m_presentMode{VulkanContext::PresentMode::Mailbox};
-    SceneObjectId m_selectedSceneObjectId{InvalidSceneObjectId};
     std::vector<TextureAssetInfo> m_textureAssets;
     bool m_textureAssetsDirty{true};
     bool m_rightMouseWasPressed{false};

@@ -1,8 +1,10 @@
 #include "Engine/Renderer/Core/Renderer.hpp"
 
 #include "Engine/Renderer/Renderer2D.hpp"
+#include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
 #include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
 #include "Engine/Renderer/TextRenderer.hpp"
+#include "Engine/Renderer/Vulkan/DebugDraw/VulkanDebugRenderer.hpp"
 #include "Engine/Renderer/Vulkan/VulkanRenderer2D.hpp"
 #include "Engine/Renderer/Vulkan/VulkanTextRenderer.hpp"
 #include "Engine/Renderer/Vulkan/World2D/VulkanRenderer2DWorld.hpp"
@@ -36,6 +38,7 @@ Renderer::~Renderer()
 {
     m_context.waitIdle();
     m_textRenderer.reset();
+    m_viewportDebugRenderer.reset();
     m_viewportRenderer2DWorld.reset();
     m_renderer2D.reset();
 }
@@ -61,9 +64,9 @@ void Renderer::endFrame()
 {
     renderer2D().end();
     textRenderer().end();
-    prepareViewportWorld2DRenderer();
+    prepareViewportRenderers();
     const RenderFrameContext context = frameContext();
-    const VulkanContext::FrameResult frameResult = m_context.drawFrame(*m_renderer2D, *m_viewportRenderer2DWorld, *m_textRenderer, m_renderPipeline, context);
+    const VulkanContext::FrameResult frameResult = m_context.drawFrame(*m_renderer2D, *m_viewportRenderer2DWorld, *m_viewportDebugRenderer, *m_textRenderer, m_renderPipeline, context);
     m_renderPipeline.endFrame();
     if (frameResult == VulkanContext::FrameResult::RecreateSwapchain) {
         recreateSwapchainResources();
@@ -78,6 +81,11 @@ Renderer2D& Renderer::renderer2D()
 Renderer2DWorld& Renderer::renderer2DWorld()
 {
     return m_renderPipeline.renderer2DWorld();
+}
+
+DebugRenderer& Renderer::debugRenderer()
+{
+    return m_renderPipeline.debugRenderer();
 }
 
 TextRenderer& Renderer::textRenderer()
@@ -133,6 +141,10 @@ void Renderer::createBackendRenderers()
         m_context.graphicsQueue(),
         m_context.commandPool(),
         m_context.viewportRenderPass());
+    m_viewportDebugRenderer = std::make_unique<VulkanDebugRenderer>(
+        m_context.device(),
+        m_context.physicalDevice(),
+        m_context.viewportRenderPass());
     m_textRenderer = std::make_unique<VulkanTextRenderer>(
         m_context.device(),
         m_context.physicalDevice(),
@@ -163,6 +175,7 @@ void Renderer::recreateSwapchainResources()
     if (renderPassChanged) {
         m_context.waitIdle();
         m_textRenderer.reset();
+        m_viewportDebugRenderer.reset();
         m_viewportRenderer2DWorld.reset();
         m_renderer2D.reset();
         createBackendRenderers();
@@ -170,12 +183,16 @@ void Renderer::recreateSwapchainResources()
     m_renderPipeline.resize(m_context.swapchainSize());
 }
 
-void Renderer::prepareViewportWorld2DRenderer()
+void Renderer::prepareViewportRenderers()
 {
     const glm::uvec2 targetSize = m_context.viewportRenderTargetSize();
     m_viewportRenderer2DWorld->begin(targetSize);
     m_viewportRenderer2DWorld->submit(m_renderPipeline.renderer2DWorld(), m_resources);
     m_viewportRenderer2DWorld->end();
+
+    m_viewportDebugRenderer->begin(targetSize);
+    m_viewportDebugRenderer->submit(m_renderPipeline.debugRenderer(), m_renderPipeline.renderer2DWorld().camera());
+    m_viewportDebugRenderer->end();
 }
 
 RenderFrameContext Renderer::frameContext() const

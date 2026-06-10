@@ -2,51 +2,132 @@
 
 #include <algorithm>
 #include <cmath>
+
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/geometric.hpp>
 #include <glm/trigonometric.hpp>
 
 namespace Engine {
 
+namespace {
+
+constexpr glm::vec3 WorldUp{0.0f, 0.0f, 1.0f};
+
+glm::vec3 safeNormalize(const glm::vec3& value, const glm::vec3& fallback)
+{
+    const float length = glm::length(value);
+    if (length <= 0.0001f) {
+        return fallback;
+    }
+    return value / length;
+}
+
+glm::vec3 forwardFromAngles(const float yawRadians, const float pitchRadians)
+{
+    const float cosPitch = std::cos(pitchRadians);
+    return safeNormalize(
+        {
+            std::sin(yawRadians) * cosPitch,
+            std::cos(yawRadians) * cosPitch,
+            std::sin(pitchRadians),
+        },
+        {0.0f, 1.0f, 0.0f});
+}
+
+glm::vec3 rightFromForward(const glm::vec3& forward)
+{
+    return safeNormalize(glm::cross(forward, WorldUp), {1.0f, 0.0f, 0.0f});
+}
+
+glm::vec3 upFromForwardRight(const glm::vec3& forward, const glm::vec3& right)
+{
+    return safeNormalize(glm::cross(right, forward), WorldUp);
+}
+
+bool hasDelta(const glm::vec2& value)
+{
+    return std::abs(value.x) > 0.0001f || std::abs(value.y) > 0.0001f;
+}
+
+} // namespace
+
 void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
 {
     const float safeDeltaTime = std::max(deltaTime, 0.0f);
+    const float safeFocusRadius = std::max(input.focusRadius, 1.0f);
+
+    if (input.focusRequested) {
+        if (input.perspective3D) {
+            m_perspectivePivot = input.focusPosition;
+            m_perspectiveOrbitDistance = std::clamp(safeFocusRadius * 3.0f, 80.0f, 2000.0f);
+            const glm::vec3 forward = forwardFromAngles(m_yawRadians, m_pitchRadians);
+            m_perspectivePosition = m_perspectivePivot - forward * m_perspectiveOrbitDistance;
+        } else {
+            m_position.x = input.focusPosition.x;
+            m_position.y = input.focusPosition.y;
+            m_zoom = std::clamp(160.0f / safeFocusRadius, 0.1f, 12.0f);
+        }
+    }
 
     if (input.perspective3D) {
-        m_yawRadians += -input.lookDelta.x * m_lookSensitivity;
-        m_pitchRadians += input.lookDelta.y * m_lookSensitivity;
-        m_pitchRadians = std::clamp(m_pitchRadians, -1.5f, 1.5f);
+        const bool orbiting = hasDelta(input.orbitDelta);
+        const bool looking = hasDelta(input.lookDelta);
 
-        const float sinYaw = std::sin(m_yawRadians);
-        const float cosYaw = std::cos(m_yawRadians);
-        const float cosPitch = std::cos(m_pitchRadians);
-
-        const glm::vec3 forwardGround{sinYaw, cosYaw, 0.0f};
-        const glm::vec3 rightGround{cosYaw, -sinYaw, 0.0f};
-        const glm::vec3 up{0.0f, 0.0f, 1.0f};
-
-        const glm::vec3 cameraForward = glm::normalize(glm::vec3{
-            std::sin(m_yawRadians) * cosPitch,
-            std::cos(m_yawRadians) * cosPitch,
-            std::sin(m_pitchRadians),
-        });
-        const glm::vec3 cameraRight = glm::normalize(glm::cross(cameraForward, up));
-        const glm::vec3 cameraUp = glm::normalize(glm::cross(cameraRight, cameraForward));
-
-        m_position +=
-            rightGround * input.moveRight * m_movementSpeed * safeDeltaTime +
-            forwardGround * input.moveForward * m_movementSpeed * safeDeltaTime +
-            up * input.moveUp * m_movementSpeed * safeDeltaTime;
-
-        const float safeZoom = std::max(m_zoom, 0.001f);
-        m_position -= cameraRight * input.panDelta.x * m_panSensitivity / safeZoom;
-        m_position -= cameraUp * input.panDelta.y * m_panSensitivity / safeZoom;
-
-        if (input.zoomDelta != 0.0f) {
-            const float zoomScale = std::pow(1.0f + m_zoomStep, input.zoomDelta);
-            m_zoom = std::clamp(m_zoom * zoomScale, 0.15f, 12.0f);
+        if (orbiting || looking) {
+            const glm::vec2 delta = orbiting ? input.orbitDelta : input.lookDelta;
+            m_yawRadians += -delta.x * m_lookSensitivity;
+            m_pitchRadians += delta.y * m_lookSensitivity;
+            m_pitchRadians = std::clamp(m_pitchRadians, -1.5f, 1.5f);
         }
 
+        const glm::vec3 forward = forwardFromAngles(m_yawRadians, m_pitchRadians);
+        const glm::vec3 right = rightFromForward(forward);
+        const glm::vec3 up = upFromForwardRight(forward, right);
+
+        if (orbiting) {
+            m_perspectivePosition = m_perspectivePivot - forward * m_perspectiveOrbitDistance;
+        }
+
+        if (looking) {
+            m_perspectivePivot = m_perspectivePosition + forward * m_perspectiveOrbitDistance;
+        }
+
+        const float safeSpeedScale = std::max(input.speedScale, 0.1f);
+        const float flySpeed = std::max(m_movementSpeed, m_perspectiveOrbitDistance) * safeSpeedScale;
+        const glm::vec3 flyDelta =
+            right * input.moveRight +
+            forward * input.moveForward +
+            WorldUp * input.moveUp;
+
+        if (glm::length(flyDelta) > 0.0001f) {
+            const glm::vec3 movement = safeNormalize(flyDelta, {}) * flySpeed * safeDeltaTime;
+            m_perspectivePosition += movement;
+            m_perspectivePivot += movement;
+        }
+
+        if (hasDelta(input.trackDelta)) {
+            const float trackScale = std::max(m_perspectiveOrbitDistance * 0.0025f, 0.05f);
+            const glm::vec3 movement =
+                -right * input.trackDelta.x * trackScale +
+                up * input.trackDelta.y * trackScale;
+            m_perspectivePosition += movement;
+            m_perspectivePivot += movement;
+        }
+
+        if (input.dollyDelta != 0.0f) {
+            const float scale = std::pow(1.01f, input.dollyDelta);
+            m_perspectiveOrbitDistance = std::clamp(m_perspectiveOrbitDistance * scale, 5.0f, 5000.0f);
+            m_perspectivePosition = m_perspectivePivot - forward * m_perspectiveOrbitDistance;
+        }
+
+        if (input.zoomDelta != 0.0f) {
+            const float moveDistance = input.zoomDelta * std::max(m_perspectiveOrbitDistance * 0.12f, 5.0f);
+            const glm::vec3 movement = forward * moveDistance;
+            m_perspectivePosition += movement;
+            m_perspectivePivot += movement;
+        }
+
+        m_perspectiveOrbitDistance = std::max(glm::length(m_perspectivePivot - m_perspectivePosition), 5.0f);
         return;
     }
 
@@ -54,7 +135,7 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
         input.moveRight,
         input.moveUp,
         -input.moveForward,
-    } * m_movementSpeed *safeDeltaTime;
+    } * m_movementSpeed * safeDeltaTime;
 
     const float safeZoom = std::max(m_zoom, 0.001f);
     m_position.x -= input.panDelta.x * m_panSensitivity / safeZoom;
@@ -69,6 +150,20 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
 void EditorCamera::setMovementSpeed(const float speed)
 {
     m_movementSpeed = std::max(speed, 0.0f);
+}
+
+Camera3D EditorCamera::camera3D(const float aspectRatio) const
+{
+    Camera3D camera;
+    camera.position = m_perspectivePosition;
+    camera.yawRadians = m_yawRadians;
+    camera.pitchRadians = m_pitchRadians;
+    camera.aspectRatio = std::max(aspectRatio, 0.001f);
+    camera.verticalFovRadians = 0.55f;
+    camera.nearPlane = 0.1f;
+    camera.farPlane = std::max(2000.0f, m_perspectiveOrbitDistance * 4.0f);
+    camera.projectionMode = Camera3DProjection::Perspective;
+    return camera;
 }
 
 float EditorCamera::movementSpeed() const
@@ -96,4 +191,4 @@ float EditorCamera::pitchRadians() const
     return m_pitchRadians;
 }
 
-} //namespace Engine
+} // namespace Engine

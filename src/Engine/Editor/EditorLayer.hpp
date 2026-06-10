@@ -6,13 +6,18 @@
 #include "Engine/Scene/Scene.hpp"
 #include "Engine/Scene/Scene2DSubmitter.hpp"
 #include "Engine/Renderer/Camera/Camera2D.hpp"
+#include "Engine/Editor/EditorSelectionState.hpp"
+#include "Engine/Editor/EditorViewportSelectionController.hpp"
+#include "Engine/Editor/EditorViewportOverlayController.hpp"
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 
 namespace Engine {
 
 class ResourceManager;
 class Input;
+class DebugRenderer;
 class Renderer2D;
 class Renderer2DWorld;
 class TextRenderer;
@@ -25,6 +30,7 @@ public:
     void onRender(
         Renderer2D& renderer2D,
         Renderer2DWorld& renderer2DWorld,
+        DebugRenderer& debugRenderer,
         TextRenderer& textRenderer,
         ResourceManager& resources,
         const glm::uvec2& viewportSize,
@@ -32,17 +38,23 @@ public:
     [[nodiscard]] const EditorViewport& viewport() const;
 
 private:
+    struct CameraFocusTarget {
+        bool valid{false};
+        glm::vec3 position{0.0f};
+        float radius{64.0f};
+    };
+
     void updateEditorCamera(float deltaTime, const Input& input);
-    void updateViewportSelection(const Input& input, const Camera2D& camera);
-    void drawSelectedSpriteOutline(Renderer2DWorld& renderer2DWorld) const;
-    [[nodiscard]] SceneObjectId pickSpriteAt(const glm::vec2& worldPosition) const;
-    
+    [[nodiscard]] CameraFocusTarget selectedCameraFocusTarget() const;
+
     glm::vec2 m_previousMousePosition{0.0f, 0.0f};
-    bool m_leftMouseWasPressed{false};
     
     EditorViewport m_viewport;
     Scene m_scene;
     Scene2DSubmitter m_scene2DSubmitter;
+    EditorSelectionState m_selection;
+    EditorViewportSelectionController m_selectionController;
+    EditorViewportOverlayController m_overlayController;
     EditorUI m_ui;
 };
 

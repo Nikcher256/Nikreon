@@ -197,7 +197,31 @@ void Renderer2DWorld::drawDebugLine(
     const glm::vec4& color,
     const float thickness)
 {
-    m_debugLines.push_back({start, end, color, std::max(thickness, 1.0f)});
+    const float safeThickness = std::max(thickness, 1.0f);
+    m_debugLines.push_back({start, end, color, safeThickness});
+
+    const glm::vec2 delta{end.x - start.x, end.y - start.y};
+    const float length = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+    if (length <= 0.0001f) {
+        return;
+    }
+
+    drawSprite(
+        WhiteTexture,
+        {
+            .position = start,
+            .size = {length, safeThickness},
+            .rotationRadians = std::atan2(delta.y, delta.x),
+            .origin = {0.0f, 0.5f},
+        },
+        {},
+        color,
+        -1,
+        {
+            .pipeline = WorldSpritePipeline::Debug,
+            .blendMode = WorldBlendMode::Alpha,
+            .samplerMode = WorldSamplerMode::Nearest,
+        });
 }
 
 void Renderer2DWorld::drawDebugRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color, const float thickness)

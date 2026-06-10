@@ -13,6 +13,8 @@
 namespace Engine {
 
 class Renderer2D;
+class DebugRenderer;
+class VulkanDebugRenderer;
 class VulkanRenderer2DWorld;
 class TextRenderer;
 class VulkanRenderer2D;
@@ -34,6 +36,7 @@ public:
 
     [[nodiscard]] Renderer2D& renderer2D();
     [[nodiscard]] Renderer2DWorld& renderer2DWorld();
+    [[nodiscard]] DebugRenderer& debugRenderer();
     [[nodiscard]] TextRenderer& textRenderer();
     [[nodiscard]] ResourceManager& resources();
     [[nodiscard]] const ResourceManager& resources() const;
@@ -45,13 +48,14 @@ public:
 private:
     void createBackendRenderers();
     void recreateSwapchainResources();
-    void prepareViewportWorld2DRenderer();
+    void prepareViewportRenderers();
     [[nodiscard]] RenderFrameContext frameContext() const;
 
     VulkanContext m_context;
     ResourceManager m_resources;
     RenderPipeline m_renderPipeline;
     std::unique_ptr<VulkanRenderer2DWorld> m_viewportRenderer2DWorld;
+    std::unique_ptr<VulkanDebugRenderer> m_viewportDebugRenderer;
     std::unique_ptr<VulkanRenderer2D> m_renderer2D;
     std::unique_ptr<VulkanTextRenderer> m_textRenderer;
     EditorViewportPresentation m_editorViewportPresentation{};

@@ -13,6 +13,7 @@ void Layer::onUpdate(const float deltaTime, const Input& input)
 void Layer::onRender(
     Renderer2D& renderer2D,
     Renderer2DWorld& renderer2DWorld,
+    DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
     ResourceManager& resources,
     const glm::uvec2& viewportSize,
@@ -20,6 +21,7 @@ void Layer::onRender(
 {
     (void)renderer2D;
     (void)renderer2DWorld;
+    (void)debugRenderer;
     (void)textRenderer;
     (void)resources;
     (void)viewportSize;

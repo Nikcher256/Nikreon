@@ -9,6 +9,7 @@ namespace Engine {
 
 class ResourceManager;
 class Input;
+class DebugRenderer;
 class Layer;
 class Renderer2D;
 class Renderer2DWorld;
@@ -21,6 +22,7 @@ public:
     void render(
         Renderer2D& renderer2D,
         Renderer2DWorld& renderer2DWorld,
+        DebugRenderer& debugRenderer,
         TextRenderer& textRenderer,
         ResourceManager& resources,
         const glm::uvec2& viewportSize,

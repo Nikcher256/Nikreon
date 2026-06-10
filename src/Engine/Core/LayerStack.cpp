@@ -22,13 +22,14 @@ void LayerStack::update(const float deltaTime, const Input& input)
 void LayerStack::render(
     Renderer2D& renderer2D,
     Renderer2DWorld& renderer2DWorld,
+    DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
     ResourceManager& resources,
     const glm::uvec2& viewportSize,
     const Input& input)
 {
     for (const auto& layer : m_layers) {
-        layer->onRender(renderer2D, renderer2DWorld, textRenderer, resources, viewportSize, input);
+        layer->onRender(renderer2D, renderer2DWorld, debugRenderer, textRenderer, resources, viewportSize, input);
     }
 }
 

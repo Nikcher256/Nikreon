@@ -24,6 +24,10 @@ endif()
 
 set(NIKREON_ENGINE_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 set(NIKREON_ENGINE_SHADERS
+    debug_line.vert
+    debug_line.frag
+    debug_grid.vert
+    debug_grid.frag
     world2d_instanced.vert
     world2d_instanced.frag
 )
@@ -54,16 +58,20 @@ add_executable(NikreonEngine
     src/Engine/Core/Window.cpp
     src/Engine/Scene/Scene2DSubmitter.cpp
     src/Engine/Scene/Scene.cpp
+    src/Engine/Editor/EditorSelectionState.hpp
+    src/Engine/Editor/EditorViewportSelectionController.cpp
     src/Engine/Resources/ResourceManager.cpp
     src/Engine/Renderer/Camera/Camera3D.cpp
     src/Engine/Renderer/Camera/Camera2D.cpp
-    src/Engine/Renderer/Debug/DebugRenderer.cpp
+    src/Engine/Editor/EditorViewportOverlayController.cpp
+    src/Engine/Renderer/DebugDraw/DebugRenderer.cpp
     src/Engine/Renderer/UI/NikreonUIRenderAdapter.cpp
     src/Engine/Renderer/PostProcess/PostProcessRenderer.cpp
     src/Engine/Renderer/Core/RenderFrame.cpp
     src/Engine/Renderer/Core/RenderModuleBase.cpp
     src/Engine/Renderer/Core/RenderPipeline.cpp
     src/Engine/Renderer/Core/Renderer.cpp
+    src/Engine/Renderer/Vulkan/DebugDraw/VulkanDebugRenderer.cpp
     src/Engine/Renderer/World2D/Renderer2DWorld.cpp
     src/Engine/Renderer/World3D/Renderer3D.cpp
     src/Engine/Renderer/Shadow/ShadowRenderer.cpp

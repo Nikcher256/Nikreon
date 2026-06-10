@@ -140,9 +140,10 @@ WorldSamplerMode samplerModeFromIndex(const std::size_t index)
 
 } // namespace
 
-EditorUI::EditorUI(EditorViewport& viewport, Scene& scene)
+EditorUI::EditorUI(EditorViewport& viewport, Scene& scene, EditorSelectionState& selection)
     : m_viewport(viewport)
     , m_scene(scene)
+    , m_selection(selection)
 {
     std::string styleError;
     if (!UIStyleParser::loadFile(NIKREON_ASSET_DIR "/styles/editor.ui.css", m_style, styleError)) {
@@ -195,10 +196,6 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, Resour
         {m_viewportBounds.position, m_viewportBounds.size, m_viewportClearColor},
         viewportMousePosition,
         !viewportInputBlocked && input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT));
-
-    if (m_showGrid) {
-        drawViewportGrid(renderer2D, m_viewportBounds);
-    }
 
     const glm::vec4 viewportBorder = m_viewport.focused() ? m_editorStyle.viewportFocusedBorder : m_editorStyle.viewportBorder;
     renderer2D.drawRect(m_viewportBounds.position, m_viewportBounds.size, viewportBorder, 2.0f);
@@ -467,10 +464,10 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .label("Grid")
         .labelStyle("control-label")
         .labelPlacement(UILabelPlacement::Right)
-        .checked(m_showGrid)
+        .checked(m_viewport.gridVisible())
         .onCheckedChanged([this](const bool enabled) {
-            m_showGrid = enabled;
-            spdlog::info("Editor UI: Viewport grid {}.", m_showGrid ? "enabled" : "disabled");
+            m_viewport.setGridVisible(enabled);
+            spdlog::info("Editor UI: Viewport grid {}.", enabled ? "enabled" : "disabled");
         });
 
     m_ui.colorPicker("inspector.clearColor")
@@ -793,19 +790,6 @@ void EditorUI::renderPanelSplitters(Renderer2D& renderer2D)
     }
 }
 
-void EditorUI::drawViewportGrid(Renderer2D& renderer2D, const UIRect& bounds)
-{
-    constexpr float spacing = 40.0f;
-
-    for (float x = bounds.position.x + spacing; x < bounds.position.x + bounds.size.x; x += spacing) {
-        renderer2D.drawQuad({x, bounds.position.y}, {1.0f, bounds.size.y}, m_editorStyle.viewportGrid);
-    }
-
-    for (float y = bounds.position.y + spacing; y < bounds.position.y + bounds.size.y; y += spacing) {
-        renderer2D.drawQuad({bounds.position.x, y}, {bounds.size.x, 1.0f}, m_editorStyle.viewportGrid);
-    }
-}
-
 void EditorUI::setViewportModeFromIndex(const std::size_t index)
 {
     switch (index) {
@@ -1042,7 +1026,7 @@ void EditorUI::createSceneSpriteFromAsset(const TextureAssetInfo& asset, Resourc
         }
     }
 
-    m_selectedSceneObjectId = object.id;
+    m_selection.select(object.id);
     refreshTextureAssets(resources);
 
     spdlog::info("Editor UI: added scene sprite from asset '{}'.", displayPath);
@@ -1061,25 +1045,16 @@ void EditorUI::refreshTextureAssets(ResourceManager& resources)
     m_textureAssetsDirty = false;
 }
 
-void EditorUI::setSelectedSceneObject(const SceneObjectId objectId)
-{
-    m_selectedSceneObjectId = objectId;
-}
-
-SceneObjectId EditorUI::selectedSceneObjectId() const
-{
-    return m_selectedSceneObjectId;
-}
-
 SceneObject* EditorUI::selectedSceneObject()
 {
-    if (m_selectedSceneObjectId == InvalidSceneObjectId) {
+    const SceneObjectId selectedObjectId = m_selection.selectedSceneObjectId();
+    if (selectedObjectId == InvalidSceneObjectId) {
         return nullptr;
     }
 
-    SceneObject* object = m_scene.findObject(m_selectedSceneObjectId);
+    SceneObject* object = m_scene.findObject(selectedObjectId);
     if (object == nullptr) {
-        m_selectedSceneObjectId = InvalidSceneObjectId;
+        m_selection.clear();
     }
     return object;
 }

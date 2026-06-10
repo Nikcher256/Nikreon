@@ -1,16 +1,19 @@
 #include "Engine/Editor/EditorLayer.hpp"
 #include "Engine/Renderer/Camera/Camera2D.hpp"
+#include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
 #include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
 #include "Engine/Core/Input.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include <GLFW/glfw3.h>
+#include <glm/geometric.hpp>
 
 namespace Engine {
 
 EditorLayer::EditorLayer()
-    : m_ui(m_viewport, m_scene)
+    : m_ui(m_viewport, m_scene, m_selection)
 {
 }
 
@@ -30,12 +33,13 @@ const EditorViewport& EditorLayer::viewport() const
 void EditorLayer::onRender(
     Renderer2D& renderer2D,
     Renderer2DWorld& renderer2DWorld,
+    DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
     ResourceManager& resources,
     const glm::uvec2& viewportSize,
     const Input& input)
 {
-        m_ui.render(renderer2D, textRenderer, resources, viewportSize, input);
+    m_ui.render(renderer2D, textRenderer, resources, viewportSize, input);
     
     Renderer2DWorldCamera worldCamera;
     worldCamera.mode = m_viewport.cameraMode() == EditorCameraMode::Perspective3D
@@ -56,68 +60,13 @@ void EditorLayer::onRender(
     safeCamera.camera2D.viewportSize = glm::max(safeCamera.camera2D.viewportSize, glm::vec2{1.0f, 1.0f});
     safeCamera.camera3D.aspectRatio = std::max(safeCamera.camera3D.aspectRatio, 0.001f);
 
-    updateViewportSelection(input, safeCamera.camera2D);
+    m_selectionController.update(input, m_viewport, safeCamera.camera2D, m_scene, m_selection);
 
     renderer2DWorld.begin(safeCamera);
+    m_overlayController.draw(debugRenderer, m_viewport, safeCamera);
     m_scene2DSubmitter.submit(m_scene, renderer2DWorld, resources);
-    drawSelectedSpriteOutline(renderer2DWorld);
+    m_selectionController.drawOverlay(renderer2DWorld, debugRenderer, m_scene, safeCamera.camera2D, m_selection);
     renderer2DWorld.end();
-}
-
-void EditorLayer::updateViewportSelection(const Input& input, const Camera2D& camera)
-{
-    const bool leftMousePressed = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
-    const bool leftClick = leftMousePressed && !m_leftMouseWasPressed;
-    m_leftMouseWasPressed = leftMousePressed;
-
-    if (!leftClick || !m_viewport.hovered() || m_viewport.cameraMode() != EditorCameraMode::Orthographic2D) {
-        return;
-    }
-
-    const std::optional<glm::vec2>& localMouse = m_viewport.localMousePosition();
-    if (!localMouse) {
-        return;
-    }
-
-    m_ui.setSelectedSceneObject(pickSpriteAt(camera.screenToWorld(*localMouse)));
-}
-
-SceneObjectId EditorLayer::pickSpriteAt(const glm::vec2& worldPosition) const
-{
-    const std::span<const SceneObject> objects = m_scene.objects();
-    for (auto iterator = objects.rbegin(); iterator != objects.rend(); ++iterator) {
-        const SceneObject& object = *iterator;
-        if (!object.sprite2D) {
-            continue;
-        }
-
-        const Sprite2DComponent& sprite = *object.sprite2D;
-        const glm::vec2 size = sprite.size * glm::vec2{object.transform.scale.x, object.transform.scale.y};
-        const glm::vec2 minimum = glm::vec2{object.transform.position.x, object.transform.position.y} - size * sprite.origin;
-        const glm::vec2 maximum = minimum + size;
-
-        if (worldPosition.x >= minimum.x &&
-            worldPosition.y >= minimum.y &&
-            worldPosition.x <= maximum.x &&
-            worldPosition.y <= maximum.y) {
-            return object.id;
-        }
-    }
-
-    return InvalidSceneObjectId;
-}
-
-void EditorLayer::drawSelectedSpriteOutline(Renderer2DWorld& renderer2DWorld) const
-{
-    const SceneObject* selected = m_scene.findObject(m_ui.selectedSceneObjectId());
-    if (selected == nullptr || !selected->sprite2D) {
-        return;
-    }
-
-    const Sprite2DComponent& sprite = *selected->sprite2D;
-    const glm::vec2 size = sprite.size * glm::vec2{selected->transform.scale.x, selected->transform.scale.y};
-    const glm::vec2 minimum = glm::vec2{selected->transform.position.x, selected->transform.position.y} - size * sprite.origin;
-    renderer2DWorld.drawDebugRect(minimum, size, {0.42f, 0.72f, 1.0f, 1.0f}, 2.0f);
 }
 
 void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
@@ -127,22 +76,28 @@ void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
     m_previousMousePosition = mousePosition;
 
     const bool perspective3D = m_viewport.cameraMode() == EditorCameraMode::Perspective3D;
-    const bool controlDown =
-        input.isKeyPressed(GLFW_KEY_LEFT_CONTROL) ||
-        input.isKeyPressed(GLFW_KEY_RIGHT_CONTROL);
+    const bool viewportActive = m_viewport.focused() && m_viewport.hovered();
+    const bool altDown =
+        input.isKeyPressed(GLFW_KEY_LEFT_ALT) ||
+        input.isKeyPressed(GLFW_KEY_RIGHT_ALT);
+    const bool shiftDown =
+        input.isKeyPressed(GLFW_KEY_LEFT_SHIFT) ||
+        input.isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+    const bool leftMouse = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+    const bool middleMouse = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_MIDDLE);
+    const bool rightMouse = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
 
-    const bool panning =
-        m_viewport.focused() &&
-        m_viewport.hovered() &&
-        !controlDown &&
-        input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_MIDDLE);
+    const bool unrealOrbiting = perspective3D && viewportActive && altDown && leftMouse;
+    const bool blenderOrbiting = perspective3D && viewportActive && !altDown && !shiftDown && middleMouse;
+    const bool looking3D = perspective3D && viewportActive && rightMouse && !altDown;
+    const bool dollying3D = perspective3D && viewportActive && altDown && rightMouse;
+    const bool tracking3D = perspective3D && viewportActive && middleMouse && (altDown || shiftDown);
+    const bool panning2D = !perspective3D && viewportActive && middleMouse;
+    const bool focusRequested =
+        viewportActive &&
+        std::find(input.pressedKeys().begin(), input.pressedKeys().end(), GLFW_KEY_F) != input.pressedKeys().end();
 
-    const bool rotating3D =
-        perspective3D &&
-        controlDown &&
-        m_viewport.focused() &&
-        m_viewport.hovered() &&
-        input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_MIDDLE);
+    CameraFocusTarget focusTarget = selectedCameraFocusTarget();
 
     const auto axis = [&input](const int positive, const int negative) {
         return static_cast<float>(input.isKeyPressed(positive)) -
@@ -150,14 +105,45 @@ void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
     };
 
     m_viewport.updateEditorCamera(deltaTime, {
-        .panDelta = panning ? mouseDelta : glm::vec2{0.0f, 0.0f},
-        .lookDelta = rotating3D ? mouseDelta : glm::vec2{0.0f, 0.0f},
+        .panDelta = panning2D ? mouseDelta : glm::vec2{0.0f, 0.0f},
+        .lookDelta = looking3D ? mouseDelta : glm::vec2{0.0f, 0.0f},
+        .orbitDelta = (unrealOrbiting || blenderOrbiting) ? mouseDelta : glm::vec2{0.0f, 0.0f},
+        .trackDelta = tracking3D ? mouseDelta : glm::vec2{0.0f, 0.0f},
         .zoomDelta = m_viewport.hovered() ? input.scrollDelta().y : 0.0f,
-        .moveRight = axis(GLFW_KEY_D, GLFW_KEY_A),
-        .moveUp = axis(GLFW_KEY_E, GLFW_KEY_Q),
-        .moveForward = axis(GLFW_KEY_W, GLFW_KEY_S),
+        .dollyDelta = dollying3D ? mouseDelta.y : 0.0f,
+        .moveRight = looking3D ? axis(GLFW_KEY_D, GLFW_KEY_A) : 0.0f,
+        .moveUp = looking3D ? axis(GLFW_KEY_E, GLFW_KEY_Q) : 0.0f,
+        .moveForward = looking3D ? axis(GLFW_KEY_W, GLFW_KEY_S) : 0.0f,
+        .speedScale = shiftDown ? 3.0f : 1.0f,
+        .focusRequested = focusRequested && focusTarget.valid,
         .perspective3D = perspective3D,
+        .focusPosition = focusTarget.position,
+        .focusRadius = focusTarget.radius,
     });
+}
+
+EditorLayer::CameraFocusTarget EditorLayer::selectedCameraFocusTarget() const
+{
+    const SceneObject* object = m_scene.findObject(m_selection.selectedSceneObjectId());
+    if (object == nullptr) {
+        return {};
+    }
+
+    CameraFocusTarget target;
+    target.valid = true;
+    target.position = object->transform.position;
+    target.radius = 64.0f;
+
+    if (object->sprite2D) {
+        const Sprite2DComponent& sprite = *object->sprite2D;
+        const glm::vec2 size = sprite.size * glm::vec2{
+            std::abs(object->transform.scale.x),
+            std::abs(object->transform.scale.y),
+        };
+        target.radius = std::max(glm::length(size) * 0.5f, 8.0f);
+    }
+
+    return target;
 }
 
 } // namespace Engine

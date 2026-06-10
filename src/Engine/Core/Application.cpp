@@ -90,6 +90,7 @@ void Application::render()
         m_layers.render(
             m_renderer.renderer2D(),
             m_renderer.renderer2DWorld(),
+            m_renderer.debugRenderer(),
             m_renderer.textRenderer(),
             m_renderer.resources(),
             m_renderer.viewportSize(),

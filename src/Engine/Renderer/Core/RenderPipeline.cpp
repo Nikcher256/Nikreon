@@ -81,6 +81,16 @@ const Renderer2DWorld& RenderPipeline::renderer2DWorld() const
     return m_renderer2DWorld;
 }
 
+DebugRenderer& RenderPipeline::debugRenderer()
+{
+    return m_debugRenderer;
+}
+
+const DebugRenderer& RenderPipeline::debugRenderer() const
+{
+    return m_debugRenderer;
+}
+
 std::span<const RenderStage> RenderPipeline::stageSequence() const
 {
     return m_stageSequence;

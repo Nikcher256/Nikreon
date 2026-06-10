@@ -1,6 +1,7 @@
 #include "Engine/Renderer/Vulkan/VulkanContext.hpp"
 
 #include "Engine/Core/Window.hpp"
+#include "Engine/Renderer/Vulkan/DebugDraw/VulkanDebugRenderer.hpp"
 #include "Engine/Renderer/Vulkan/World2D/VulkanRenderer2DWorld.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/Renderer/Core/RenderPipeline.hpp"
@@ -107,6 +108,7 @@ VulkanContext::~VulkanContext()
 VulkanContext::FrameResult VulkanContext::drawFrame(
     VulkanRenderer2D& renderer2D,
     VulkanRenderer2DWorld& viewportRenderer2DWorld,
+    VulkanDebugRenderer& viewportDebugRenderer,
     VulkanTextRenderer& textRenderer,
     RenderPipeline& renderPipeline,
     const RenderFrameContext& frameContext)
@@ -133,7 +135,7 @@ VulkanContext::FrameResult VulkanContext::drawFrame(
     vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
     prepareViewportRenderTarget();
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
-    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, viewportRenderer2DWorld, textRenderer, renderPipeline, frameContext);
+    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, viewportRenderer2DWorld, viewportDebugRenderer, textRenderer, renderPipeline, frameContext);
 
     const VkSemaphore waitSemaphores[] = {m_imageAvailableSemaphores[m_currentFrame]};
     const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -738,6 +740,7 @@ void VulkanContext::recordCommandBuffer(
     const std::uint32_t imageIndex,
     VulkanRenderer2D& renderer2D,
     VulkanRenderer2DWorld& viewportRenderer2DWorld,
+    VulkanDebugRenderer& viewportDebugRenderer,
     VulkanTextRenderer& textRenderer,
     RenderPipeline& renderPipeline,
     const RenderFrameContext& frameContext)
@@ -753,6 +756,7 @@ void VulkanContext::recordCommandBuffer(
     m_viewportRenderTarget->recordClear(commandBuffer, m_editorViewportClearColor);
     m_viewportRenderTarget->recordBeginRenderPass(commandBuffer);
     viewportRenderer2DWorld.record(commandBuffer);
+    viewportDebugRenderer.record(commandBuffer);
     m_viewportRenderTarget->recordEndRenderPass(commandBuffer);
     m_viewportRenderTarget->recordCopyTo(
         commandBuffer,

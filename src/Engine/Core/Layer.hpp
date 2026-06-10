@@ -6,6 +6,7 @@ namespace Engine {
 
 class ResourceManager;
 class Input;
+class DebugRenderer;
 class Renderer2D;
 class Renderer2DWorld;
 class TextRenderer;
@@ -18,6 +19,7 @@ public:
     virtual void onRender(
         Renderer2D& renderer2D,
         Renderer2DWorld& renderer2DWorld,
+        DebugRenderer& debugRenderer,
         TextRenderer& textRenderer,
         ResourceManager& resources,
         const glm::uvec2& viewportSize,
