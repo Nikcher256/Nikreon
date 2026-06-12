@@ -7,6 +7,14 @@
 
 namespace Engine {
 
+namespace {
+
+constexpr float MinimumGridStep = 0.001f;
+constexpr float MinimumGridMajorEvery = 1.0f;
+constexpr float MinimumFadeGap = 0.001f;
+
+} // namespace
+
 std::string_view DebugRenderer::name() const
 {
     return "DebugRenderer";
@@ -55,9 +63,11 @@ void DebugRenderer::drawGrid(const DebugGridRequest& request)
 {
     m_gridRequest = request;
     m_gridRequest.enabled = true;
-    m_gridRequest.step = std::max(m_gridRequest.step, 0.001f);
-    m_gridRequest.majorEvery = std::max(m_gridRequest.majorEvery, 1.0f);
-    m_gridRequest.fadeEnd = std::max(m_gridRequest.fadeEnd, m_gridRequest.fadeStart + 0.001f);
+
+    m_gridRequest.step = std::max(m_gridRequest.step, MinimumGridStep);
+    m_gridRequest.majorEvery = std::max(m_gridRequest.majorEvery, MinimumGridMajorEvery);
+    m_gridRequest.fadeEnd = std::max(m_gridRequest.fadeEnd, m_gridRequest.fadeStart + MinimumFadeGap);
+    m_gridRequest.fadeMinimumAlpha = std::clamp(m_gridRequest.fadeMinimumAlpha, 0.0f, 1.0f);
 }
 
 void DebugRenderer::drawWireRect2D(const glm::vec2& minimum, const glm::vec2& size, const glm::vec4& color)

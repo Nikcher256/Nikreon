@@ -9,10 +9,16 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out vec4 outColor;
 
-const vec4 MinorColor = vec4(0.30, 0.40, 0.52, 0.24);
-const vec4 MajorColor = vec4(0.42, 0.54, 0.70, 0.42);
-const vec4 AxisXColor = vec4(0.95, 0.32, 0.32, 0.82);
-const vec4 AxisYColor = vec4(0.34, 0.86, 0.46, 0.82);
+const vec4 MinorColor = vec4(0.27, 0.34, 0.43, 0.16);
+const vec4 MajorColor = vec4(0.40, 0.50, 0.62, 0.30);
+const vec4 AxisXColor = vec4(0.95, 0.28, 0.28, 0.65);
+const vec4 AxisYColor = vec4(0.30, 0.85, 0.45, 0.65);
+
+// Grid is fully visible when camera height is below this.
+const float HeightFadeStart = 250.0;
+
+// Grid fully disappears when camera height reaches this.
+const float HeightFadeEnd = 1200.0;
 
 vec3 reconstructWorld(vec2 uv, float depth)
 {
@@ -35,20 +41,36 @@ float axisLine(float coordinate)
     return 1.0 - clamp(abs(coordinate) / width, 0.0, 1.0);
 }
 
-float smootherStep(float value)
+float radialFadeProgress(vec3 worldPosition)
 {
-    float t = clamp(value, 0.0, 1.0);
-    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+    float fadeStart = pushConstants.fadeSettings.x;
+    float fadeEnd = max(pushConstants.fadeSettings.y, fadeStart + 0.001);
+
+    // Grid is on XY plane.
+    float distanceOnGrid = length(worldPosition.xy - pushConstants.cameraPosition.xy);
+
+    return clamp((distanceOnGrid - fadeStart) / (fadeEnd - fadeStart), 0.0, 1.0);
+}
+
+float cameraHeightFade()
+{
+    // Your grid plane is Z = 0, so camera height from grid is abs(camera.z).
+    float heightFromGrid = abs(pushConstants.cameraPosition.z);
+
+    // 1.0 near grid, 0.0 high above grid.
+    return 1.0 - smoothstep(HeightFadeStart, HeightFadeEnd, heightFromGrid);
 }
 
 void main()
 {
     vec2 viewportSize = max(pushConstants.gridSettings.zw, vec2(1.0));
     vec2 screenUv = gl_FragCoord.xy / viewportSize;
+
     vec3 nearWorld = reconstructWorld(screenUv, 0.0);
     vec3 farWorld = reconstructWorld(screenUv, 1.0);
     vec3 rayDirection = normalize(farWorld - nearWorld);
 
+    // Grid plane is Z = 0.
     if (abs(rayDirection.z) < 0.0001) {
         discard;
     }
@@ -59,16 +81,10 @@ void main()
     }
 
     vec3 worldPosition = nearWorld + rayDirection * planeDistance;
-    float cameraDistance = distance(worldPosition, pushConstants.cameraPosition.xyz);
-    float fadeRange = max(pushConstants.fadeSettings.y - pushConstants.fadeSettings.x, 0.0001);
-    float fade = 1.0 - smootherStep((cameraDistance - pushConstants.fadeSettings.x) / fadeRange);
-    fade *= fade;
-    if (fade <= 0.001) {
-        discard;
-    }
 
     float step = pushConstants.gridSettings.x;
     float majorStep = step * max(pushConstants.gridSettings.y, 1.0);
+
     float minor = gridLine(worldPosition.xy, step);
     float major = gridLine(worldPosition.xy, majorStep);
     float axisX = axisLine(worldPosition.y);
@@ -79,8 +95,27 @@ void main()
     color = mix(color, AxisXColor, axisX);
     color = mix(color, AxisYColor, axisY);
 
-    float alpha = max(minor * MinorColor.a, major * MajorColor.a);
-    alpha = max(alpha, axisX * AxisXColor.a);
-    alpha = max(alpha, axisY * AxisYColor.a);
-    outColor = vec4(color.rgb, alpha * fade);
+    float t = radialFadeProgress(worldPosition);
+
+    float minorFade = 1.0 - smoothstep(0.10, 0.55, t);
+    float majorFade = 1.0 - smoothstep(0.35, 0.90, t);
+    float axisFade = 1.0 - smoothstep(0.65, 1.00, t);
+
+    float minorAlpha = minor * MinorColor.a * minorFade;
+    float majorAlpha = major * MajorColor.a * majorFade;
+    float axisAlphaX = axisX * AxisXColor.a * axisFade;
+    float axisAlphaY = axisY * AxisYColor.a * axisFade;
+
+    float alpha = max(minorAlpha, majorAlpha);
+    alpha = max(alpha, axisAlphaX);
+    alpha = max(alpha, axisAlphaY);
+
+    // This makes grid disappear when camera flies upward on Z.
+    alpha *= cameraHeightFade();
+
+    if (alpha <= 0.001) {
+        discard;
+    }
+
+    outColor = vec4(color.rgb, alpha);
 }

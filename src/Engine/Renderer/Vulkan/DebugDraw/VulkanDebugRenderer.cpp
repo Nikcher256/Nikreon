@@ -465,10 +465,11 @@ VulkanDebugRenderer::GridPushConstants VulkanDebugRenderer::gridPushConstantsFor
             camera.camera3D.position.z,
             1.0f,
         };
+
         pushConstants.fadeSettings = {
             request.fadeStart,
             request.fadeEnd,
-            0.0f,
+            std::clamp(request.fadeMinimumAlpha, 0.0f, 1.0f),
             0.0f,
         };
         return pushConstants;
@@ -480,10 +481,13 @@ VulkanDebugRenderer::GridPushConstants VulkanDebugRenderer::gridPushConstantsFor
         0.0f,
         1.0f,
     };
+
+    // 2D mode: effectively disable fade by placing fade very far away
+    // and keeping minimum alpha at 1.0.
     pushConstants.fadeSettings = {
         100000.0f,
         100001.0f,
-        0.0f,
+        1.0f,
         0.0f,
     };
     return pushConstants;

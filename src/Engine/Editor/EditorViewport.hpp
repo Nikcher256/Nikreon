@@ -77,7 +77,7 @@ private:
     EditorViewportMode m_mode{EditorViewportMode::Edit};
     EditorViewOrientation m_viewOrientation{EditorViewOrientation::Top};
     EditorViewportCameraSettings m_cameraSettings{};
-    bool m_gridVisible{false};
+    bool m_gridVisible{true};
     std::optional<glm::vec2> m_localMousePosition;
     std::optional<glm::uvec2> m_pickingCoordinates;
     EditorCamera m_editorCamera;

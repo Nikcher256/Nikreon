@@ -46,6 +46,44 @@ float degreesToRadians(const float degrees)
     return degrees * Pi / 180.0f;
 }
 
+constexpr float CameraNearMin = 0.01f;
+constexpr float CameraNearMax = 1000.0f;
+constexpr float CameraFarMax = 100000.0f;
+constexpr float CameraPlaneMinGap = 0.01f;
+
+constexpr float CameraDefaultNear = 0.1f;
+constexpr float CameraDefaultFar = 10000.0f;
+
+float clampFiniteFloat(const float value, const float minimum, const float maximum, const float fallback)
+{
+    if (!std::isfinite(value)) {
+        return fallback;
+    }
+
+    return std::clamp(value, minimum, maximum);
+}
+
+EditorViewportCameraSettings sanitizeCameraSettings(EditorViewportCameraSettings settings)
+{
+    const float nearMax = std::min(CameraNearMax, CameraFarMax - CameraPlaneMinGap);
+
+    settings.nearPlane = clampFiniteFloat(
+        settings.nearPlane,
+        CameraNearMin,
+        nearMax,
+        CameraDefaultNear);
+
+    const float farMin = settings.nearPlane + CameraPlaneMinGap;
+
+    settings.farPlane = clampFiniteFloat(
+        settings.farPlane,
+        farMin,
+        CameraFarMax,
+        CameraDefaultFar);
+
+    return settings;
+}
+
 std::vector<UIKey> uiKeys(const Input& input)
 {
     std::vector<UIKey> keys;
@@ -620,7 +658,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .textStyle("toolbar-toggle")
         .width(132.0f)
         .text(viewOptionsLabel)
-        .popupSize({360.0f, 420.0f})
+        .popupSize({300.0f, 450.0f})
         .padding(UIEdgeInsets::all(12.0f))
         .gap(6.0f);
 
@@ -658,7 +696,14 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .textStyle("muted")
         .height(18.0f);
 
-    const EditorViewportCameraSettings cameraSettings = m_viewport.cameraSettings();
+    const EditorViewportCameraSettings rawCameraSettings = m_viewport.cameraSettings();
+    EditorViewportCameraSettings cameraSettings = sanitizeCameraSettings(rawCameraSettings);
+
+    if (cameraSettings.nearPlane != rawCameraSettings.nearPlane ||
+        cameraSettings.farPlane != rawCameraSettings.farPlane) {
+        m_viewport.setCameraSettings(cameraSettings);
+    }
+
     const auto addCameraRow = [this](const std::string_view id, const std::string_view label) {
         m_ui.panel(id)
             .parent("toolbar.viewOptions")
@@ -689,6 +734,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .onChanged([this](const float value) {
             EditorViewportCameraSettings settings = m_viewport.cameraSettings();
             settings.verticalFovDegrees = value;
+            settings = sanitizeCameraSettings(settings);
             m_viewport.setCameraSettings(settings);
         });
 
@@ -697,7 +743,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .parent("toolbar.viewOptions.nearRow")
         .styleClass("plain")
         .value(cameraSettings.nearPlane)
-        .range(0.001f, 1000000.0f)
+        .range(CameraNearMin, CameraNearMax)
         .precision(3)
         .sensitivity(0.01f)
         .grow(1.0f)
@@ -705,6 +751,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .onChanged([this](const float value) {
             EditorViewportCameraSettings settings = m_viewport.cameraSettings();
             settings.nearPlane = value;
+            settings = sanitizeCameraSettings(settings);
             m_viewport.setCameraSettings(settings);
         });
 
@@ -721,6 +768,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .onClick([this]() {
                 EditorViewportCameraSettings settings = m_viewport.cameraSettings();
                 settings.infiniteFarPlane = false;
+                settings = sanitizeCameraSettings(settings);
                 m_viewport.setCameraSettings(settings);
             });
     } else {
@@ -728,7 +776,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .parent("toolbar.viewOptions.farRow")
             .styleClass("plain")
             .value(cameraSettings.farPlane)
-            .range(0.001f, 1000000000.0f)
+            .range(cameraSettings.nearPlane + CameraPlaneMinGap, CameraFarMax)
             .precision(1)
             .sensitivity(10.0f)
             .grow(1.0f)
@@ -736,6 +784,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .onChanged([this](const float value) {
                 EditorViewportCameraSettings settings = m_viewport.cameraSettings();
                 settings.farPlane = value;
+                settings = sanitizeCameraSettings(settings);
                 m_viewport.setCameraSettings(settings);
             });
     }
@@ -749,6 +798,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .onCheckedChanged([this](const bool checked) {
             EditorViewportCameraSettings settings = m_viewport.cameraSettings();
             settings.infiniteFarPlane = checked;
+            settings = sanitizeCameraSettings(settings);
             m_viewport.setCameraSettings(settings);
         });
 

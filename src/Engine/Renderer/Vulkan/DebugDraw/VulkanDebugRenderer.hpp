@@ -36,8 +36,23 @@ private:
     struct GridPushConstants {
         glm::mat4 inverseViewProjection{1.0f};
         glm::vec4 cameraPosition{0.0f};
+
+        // x = major grid spacing
+        // y = minor grid spacing
+        // z = major line strength
+        // w = minor line strength
         glm::vec4 gridSettings{10.0f, 10.0f, 1.0f, 1.0f};
-        glm::vec4 fadeSettings{350.0f, 850.0f, 0.0f, 0.0f};
+
+        // x = fade start distance
+        // y = fade end distance
+        // z = minimum alpha, so the grid does not disappear completely
+        // w = unused
+        //
+        // Current values:
+        // - full opacity until 100 units
+        // - smooth fade from 100 to 2100 units
+        // - never goes below 8% alpha
+        glm::vec4 fadeSettings{100.0f, 2100.0f, 0.08f, 0.0f};
     };
 
     void createPipelineLayout();
