@@ -45,6 +45,7 @@ private:
     };
 
     void updateEditorCamera(float deltaTime, const Input& input);
+    void handleDeleteSelectionInput(const Input& input);
     [[nodiscard]] CameraFocusTarget selectedCameraFocusTarget() const;
     [[nodiscard]] glm::vec2 wrapCameraMouseIfNeeded(const Input& input, const glm::vec2& mousePosition, bool cameraMouseGestureActive);
 

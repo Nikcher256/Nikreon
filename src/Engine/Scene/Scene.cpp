@@ -1,5 +1,6 @@
 #include "Engine/Scene/Scene.hpp"
 
+#include <algorithm>
 #include <utility>
 
 namespace Engine {
@@ -21,6 +22,23 @@ SceneObject& Scene::createSprite2D(std::string name, std::string texturePath)
         .texturePath  = std::move(texturePath),
     };
     return object;
+}
+
+bool Scene::destroyObject(const SceneObjectId id)
+{
+    if (id == InvalidSceneObjectId) {
+        return false;
+    }
+
+    const auto found = std::find_if(m_objects.begin(), m_objects.end(), [id](const SceneObject& object) {
+        return object.id == id;
+    });
+    if (found == m_objects.end()) {
+        return false;
+    }
+
+    m_objects.erase(found);
+    return true;
 }
 
 void Scene::clear()

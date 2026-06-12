@@ -7,8 +7,15 @@
 #include <vector>
 
 struct GLFWwindow;
+struct GLFWcursor;
 
 namespace Engine {
+
+enum class CursorShape {
+    Arrow,
+    Text,
+    ResizeHorizontal,
+};
 
 struct WindowProps {
     std::string title{"Nikreon Engine"};
@@ -47,6 +54,8 @@ public:
     [[nodiscard]] double mouseX() const;
     [[nodiscard]] double mouseY() const;
     void setMousePosition(double x, double y) const;
+    void setCursorShape(CursorShape shape) const;
+    void setCursorVisible(bool visible) const;
     [[nodiscard]] bool isFullscreen() const;
     [[nodiscard]] std::uint32_t width() const;
     [[nodiscard]] std::uint32_t height() const;
@@ -55,8 +64,12 @@ public:
 private:
     void create(const WindowProps& props);
     void destroy();
+    [[nodiscard]] GLFWcursor* cursorForShape(CursorShape shape) const;
 
     GLFWwindow* m_handle{nullptr};
+    GLFWcursor* m_arrowCursor{nullptr};
+    GLFWcursor* m_textCursor{nullptr};
+    GLFWcursor* m_resizeHorizontalCursor{nullptr};
     std::uint32_t m_width{0};
     std::uint32_t m_height{0};
     int m_windowedX{100};
@@ -70,6 +83,8 @@ private:
     std::vector<int> m_pressedKeys;
     double m_scrollX{0.0};
     double m_scrollY{0.0};
+    mutable CursorShape m_currentCursorShape{CursorShape::Arrow};
+    mutable bool m_cursorVisible{true};
 };
 
 } // namespace Engine

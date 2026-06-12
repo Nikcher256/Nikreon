@@ -50,6 +50,7 @@ class Scene {
 public:
     SceneObject& createObject(std::string name);
     SceneObject& createSprite2D(std::string name, std::string texturePath);
+    bool destroyObject(SceneObjectId id);
     void clear();
 
     [[nodiscard]] std::span<SceneObject> objects();

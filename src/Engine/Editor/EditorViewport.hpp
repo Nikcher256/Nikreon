@@ -19,13 +19,19 @@ enum class EditorViewportMode {
     HudEdit,
 };
 
-enum class EditorCameraMode {
-    Orthographic2D,
-    Perspective3D,
+enum class EditorViewOrientation {
+    Perspective,
+    Top,
+    Bottom,
+    Front,
+    Back,
+    Left,
+    Right,
 };
 
 [[nodiscard]] std::string_view editorViewportModeName(EditorViewportMode mode);
-[[nodiscard]] std::string_view editorCameraModeName(EditorCameraMode mode);
+[[nodiscard]] std::string_view editorViewOrientationName(EditorViewOrientation orientation);
+[[nodiscard]] bool editorViewOrientationIsPerspective(EditorViewOrientation orientation);
 
 struct EditorViewportPresentation {
     glm::vec2 position{0.0f, 0.0f};
@@ -33,6 +39,12 @@ struct EditorViewportPresentation {
     glm::vec4 clearColor{0.055f, 0.085f, 0.14f, 1.0f};
 };
 
+struct EditorViewportCameraSettings {
+    float verticalFovDegrees{31.5f};
+    float nearPlane{0.1f};
+    float farPlane{2000.0f};
+    bool infiniteFarPlane{true};
+};
 
 class EditorViewport {
 public:
@@ -43,11 +55,13 @@ public:
     void updateEditorCamera(float deltaTime, const EditorCameraInput& input);
 
     void setMode(EditorViewportMode mode);
-    void setCameraMode(EditorCameraMode mode);
+    void setViewOrientation(EditorViewOrientation orientation);
     void setGridVisible(bool visible);
+    void setCameraSettings(const EditorViewportCameraSettings& settings);
 
     [[nodiscard]] Camera3D worldCamera3D(float aspectRatio) const;
-    [[nodiscard]] EditorCameraMode cameraMode() const;
+    [[nodiscard]] const EditorViewportCameraSettings& cameraSettings() const;
+    [[nodiscard]] EditorViewOrientation viewOrientation() const;
     [[nodiscard]] bool gridVisible() const;
     [[nodiscard]] const EditorViewportPresentation& presentation() const;
     [[nodiscard]] EditorViewportMode mode() const;
@@ -61,7 +75,8 @@ public:
 private:
     EditorViewportPresentation m_presentation;
     EditorViewportMode m_mode{EditorViewportMode::Edit};
-    EditorCameraMode m_cameraMode{EditorCameraMode::Orthographic2D};
+    EditorViewOrientation m_viewOrientation{EditorViewOrientation::Top};
+    EditorViewportCameraSettings m_cameraSettings{};
     bool m_gridVisible{false};
     std::optional<glm::vec2> m_localMousePosition;
     std::optional<glm::uvec2> m_pickingCoordinates;

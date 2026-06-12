@@ -15,6 +15,7 @@ class Renderer2DWorld;
 
 class EditorViewportSelectionController {
 public:
+    void clearDrag();
     void update(
         const Input& input,
         const EditorViewport& viewport,

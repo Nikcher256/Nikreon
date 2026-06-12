@@ -200,6 +200,26 @@ void Window::setMousePosition(const double x, const double y) const
     glfwSetCursorPos(m_handle, windowX, windowY);
 }
 
+void Window::setCursorShape(const CursorShape shape) const
+{
+    if (m_handle == nullptr || shape == m_currentCursorShape) {
+        return;
+    }
+
+    glfwSetCursor(m_handle, cursorForShape(shape));
+    m_currentCursorShape = shape;
+}
+
+void Window::setCursorVisible(const bool visible) const
+{
+    if (m_handle == nullptr || visible == m_cursorVisible) {
+        return;
+    }
+
+    glfwSetInputMode(m_handle, GLFW_CURSOR, visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_HIDDEN);
+    m_cursorVisible = visible;
+}
+
 // Reports whether this window is currently fullscreen.
 bool Window::isFullscreen() const
 {
@@ -289,11 +309,28 @@ void Window::create(const WindowProps& props)
         }
     });
 
+    m_arrowCursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    m_textCursor = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
+    m_resizeHorizontalCursor = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
+
     spdlog::info("Window created: '{}' ({}x{})", props.title, m_width, m_height);
 }
 
 void Window::destroy()
 {
+    if (m_arrowCursor != nullptr) {
+        glfwDestroyCursor(m_arrowCursor);
+        m_arrowCursor = nullptr;
+    }
+    if (m_textCursor != nullptr) {
+        glfwDestroyCursor(m_textCursor);
+        m_textCursor = nullptr;
+    }
+    if (m_resizeHorizontalCursor != nullptr) {
+        glfwDestroyCursor(m_resizeHorizontalCursor);
+        m_resizeHorizontalCursor = nullptr;
+    }
+
     if (m_handle != nullptr) {
         glfwDestroyWindow(m_handle);
         m_handle = nullptr;
@@ -301,6 +338,20 @@ void Window::destroy()
     }
 
     glfwTerminate();
+}
+
+GLFWcursor* Window::cursorForShape(const CursorShape shape) const
+{
+    switch (shape) {
+    case CursorShape::Text:
+        return m_textCursor;
+    case CursorShape::ResizeHorizontal:
+        return m_resizeHorizontalCursor;
+    case CursorShape::Arrow:
+        return m_arrowCursor;
+    }
+
+    return m_arrowCursor;
 }
 
 } // namespace Engine

@@ -7,6 +7,7 @@
 
 namespace Engine {
 
+enum class CursorShape;
 class Window;
 
 class Input {
@@ -22,6 +23,8 @@ public:
     [[nodiscard]] const std::vector<int>& pressedKeys() const;
     [[nodiscard]] std::string clipboardText() const;
     void setClipboardText(std::string_view text) const;
+    void setCursorShape(CursorShape shape) const;
+    void setCursorVisible(bool visible) const;
 
 private:
     const Window& m_window;

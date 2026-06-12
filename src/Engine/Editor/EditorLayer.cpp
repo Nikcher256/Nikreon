@@ -40,9 +40,10 @@ void EditorLayer::onRender(
     const Input& input)
 {
     m_ui.render(renderer2D, textRenderer, resources, viewportSize, input);
+    handleDeleteSelectionInput(input);
     
     Renderer2DWorldCamera worldCamera;
-    worldCamera.mode = m_viewport.cameraMode() == EditorCameraMode::Perspective3D
+    worldCamera.mode = editorViewOrientationIsPerspective(m_viewport.viewOrientation())
         ? Renderer2DWorldCameraMode::Perspective3D
         : Renderer2DWorldCameraMode::Orthographic2D;
 
@@ -71,7 +72,7 @@ void EditorLayer::onRender(
 
 void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
 {
-    const bool perspective3D = m_viewport.cameraMode() == EditorCameraMode::Perspective3D;
+    const bool perspective3D = editorViewOrientationIsPerspective(m_viewport.viewOrientation());
     const bool altDown =
         input.isKeyPressed(GLFW_KEY_LEFT_ALT) ||
         input.isKeyPressed(GLFW_KEY_RIGHT_ALT);
@@ -139,6 +140,25 @@ void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
         .focusPosition = focusTarget.position,
         .focusRadius = focusTarget.radius,
     });
+}
+
+void EditorLayer::handleDeleteSelectionInput(const Input& input)
+{
+    if (m_ui.keyboardInputCaptured() || !m_selection.hasSelection()) {
+        return;
+    }
+
+    const bool deletePressed =
+        std::find(input.pressedKeys().begin(), input.pressedKeys().end(), GLFW_KEY_DELETE) != input.pressedKeys().end();
+    if (!deletePressed) {
+        return;
+    }
+
+    const SceneObjectId selectedObjectId = m_selection.selectedSceneObjectId();
+    if (m_scene.destroyObject(selectedObjectId)) {
+        m_selection.clear();
+        m_selectionController.clearDrag();
+    }
 }
 
 EditorLayer::CameraFocusTarget EditorLayer::selectedCameraFocusTarget() const

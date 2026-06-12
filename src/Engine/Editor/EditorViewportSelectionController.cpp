@@ -11,6 +11,13 @@
 
 namespace Engine {
 
+void EditorViewportSelectionController::clearDrag()
+{
+    m_draggingSelection = false;
+    m_draggedObjectId = InvalidSceneObjectId;
+    m_dragOffset = {0.0f, 0.0f};
+}
+
 void EditorViewportSelectionController::update(
     const Input& input,
     const EditorViewport& viewport,
@@ -23,11 +30,12 @@ void EditorViewportSelectionController::update(
     m_leftMouseWasPressed = leftMousePressed;
 
     if (!leftMousePressed) {
-        m_draggingSelection = false;
-        m_draggedObjectId = InvalidSceneObjectId;
+        clearDrag();
     }
 
-    if ((!leftClick && !m_draggingSelection) || !viewport.hovered() || viewport.cameraMode() != EditorCameraMode::Orthographic2D) {
+    if ((!leftClick && !m_draggingSelection) ||
+        !viewport.hovered() ||
+        editorViewOrientationIsPerspective(viewport.viewOrientation())) {
         return;
     }
 
@@ -62,8 +70,7 @@ void EditorViewportSelectionController::update(
     if (m_draggingSelection) {
         SceneObject* dragged = scene.findObject(m_draggedObjectId);
         if (dragged == nullptr || !dragged->sprite2D) {
-            m_draggingSelection = false;
-            m_draggedObjectId = InvalidSceneObjectId;
+            clearDrag();
             return;
         }
 

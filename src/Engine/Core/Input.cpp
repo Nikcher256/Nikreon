@@ -63,4 +63,14 @@ void Input::setClipboardText(const std::string_view text) const
     m_window.setClipboardText(text);
 }
 
+void Input::setCursorShape(const CursorShape shape) const
+{
+    m_window.setCursorShape(shape);
+}
+
+void Input::setCursorVisible(const bool visible) const
+{
+    m_window.setCursorVisible(visible);
+}
+
 } // namespace Engine

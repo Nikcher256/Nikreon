@@ -35,6 +35,12 @@ float axisLine(float coordinate)
     return 1.0 - clamp(abs(coordinate) / width, 0.0, 1.0);
 }
 
+float smootherStep(float value)
+{
+    float t = clamp(value, 0.0, 1.0);
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
 void main()
 {
     vec2 viewportSize = max(pushConstants.gridSettings.zw, vec2(1.0));
@@ -54,7 +60,9 @@ void main()
 
     vec3 worldPosition = nearWorld + rayDirection * planeDistance;
     float cameraDistance = distance(worldPosition, pushConstants.cameraPosition.xyz);
-    float fade = smoothstep(pushConstants.fadeSettings.y, pushConstants.fadeSettings.x, cameraDistance);
+    float fadeRange = max(pushConstants.fadeSettings.y - pushConstants.fadeSettings.x, 0.0001);
+    float fade = 1.0 - smootherStep((cameraDistance - pushConstants.fadeSettings.x) / fadeRange);
+    fade *= fade;
     if (fade <= 0.001) {
         discard;
     }

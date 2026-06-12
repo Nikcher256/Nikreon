@@ -2,13 +2,13 @@
 
 #include "Engine/Core/FileDialog.hpp"
 #include "Engine/Core/Input.hpp"
+#include "Engine/Core/Window.hpp"
 #include "Engine/Renderer/Renderer2D.hpp"
 #include "Engine/Renderer/TextRenderer.hpp"
 #include "Engine/UI/UIFrame.hpp"
 #include "Engine/UI/UIStyleParser.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cctype>
 #include <cstdint>
@@ -33,6 +33,18 @@ namespace Engine {
 #endif
 
 namespace {
+
+constexpr float Pi = 3.14159265358979323846f;
+
+float radiansToDegrees(const float radians)
+{
+    return radians * 180.0f / Pi;
+}
+
+float degreesToRadians(const float degrees)
+{
+    return degrees * Pi / 180.0f;
+}
 
 std::vector<UIKey> uiKeys(const Input& input)
 {
@@ -60,17 +72,6 @@ std::vector<UIKey> uiKeys(const Input& input)
         }
     }
     return keys;
-}
-
-std::array<std::string_view, 5> hierarchyNames()
-{
-    return {
-        "Main Camera",
-        "Directional Light",
-        "Environment",
-        "Player",
-        "UI Canvas",
-    };
 }
 
 void drawQuadIfPositive(Renderer2D& renderer2D, const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
@@ -102,47 +103,56 @@ void drawEditorBackgroundOutsideViewport(Renderer2D& renderer2D, const glm::vec2
     drawQuadIfPositive(renderer2D, {right, top}, {canvasSize.x - right, bottom - top}, color);
 }
 
-std::size_t blendModeIndex(const WorldBlendMode mode)
+std::string_view blendModeName(const WorldBlendMode mode)
 {
     switch (mode) {
     case WorldBlendMode::Opaque:
-        return 0U;
+        return "Opaque";
     case WorldBlendMode::Alpha:
-        return 1U;
+        return "Alpha";
     case WorldBlendMode::Additive:
-        return 2U;
+        return "Additive";
     }
 
-    return 1U;
+    return "Alpha";
 }
 
-WorldBlendMode blendModeFromIndex(const std::size_t index)
-{
-    switch (index) {
-    case 0U:
-        return WorldBlendMode::Opaque;
-    case 2U:
-        return WorldBlendMode::Additive;
-    default:
-        return WorldBlendMode::Alpha;
-    }
-}
-
-std::size_t samplerModeIndex(const WorldSamplerMode mode)
+std::string_view samplerModeName(const WorldSamplerMode mode)
 {
     switch (mode) {
     case WorldSamplerMode::Nearest:
-        return 0U;
+        return "Nearest";
     case WorldSamplerMode::Linear:
-        return 1U;
+        return "Linear";
     }
 
-    return 1U;
+    return "Linear";
 }
 
-WorldSamplerMode samplerModeFromIndex(const std::size_t index)
+void applyUiCursorRequest(const UIContext& context, const Input& input)
 {
-    return index == 0U ? WorldSamplerMode::Nearest : WorldSamplerMode::Linear;
+    if (const glm::vec2* requestedMousePosition = context.requestedMousePosition()) {
+        input.setMousePosition(*requestedMousePosition);
+    }
+
+    switch (context.requestedCursor()) {
+    case UICursor::Text:
+        input.setCursorVisible(true);
+        input.setCursorShape(CursorShape::Text);
+        break;
+    case UICursor::ResizeHorizontal:
+        input.setCursorVisible(true);
+        input.setCursorShape(CursorShape::ResizeHorizontal);
+        break;
+    case UICursor::Hidden:
+        input.setCursorShape(CursorShape::ResizeHorizontal);
+        input.setCursorVisible(false);
+        break;
+    case UICursor::Arrow:
+        input.setCursorVisible(true);
+        input.setCursorShape(CursorShape::Arrow);
+        break;
+    }
 }
 
 std::string truncateAssetLabel(const std::string& label, const std::size_t maxCharacters)
@@ -444,6 +454,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, Resour
     }
     updateAssetContextMenu(resources, input);
     m_ui.update();
+    applyUiCursorRequest(m_context, input);
 
     drawEditorBackgroundOutsideViewport(renderer2D, {width, height}, m_viewportBounds, m_style.windowBackground);
 
@@ -578,19 +589,167 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .styleClass("toolbar")
         .textStyle("toolbar-toggle")
         .width(118.0f)
-        .items({"Edit", "Play", "Simulate", "HudEdit"})
-        .selectedIndex(static_cast<std::size_t>(m_viewport.mode()))
-        .onSelectionChanged([this](const std::size_t index, std::string_view) { setViewportModeFromIndex(index); });
+        .text(editorViewportModeName(m_viewport.mode()))
+        .popupSize({142.0f, 144.0f})
+        .padding(UIEdgeInsets::all(8.0f))
+        .gap(4.0f);
 
-    m_ui.dropdown("toolbar.cameraMode")
+    const auto addViewportModeOption = [this](const std::string_view id, const std::size_t index, const EditorViewportMode mode) {
+        m_ui.button(id)
+            .parent("toolbar.viewportMode")
+            .styleClass("hierarchy-row")
+            .text(editorViewportModeName(mode))
+            .textStyle("hierarchy-row")
+            .height(28.0f)
+            .selected(m_viewport.mode() == mode)
+            .onClick([this, index]() {
+                setViewportModeFromIndex(index);
+                m_ui.closeDropdown("toolbar.viewportMode");
+            });
+    };
+
+    addViewportModeOption("toolbar.viewportMode.edit", 0U, EditorViewportMode::Edit);
+    addViewportModeOption("toolbar.viewportMode.play", 1U, EditorViewportMode::Play);
+    addViewportModeOption("toolbar.viewportMode.simulate", 2U, EditorViewportMode::Simulate);
+    addViewportModeOption("toolbar.viewportMode.hudEdit", 3U, EditorViewportMode::HudEdit);
+
+    const std::string viewOptionsLabel = std::string(editorViewOrientationName(m_viewport.viewOrientation())) + " v";
+    m_ui.dropdown("toolbar.viewOptions")
         .parent("toolbar")
         .styleClass("toolbar")
         .textStyle("toolbar-toggle")
-        .width(146.0f)
-        .items({"2D Camera", "3D Perspective"})
-        .selectedIndex(static_cast<std::size_t>(m_viewport.cameraMode()))
-        .onSelectionChanged([this](const std::size_t index, std::string_view) {
-            m_viewport.setCameraMode(index == 1 ? EditorCameraMode::Perspective3D : EditorCameraMode::Orthographic2D);
+        .width(132.0f)
+        .text(viewOptionsLabel)
+        .popupSize({360.0f, 420.0f})
+        .padding(UIEdgeInsets::all(12.0f))
+        .gap(6.0f);
+
+    m_ui.label("toolbar.viewOptions.viewSection")
+        .parent("toolbar.viewOptions")
+        .text("VIEW")
+        .textStyle("muted")
+        .height(18.0f);
+
+    const auto addViewOption = [this](const std::string_view id, const EditorViewOrientation orientation) {
+        m_ui.button(id)
+            .parent("toolbar.viewOptions")
+            .styleClass("hierarchy-row")
+            .text(editorViewOrientationName(orientation))
+            .textStyle("hierarchy-row")
+            .height(28.0f)
+            .selected(m_viewport.viewOrientation() == orientation)
+            .onClick([this, orientation]() {
+                m_viewport.setViewOrientation(orientation);
+                m_ui.closeDropdown("toolbar.viewOptions");
+            });
+    };
+
+    addViewOption("toolbar.viewOptions.perspective", EditorViewOrientation::Perspective);
+    addViewOption("toolbar.viewOptions.top", EditorViewOrientation::Top);
+    addViewOption("toolbar.viewOptions.bottom", EditorViewOrientation::Bottom);
+    addViewOption("toolbar.viewOptions.front", EditorViewOrientation::Front);
+    addViewOption("toolbar.viewOptions.back", EditorViewOrientation::Back);
+    addViewOption("toolbar.viewOptions.left", EditorViewOrientation::Left);
+    addViewOption("toolbar.viewOptions.right", EditorViewOrientation::Right);
+
+    m_ui.label("toolbar.viewOptions.cameraSection")
+        .parent("toolbar.viewOptions")
+        .text("CAMERA")
+        .textStyle("muted")
+        .height(18.0f);
+
+    const EditorViewportCameraSettings cameraSettings = m_viewport.cameraSettings();
+    const auto addCameraRow = [this](const std::string_view id, const std::string_view label) {
+        m_ui.panel(id)
+            .parent("toolbar.viewOptions")
+            .drawBackground(false)
+            .horizontal()
+            .height(32.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(8.0f);
+
+        m_ui.label(std::string(id) + ".label")
+            .parent(id)
+            .text(label)
+            .textStyle("toolbar-toggle")
+            .width(178.0f)
+            .height(28.0f);
+    };
+
+    addCameraRow("toolbar.viewOptions.fovRow", "Field Of View");
+    m_ui.numberFloat("toolbar.viewOptions.fov")
+        .parent("toolbar.viewOptions.fovRow")
+        .styleClass("plain")
+        .value(cameraSettings.verticalFovDegrees)
+        .range(5.0f, 170.0f)
+        .precision(1)
+        .sensitivity(0.2f)
+        .grow(1.0f)
+        .height(26.0f)
+        .onChanged([this](const float value) {
+            EditorViewportCameraSettings settings = m_viewport.cameraSettings();
+            settings.verticalFovDegrees = value;
+            m_viewport.setCameraSettings(settings);
+        });
+
+    addCameraRow("toolbar.viewOptions.nearRow", "Near View Plane");
+    m_ui.numberFloat("toolbar.viewOptions.near")
+        .parent("toolbar.viewOptions.nearRow")
+        .styleClass("plain")
+        .value(cameraSettings.nearPlane)
+        .range(0.001f, 1000000.0f)
+        .precision(3)
+        .sensitivity(0.01f)
+        .grow(1.0f)
+        .height(26.0f)
+        .onChanged([this](const float value) {
+            EditorViewportCameraSettings settings = m_viewport.cameraSettings();
+            settings.nearPlane = value;
+            m_viewport.setCameraSettings(settings);
+        });
+
+    addCameraRow("toolbar.viewOptions.farRow", "Far View Plane");
+    if (cameraSettings.infiniteFarPlane) {
+        m_ui.button("toolbar.viewOptions.farInfinity")
+            .parent("toolbar.viewOptions.farRow")
+            .styleClass("toolbar")
+            .text("Infinity")
+            .textStyle("toolbar-toggle")
+            .grow(1.0f)
+            .height(26.0f)
+            .selected(true)
+            .onClick([this]() {
+                EditorViewportCameraSettings settings = m_viewport.cameraSettings();
+                settings.infiniteFarPlane = false;
+                m_viewport.setCameraSettings(settings);
+            });
+    } else {
+        m_ui.numberFloat("toolbar.viewOptions.far")
+            .parent("toolbar.viewOptions.farRow")
+            .styleClass("plain")
+            .value(cameraSettings.farPlane)
+            .range(0.001f, 1000000000.0f)
+            .precision(1)
+            .sensitivity(10.0f)
+            .grow(1.0f)
+            .height(26.0f)
+            .onChanged([this](const float value) {
+                EditorViewportCameraSettings settings = m_viewport.cameraSettings();
+                settings.farPlane = value;
+                m_viewport.setCameraSettings(settings);
+            });
+    }
+
+    m_ui.checkbox("toolbar.viewOptions.infiniteFar")
+        .parent("toolbar.viewOptions")
+        .label("Infinite Far Plane")
+        .labelPlacement(UILabelPlacement::Right)
+        .checked(cameraSettings.infiniteFarPlane)
+        .height(28.0f)
+        .onCheckedChanged([this](const bool checked) {
+            EditorViewportCameraSettings settings = m_viewport.cameraSettings();
+            settings.infiniteFarPlane = checked;
+            m_viewport.setCameraSettings(settings);
         });
 
     m_ui.panel("toolbar.spacer")
@@ -728,19 +887,30 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .textStyle("heading")
         .height(18.0f);
 
-    const auto names = hierarchyNames();
-    for (std::size_t index = 0; index < names.size(); ++index) {
+    const auto objects = m_scene.objects();
+
+    if (objects.empty()) {
+        m_ui.label("hierarchy.empty")
+            .parent("hierarchy")
+            .text("No scene objects")
+            .textStyle("muted")
+            .height(22.0f);
+    }
+
+    for (std::size_t index = 0; index < objects.size(); ++index) {
+        const SceneObjectId objectId = objects[index].id;
         const std::string id = "hierarchy.row." + std::to_string(index);
+
         m_ui.button(id)
             .parent("hierarchy")
             .styleClass("hierarchy-row")
-            .text(names[index])
+            .text(objects[index].name)
             .textStyle("hierarchy-row")
             .height(22.0f)
-            .selected(static_cast<int>(index) == m_selectedHierarchyRow)
-            .onClick([this, index]() {
-                m_selectedHierarchyRow = static_cast<int>(index);
-                spdlog::info("Editor UI: Hierarchy row {} selected.", index);
+            .selected(m_selection.selectedSceneObjectId() == objectId)
+            .onClick([this, objectId]() {
+                m_selection.select(objectId);
+                spdlog::info("Editor UI: Scene object {} selected from hierarchy.", objectId);
             });
     }
 
@@ -806,67 +976,6 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .sensitivity(0.05f)
         .onChanged([this](const float value) { m_lightIntensity = value; });
 
-    m_ui.label("inspector.position-label")
-        .parent("inspector")
-        .text("Position")
-        .textStyle("control-label")
-        .height(18.0f);
-
-    m_ui.panel("inspector.position-grid")
-        .parent("inspector")
-        .drawBackground(false)
-        .grid(3)
-        .height(28.0f)
-        .padding(UIEdgeInsets::all(0.0f))
-        .gap(6.0f);
-
-    m_ui.numberFloat("inspector.position.x")
-        .parent("inspector.position-grid")
-        .styleClass("plain")
-        .value(m_previewPosition.x)
-        .range(-100.0f, 100.0f)
-        .precision(2)
-        .sensitivity(0.1f)
-        .onChanged([this](const float value) { m_previewPosition.x = value; });
-
-    m_ui.numberFloat("inspector.position.y")
-        .parent("inspector.position-grid")
-        .styleClass("plain")
-        .value(m_previewPosition.y)
-        .range(-100.0f, 100.0f)
-        .precision(2)
-        .sensitivity(0.1f)
-        .onChanged([this](const float value) { m_previewPosition.y = value; });
-
-    m_ui.numberFloat("inspector.position.z")
-        .parent("inspector.position-grid")
-        .styleClass("plain")
-        .value(m_previewPosition.z)
-        .range(-100.0f, 100.0f)
-        .precision(2)
-        .sensitivity(0.1f)
-        .onChanged([this](const float value) { m_previewPosition.z = value; });
-
-    std::ostringstream positionText;
-    positionText << std::fixed << std::setprecision(2)
-                 << '{' << m_previewPosition.x << ", "
-                 << m_previewPosition.y << ", "
-                 << m_previewPosition.z << '}';
-    m_ui.label("inspector.position-summary")
-        .parent("inspector")
-        .text(positionText.str())
-        .textStyle("coordinate-summary")
-        .height(18.0f);
-
-    m_ui.textInput("inspector.objectName")
-        .parent("inspector")
-        .styleClass("inspector")
-        .label("Object Name")
-        .labelStyle("control-label")
-        .value(m_objectName)
-        .placeholder("Object name")
-        .onTextChanged([this](const std::string_view value) { m_objectName = std::string(value); });
-
     if (selectedObject != nullptr) {
         m_ui.label("sceneObject.title")
             .parent("inspector")
@@ -881,15 +990,48 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .labelStyle("control-label")
             .value(selectedObject->name)
             .placeholder("Object name")
-            .onTextChanged([selectedObject](const std::string_view value) { selectedObject->name = std::string(value); });
+            .onTextChanged([selectedObject](const std::string_view value) {
+                selectedObject->name = std::string(value);
+            });
 
-        m_ui.panel("sceneObject.position-grid")
+        m_ui.label("sceneObject.transform-label")
+            .parent("inspector")
+            .text("Transform")
+            .textStyle("control-label")
+            .height(18.0f);
+
+        m_ui.panel("sceneObject.transform-group")
             .parent("inspector")
             .drawBackground(false)
-            .grid(3)
+            .vertical()
+            .height(92.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(4.0f);
+
+        m_ui.panel("sceneObject.location-row")
+            .parent("sceneObject.transform-group")
+            .drawBackground(false)
+            .horizontal()
             .height(28.0f)
             .padding(UIEdgeInsets::all(0.0f))
             .gap(6.0f);
+
+        m_ui.button("sceneObject.location-label")
+            .parent("sceneObject.location-row")
+            .styleClass("toolbar")
+            .text("Location")
+            .textStyle("toolbar-toggle")
+            .width(88.0f)
+            .height(28.0f);
+
+        m_ui.panel("sceneObject.position-grid")
+            .parent("sceneObject.location-row")
+            .drawBackground(false)
+            .grid(3)
+            .grow(1.0f)
+            .height(28.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(4.0f);
 
         m_ui.numberFloat("sceneObject.position.x")
             .parent("sceneObject.position-grid")
@@ -898,7 +1040,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .range(-10000.0f, 10000.0f)
             .precision(2)
             .sensitivity(0.1f)
-            .onChanged([selectedObject](const float value) { selectedObject->transform.position.x = value; });
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.position.x = value;
+            });
 
         m_ui.numberFloat("sceneObject.position.y")
             .parent("sceneObject.position-grid")
@@ -907,7 +1051,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .range(-10000.0f, 10000.0f)
             .precision(2)
             .sensitivity(0.1f)
-            .onChanged([selectedObject](const float value) { selectedObject->transform.position.y = value; });
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.position.y = value;
+            });
 
         m_ui.numberFloat("sceneObject.position.z")
             .parent("sceneObject.position-grid")
@@ -916,15 +1062,92 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .range(-10000.0f, 10000.0f)
             .precision(2)
             .sensitivity(0.1f)
-            .onChanged([selectedObject](const float value) { selectedObject->transform.position.z = value; });
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.position.z = value;
+            });
 
-        m_ui.panel("sceneObject.scale-grid")
-            .parent("inspector")
+        m_ui.panel("sceneObject.rotation-row")
+            .parent("sceneObject.transform-group")
             .drawBackground(false)
-            .grid(2)
+            .horizontal()
             .height(28.0f)
             .padding(UIEdgeInsets::all(0.0f))
             .gap(6.0f);
+
+        m_ui.button("sceneObject.rotation-label")
+            .parent("sceneObject.rotation-row")
+            .styleClass("toolbar")
+            .text("Rotation")
+            .textStyle("toolbar-toggle")
+            .width(88.0f)
+            .height(28.0f);
+
+        m_ui.panel("sceneObject.rotation-grid")
+            .parent("sceneObject.rotation-row")
+            .drawBackground(false)
+            .grid(3)
+            .grow(1.0f)
+            .height(28.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(4.0f);
+
+        m_ui.numberFloat("sceneObject.rotation.x")
+            .parent("sceneObject.rotation-grid")
+            .styleClass("plain")
+            .value(radiansToDegrees(selectedObject->transform.rotationRadians.x))
+            .range(-360.0f, 360.0f)
+            .precision(1)
+            .sensitivity(0.5f)
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.rotationRadians.x = degreesToRadians(value);
+            });
+
+        m_ui.numberFloat("sceneObject.rotation.y")
+            .parent("sceneObject.rotation-grid")
+            .styleClass("plain")
+            .value(radiansToDegrees(selectedObject->transform.rotationRadians.y))
+            .range(-360.0f, 360.0f)
+            .precision(1)
+            .sensitivity(0.5f)
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.rotationRadians.y = degreesToRadians(value);
+            });
+
+        m_ui.numberFloat("sceneObject.rotation.z")
+            .parent("sceneObject.rotation-grid")
+            .styleClass("plain")
+            .value(radiansToDegrees(selectedObject->transform.rotationRadians.z))
+            .range(-360.0f, 360.0f)
+            .precision(1)
+            .sensitivity(0.5f)
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.rotationRadians.z = degreesToRadians(value);
+            });
+
+        m_ui.panel("sceneObject.scale-row")
+            .parent("sceneObject.transform-group")
+            .drawBackground(false)
+            .horizontal()
+            .height(28.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(6.0f);
+
+        m_ui.button("sceneObject.scale-label")
+            .parent("sceneObject.scale-row")
+            .styleClass("toolbar")
+            .text("Scale")
+            .textStyle("toolbar-toggle")
+            .width(88.0f)
+            .height(28.0f);
+
+        m_ui.panel("sceneObject.scale-grid")
+            .parent("sceneObject.scale-row")
+            .drawBackground(false)
+            .grid(3)
+            .grow(1.0f)
+            .height(28.0f)
+            .padding(UIEdgeInsets::all(0.0f))
+            .gap(4.0f);
 
         m_ui.numberFloat("sceneObject.scale.x")
             .parent("sceneObject.scale-grid")
@@ -933,7 +1156,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .range(0.01f, 100.0f)
             .precision(2)
             .sensitivity(0.05f)
-            .onChanged([selectedObject](const float value) { selectedObject->transform.scale.x = value; });
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.scale.x = value;
+            });
 
         m_ui.numberFloat("sceneObject.scale.y")
             .parent("sceneObject.scale-grid")
@@ -942,7 +1167,20 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .range(0.01f, 100.0f)
             .precision(2)
             .sensitivity(0.05f)
-            .onChanged([selectedObject](const float value) { selectedObject->transform.scale.y = value; });
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.scale.y = value;
+            });
+
+        m_ui.numberFloat("sceneObject.scale.z")
+            .parent("sceneObject.scale-grid")
+            .styleClass("plain")
+            .value(selectedObject->transform.scale.z)
+            .range(0.01f, 100.0f)
+            .precision(2)
+            .sensitivity(0.05f)
+            .onChanged([selectedObject](const float value) {
+                selectedObject->transform.scale.z = value;
+            });
 
         if (selectedObject->sprite2D) {
             Sprite2DComponent* sprite = &*selectedObject->sprite2D;
@@ -955,7 +1193,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .value(sprite->texturePath)
                 .buttonLabel("Browse")
                 .browseButtonWidth(78.0f)
-                .onTextChanged([sprite](const std::string_view value) { sprite->texturePath = std::string(value); });
+                .onTextChanged([sprite](const std::string_view value) {
+                    sprite->texturePath = std::string(value);
+                });
 
             m_ui.panel("sceneObject.size-grid")
                 .parent("inspector")
@@ -972,7 +1212,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .range(1.0f, 10000.0f)
                 .precision(2)
                 .sensitivity(0.5f)
-                .onChanged([sprite](const float value) { sprite->size.x = value; });
+                .onChanged([sprite](const float value) {
+                    sprite->size.x = value;
+                });
 
             m_ui.numberFloat("sceneObject.size.y")
                 .parent("sceneObject.size-grid")
@@ -981,37 +1223,80 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .range(1.0f, 10000.0f)
                 .precision(2)
                 .sensitivity(0.5f)
-                .onChanged([sprite](const float value) { sprite->size.y = value; });
+                .onChanged([sprite](const float value) {
+                    sprite->size.y = value;
+                });
 
             m_ui.colorPicker("sceneObject.tint")
                 .parent("inspector")
                 .label("Tint")
                 .labelStyle("control-label")
                 .color(sprite->tint)
-                .onColorChanged([sprite](const glm::vec4& color) { sprite->tint = color; });
+                .onColorChanged([sprite](const glm::vec4& color) {
+                    sprite->tint = color;
+                });
 
             m_ui.dropdown("sceneObject.blendMode")
                 .parent("inspector")
                 .styleClass("inspector")
                 .label("Blend")
                 .labelStyle("control-label")
-                .items({"Opaque", "Alpha", "Additive"})
-                .selectedIndex(blendModeIndex(sprite->renderState.blendMode))
-                .onSelectionChanged([sprite](const std::size_t index, std::string_view) {
-                    sprite->renderState.blendMode = blendModeFromIndex(index);
-                });
+                .text(blendModeName(sprite->renderState.blendMode))
+                .popupSize({180.0f, 112.0f})
+                .padding(UIEdgeInsets::all(8.0f))
+                .gap(4.0f);
+
+            const auto addBlendOption = [this, sprite](const std::string_view id, const WorldBlendMode mode) {
+                m_ui.button(id)
+                    .parent("sceneObject.blendMode")
+                    .styleClass("hierarchy-row")
+                    .text(blendModeName(mode))
+                    .textStyle("hierarchy-row")
+                    .height(28.0f)
+                    .selected(sprite->renderState.blendMode == mode)
+                    .onClick([this, sprite, mode]() {
+                        sprite->renderState.blendMode = mode;
+                        m_ui.closeDropdown("sceneObject.blendMode");
+                    });
+            };
+
+            addBlendOption("sceneObject.blendMode.opaque", WorldBlendMode::Opaque);
+            addBlendOption("sceneObject.blendMode.alpha", WorldBlendMode::Alpha);
+            addBlendOption("sceneObject.blendMode.additive", WorldBlendMode::Additive);
 
             m_ui.dropdown("sceneObject.samplerMode")
                 .parent("inspector")
                 .styleClass("inspector")
                 .label("Sampler")
                 .labelStyle("control-label")
-                .items({"Nearest", "Linear"})
-                .selectedIndex(samplerModeIndex(sprite->renderState.samplerMode))
-                .onSelectionChanged([sprite](const std::size_t index, std::string_view) {
-                    sprite->renderState.samplerMode = samplerModeFromIndex(index);
-                });
+                .text(samplerModeName(sprite->renderState.samplerMode))
+                .popupSize({180.0f, 80.0f})
+                .padding(UIEdgeInsets::all(8.0f))
+                .gap(4.0f);
+
+            const auto addSamplerOption = [this, sprite](const std::string_view id, const WorldSamplerMode mode) {
+                m_ui.button(id)
+                    .parent("sceneObject.samplerMode")
+                    .styleClass("hierarchy-row")
+                    .text(samplerModeName(mode))
+                    .textStyle("hierarchy-row")
+                    .height(28.0f)
+                    .selected(sprite->renderState.samplerMode == mode)
+                    .onClick([this, sprite, mode]() {
+                        sprite->renderState.samplerMode = mode;
+                        m_ui.closeDropdown("sceneObject.samplerMode");
+                    });
+            };
+
+            addSamplerOption("sceneObject.samplerMode.nearest", WorldSamplerMode::Nearest);
+            addSamplerOption("sceneObject.samplerMode.linear", WorldSamplerMode::Linear);
         }
+    } else {
+        m_ui.label("inspector.no-selection")
+            .parent("inspector")
+            .text("No scene object selected")
+            .textStyle("muted")
+            .height(22.0f);
     }
 
     m_ui.panel("viewport")
@@ -1059,13 +1344,25 @@ bool EditorUI::updatePanelSplitters()
     const glm::vec2 delta = mousePosition - m_previousMousePosition;
     bool changed = false;
 
-    if (m_hierarchyVisible && m_context.interact("splitter.hierarchy", m_hierarchySplitterBounds.position, m_hierarchySplitterBounds.size).held) {
-        m_hierarchyWidth = std::clamp(m_hierarchyWidth + delta.x, 150.0f, 320.0f);
-        changed = true;
+    if (m_hierarchyVisible) {
+        const UIInteraction splitter = m_context.interact("splitter.hierarchy", m_hierarchySplitterBounds.position, m_hierarchySplitterBounds.size);
+        if (splitter.hovered || splitter.held) {
+            m_context.requestCursor(UICursor::ResizeHorizontal);
+        }
+        if (splitter.held) {
+            m_hierarchyWidth = std::clamp(m_hierarchyWidth + delta.x, 150.0f, 320.0f);
+            changed = true;
+        }
     }
-    if (m_inspectorVisible && m_context.interact("splitter.inspector", m_inspectorSplitterBounds.position, m_inspectorSplitterBounds.size).held) {
-        m_inspectorWidth = std::clamp(m_inspectorWidth - delta.x, 190.0f, 380.0f);
-        changed = true;
+    if (m_inspectorVisible) {
+        const UIInteraction splitter = m_context.interact("splitter.inspector", m_inspectorSplitterBounds.position, m_inspectorSplitterBounds.size);
+        if (splitter.hovered || splitter.held) {
+            m_context.requestCursor(UICursor::ResizeHorizontal);
+        }
+        if (splitter.held) {
+            m_inspectorWidth = std::clamp(m_inspectorWidth - delta.x, 190.0f, 380.0f);
+            changed = true;
+        }
     }
     if (m_consoleVisible && m_context.interact("splitter.console", m_consoleSplitterBounds.position, m_consoleSplitterBounds.size).held) {
         m_consoleHeight = std::clamp(m_consoleHeight - delta.y, 116.0f, 360.0f);
@@ -1607,6 +1904,11 @@ std::string EditorUI::fpsCounterText() const
 const UIRect& EditorUI::viewportBounds() const
 {
     return m_viewportBounds;
+}
+
+bool EditorUI::keyboardInputCaptured() const
+{
+    return m_context.hasFocusedItem();
 }
 
 } // namespace Engine

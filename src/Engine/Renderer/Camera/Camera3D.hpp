@@ -26,6 +26,7 @@ public:
     float aspectRatio{16.0f / 9.0f};
     float nearPlane{0.1f};
     float farPlane{1000.0f};
+    bool infiniteFarPlane{false};
     Camera3DProjection projectionMode{Camera3DProjection::Perspective};
 
     [[nodiscard]] glm::mat4 projection() const;

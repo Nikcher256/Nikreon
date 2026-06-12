@@ -32,6 +32,7 @@ public:
     void render(Renderer2D& renderer2D, TextRenderer& textRenderer, ResourceManager& resources, const glm::uvec2& viewportSize, const Input& input);
     [[nodiscard]] const UIRect& viewportBounds() const;
     [[nodiscard]] VulkanContext::PresentMode presentMode() const;
+    [[nodiscard]] bool keyboardInputCaptured() const;
 
 private:
     enum class RunState {
@@ -85,7 +86,6 @@ private:
     float m_consoleHeight{220.0f};
     glm::vec2 m_previousMousePosition{0.0f, 0.0f};
     glm::vec2 m_renderSize{1.0f, 1.0f};
-    int m_selectedHierarchyRow{0};
     RunState m_runState{RunState::Stopped};
     glm::vec4 m_viewportClearColor{0.055f, 0.085f, 0.14f, 1.0f};
     bool m_hierarchyVisible{true};
@@ -97,8 +97,6 @@ private:
     float m_previewExposure{0.65f};
     float m_lastLoggedExposure{0.65f};
     float m_lightIntensity{4.0f};
-    glm::vec3 m_previewPosition{12.5f, -4.0f, 8.0f};
-    std::string m_objectName{"Directional Light"};
     VulkanContext::PresentMode m_presentMode{VulkanContext::PresentMode::Mailbox};
     std::vector<TextureAssetInfo> m_textureAssets;
     std::vector<ModelAssetInfo> m_modelAssets;

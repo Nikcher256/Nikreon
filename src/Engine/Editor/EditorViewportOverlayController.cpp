@@ -19,8 +19,8 @@ void EditorViewportOverlayController::draw(
         .enabled = true,
         .step = 10.0f,
         .majorEvery = 10.0f,
-        .fadeStart = 1400.0f,
-        .fadeEnd = 2400.0f,
+        .fadeStart = 120.0f,
+        .fadeEnd = 1000.0f,
     });
 }
 

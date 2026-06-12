@@ -2,7 +2,18 @@
 
 #include <algorithm>
 
+#include <glm/ext/scalar_constants.hpp>
+
 namespace Engine {
+
+namespace {
+
+float degreesToRadians(const float degrees)
+{
+    return degrees * glm::pi<float>() / 180.0f;
+}
+
+} // namespace
 
 std::string_view editorViewportModeName(const EditorViewportMode mode)
 {
@@ -16,14 +27,24 @@ std::string_view editorViewportModeName(const EditorViewportMode mode)
     return "Edit";
 }
 
-std::string_view editorCameraModeName(const EditorCameraMode mode)
+std::string_view editorViewOrientationName(const EditorViewOrientation orientation)
 {
-    switch (mode) {
-    case EditorCameraMode::Orthographic2D: return "2D Camera";
-    case EditorCameraMode::Perspective3D: return "3D Perspective";
+    switch (orientation) {
+    case EditorViewOrientation::Perspective: return "Perspective";
+    case EditorViewOrientation::Top: return "Top";
+    case EditorViewOrientation::Bottom: return "Bottom";
+    case EditorViewOrientation::Front: return "Front";
+    case EditorViewOrientation::Back: return "Back";
+    case EditorViewOrientation::Left: return "Left";
+    case EditorViewOrientation::Right: return "Right";
     }
 
-    return "2D Camera";
+    return "Top";
+}
+
+bool editorViewOrientationIsPerspective(const EditorViewOrientation orientation)
+{
+    return orientation == EditorViewOrientation::Perspective;
 }
 
 void EditorViewport::updateInteraction(
@@ -82,9 +103,9 @@ EditorViewportMode EditorViewport::mode() const
     return m_mode;
 }
 
-void EditorViewport::setCameraMode(const EditorCameraMode mode)
+void EditorViewport::setViewOrientation(const EditorViewOrientation orientation)
 {
-    m_cameraMode = mode;
+    m_viewOrientation = orientation;
 }
 
 void EditorViewport::setGridVisible(const bool visible)
@@ -92,14 +113,32 @@ void EditorViewport::setGridVisible(const bool visible)
     m_gridVisible = visible;
 }
 
-Camera3D EditorViewport::worldCamera3D(const float aspectRatio) const
+void EditorViewport::setCameraSettings(const EditorViewportCameraSettings& settings)
 {
-    return m_editorCamera.camera3D(aspectRatio);
+    m_cameraSettings.verticalFovDegrees = std::clamp(settings.verticalFovDegrees, 5.0f, 170.0f);
+    m_cameraSettings.nearPlane = std::clamp(settings.nearPlane, 0.001f, 1000000.0f);
+    m_cameraSettings.farPlane = std::max(settings.farPlane, m_cameraSettings.nearPlane + 0.001f);
+    m_cameraSettings.infiniteFarPlane = settings.infiniteFarPlane;
 }
 
-EditorCameraMode EditorViewport::cameraMode() const
+Camera3D EditorViewport::worldCamera3D(const float aspectRatio) const
 {
-    return m_cameraMode;
+    Camera3D camera = m_editorCamera.camera3D(aspectRatio);
+    camera.verticalFovRadians = degreesToRadians(m_cameraSettings.verticalFovDegrees);
+    camera.nearPlane = m_cameraSettings.nearPlane;
+    camera.farPlane = m_cameraSettings.farPlane;
+    camera.infiniteFarPlane = m_cameraSettings.infiniteFarPlane;
+    return camera;
+}
+
+const EditorViewportCameraSettings& EditorViewport::cameraSettings() const
+{
+    return m_cameraSettings;
+}
+
+EditorViewOrientation EditorViewport::viewOrientation() const
+{
+    return m_viewOrientation;
 }
 
 bool EditorViewport::gridVisible() const
