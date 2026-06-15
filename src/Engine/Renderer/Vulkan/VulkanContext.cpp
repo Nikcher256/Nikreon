@@ -11,12 +11,18 @@
 
 #include <algorithm>
 #include <array>
+#include <condition_variable>
 #include <cstring>
+#include <exception>
+#include <functional>
 #include <limits>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include <GLFW/glfw3.h>
@@ -87,6 +93,92 @@ void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& create
 }
 
 } // namespace
+
+class CommandBufferWorker final {
+public:
+    CommandBufferWorker()
+        : m_thread([this]() { run(); })
+    {
+    }
+
+    ~CommandBufferWorker()
+    {
+        {
+            std::lock_guard lock{m_mutex};
+            m_stopping = true;
+        }
+        m_taskReady.notify_one();
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+    }
+
+    CommandBufferWorker(const CommandBufferWorker&) = delete;
+    CommandBufferWorker& operator=(const CommandBufferWorker&) = delete;
+
+    void submit(std::function<void()> task)
+    {
+        std::unique_lock lock{m_mutex};
+        m_taskDone.wait(lock, [this]() { return m_completed && !m_hasTask; });
+        m_task = std::move(task);
+        m_exception = nullptr;
+        m_completed = false;
+        m_hasTask = true;
+        lock.unlock();
+        m_taskReady.notify_one();
+    }
+
+    void wait()
+    {
+        std::unique_lock lock{m_mutex};
+        m_taskDone.wait(lock, [this]() { return m_completed; });
+        if (m_exception != nullptr) {
+            std::rethrow_exception(m_exception);
+        }
+    }
+
+private:
+    void run()
+    {
+        for (;;) {
+            std::function<void()> task;
+            {
+                std::unique_lock lock{m_mutex};
+                m_taskReady.wait(lock, [this]() { return m_stopping || m_hasTask; });
+                if (m_stopping && !m_hasTask) {
+                    return;
+                }
+
+                task = std::move(m_task);
+                m_hasTask = false;
+            }
+
+            std::exception_ptr exception;
+            try {
+                task();
+            } catch (...) {
+                exception = std::current_exception();
+            }
+
+            {
+                std::lock_guard lock{m_mutex};
+                m_exception = exception;
+                m_completed = true;
+            }
+            m_taskDone.notify_all();
+        }
+    }
+
+    std::thread m_thread;
+    std::mutex m_mutex;
+    std::condition_variable m_taskReady;
+    std::condition_variable m_taskDone;
+    std::function<void()> m_task;
+    std::exception_ptr m_exception;
+    bool m_hasTask{false};
+    bool m_completed{true};
+    bool m_stopping{false};
+};
 
 bool VulkanContext::QueueFamilyIndices::complete() const
 {
@@ -279,6 +371,7 @@ void VulkanContext::initialize()
     createFramebuffers();
     createCommandPool();
     createCommandBuffers();
+    createSecondaryCommandResources();
     createSyncObjects();
 
     spdlog::info("Vulkan context initialized.");
@@ -296,6 +389,11 @@ void VulkanContext::shutdown()
     for (std::size_t index = 0; index < m_imageAvailableSemaphores.size(); ++index) {
         vkDestroySemaphore(m_device, m_imageAvailableSemaphores[index], nullptr);
         vkDestroyFence(m_device, m_inFlightFences[index], nullptr);
+    }
+
+    destroySecondaryCommandResources();
+    for (auto& worker : m_commandBufferWorkers) {
+        worker.reset();
     }
 
     if (m_commandPool != VK_NULL_HANDLE) {
@@ -605,6 +703,37 @@ void VulkanContext::createCommandBuffers()
     checkVk(vkAllocateCommandBuffers(m_device, &allocateInfo, m_commandBuffers.data()), "Failed to allocate command buffers.");
 }
 
+void VulkanContext::createSecondaryCommandResources()
+{
+    const QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
+    m_secondaryCommandResources.resize(FramesInFlight);
+
+    for (SecondaryCommandResources& resources : m_secondaryCommandResources) {
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = indices.graphicsFamily;
+
+        checkVk(vkCreateCommandPool(m_device, &poolInfo, nullptr, &resources.viewportCommandPool), "Failed to create viewport secondary command pool.");
+        checkVk(vkCreateCommandPool(m_device, &poolInfo, nullptr, &resources.uiCommandPool), "Failed to create UI secondary command pool.");
+
+        VkCommandBufferAllocateInfo allocateInfo{};
+        allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+        allocateInfo.commandBufferCount = 1;
+
+        allocateInfo.commandPool = resources.viewportCommandPool;
+        checkVk(vkAllocateCommandBuffers(m_device, &allocateInfo, &resources.viewportCommandBuffer), "Failed to allocate viewport secondary command buffer.");
+
+        allocateInfo.commandPool = resources.uiCommandPool;
+        checkVk(vkAllocateCommandBuffers(m_device, &allocateInfo, &resources.uiCommandBuffer), "Failed to allocate UI secondary command buffer.");
+    }
+
+    for (auto& worker : m_commandBufferWorkers) {
+        worker = std::make_unique<CommandBufferWorker>();
+    }
+}
+
 void VulkanContext::createSyncObjects()
 {
     m_imageAvailableSemaphores.resize(FramesInFlight);
@@ -698,6 +827,25 @@ void VulkanContext::cleanupSwapchainImageResources()
     }
 }
 
+void VulkanContext::destroySecondaryCommandResources()
+{
+    for (SecondaryCommandResources& resources : m_secondaryCommandResources) {
+        if (resources.viewportCommandPool != VK_NULL_HANDLE) {
+            vkDestroyCommandPool(m_device, resources.viewportCommandPool, nullptr);
+            resources.viewportCommandPool = VK_NULL_HANDLE;
+            resources.viewportCommandBuffer = VK_NULL_HANDLE;
+        }
+
+        if (resources.uiCommandPool != VK_NULL_HANDLE) {
+            vkDestroyCommandPool(m_device, resources.uiCommandPool, nullptr);
+            resources.uiCommandPool = VK_NULL_HANDLE;
+            resources.uiCommandBuffer = VK_NULL_HANDLE;
+        }
+    }
+
+    m_secondaryCommandResources.clear();
+}
+
 bool VulkanContext::recreateSwapchain()
 {
     while (m_window.width() == 0 || m_window.height() == 0) {
@@ -748,15 +896,26 @@ void VulkanContext::recordCommandBuffer(
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
+    SecondaryCommandResources& secondary = m_secondaryCommandResources[m_currentFrame];
+    checkVk(vkResetCommandPool(m_device, secondary.viewportCommandPool, 0), "Failed to reset viewport secondary command pool.");
+    checkVk(vkResetCommandPool(m_device, secondary.uiCommandPool, 0), "Failed to reset UI secondary command pool.");
+
+    m_commandBufferWorkers[0]->submit([this, &viewportRenderer2DWorld, &viewportDebugRenderer, commandBuffer = secondary.viewportCommandBuffer]() {
+        recordViewportSecondaryCommandBuffer(commandBuffer, viewportRenderer2DWorld, viewportDebugRenderer);
+    });
+    m_commandBufferWorkers[1]->submit([this, &renderer2D, &textRenderer, imageIndex, commandBuffer = secondary.uiCommandBuffer]() {
+        recordUiSecondaryCommandBuffer(commandBuffer, imageIndex, renderer2D, textRenderer);
+    });
+
     checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin command buffer.");
 
     VulkanRenderCommandRecorder renderCommandRecorder(commandBuffer);
     renderPipeline.recordCommands(renderCommandRecorder, frameContext);
 
     m_viewportRenderTarget->recordClear(commandBuffer, m_editorViewportClearColor);
-    m_viewportRenderTarget->recordBeginRenderPass(commandBuffer);
-    viewportRenderer2DWorld.record(commandBuffer);
-    viewportDebugRenderer.record(commandBuffer);
+    m_viewportRenderTarget->recordBeginRenderPass(commandBuffer, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+    m_commandBufferWorkers[0]->wait();
+    vkCmdExecuteCommands(commandBuffer, 1, &secondary.viewportCommandBuffer);
     m_viewportRenderTarget->recordEndRenderPass(commandBuffer);
     m_viewportRenderTarget->recordCopyTo(
         commandBuffer,
@@ -776,7 +935,54 @@ void VulkanContext::recordCommandBuffer(
     renderPassInfo.clearValueCount = 0;
     renderPassInfo.pClearValues = nullptr;
 
-    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+    m_commandBufferWorkers[1]->wait();
+    vkCmdExecuteCommands(commandBuffer, 1, &secondary.uiCommandBuffer);
+    vkCmdEndRenderPass(commandBuffer);
+
+    checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end command buffer.");
+}
+
+void VulkanContext::recordViewportSecondaryCommandBuffer(
+    const VkCommandBuffer commandBuffer,
+    VulkanRenderer2DWorld& viewportRenderer2DWorld,
+    VulkanDebugRenderer& viewportDebugRenderer) const
+{
+    VkCommandBufferInheritanceInfo inheritanceInfo{};
+    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+    inheritanceInfo.renderPass = m_viewportRenderTarget->renderPass();
+    inheritanceInfo.subpass = 0;
+    inheritanceInfo.framebuffer = m_viewportRenderTarget->framebuffer();
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+    beginInfo.pInheritanceInfo = &inheritanceInfo;
+
+    checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin viewport secondary command buffer.");
+    viewportRenderer2DWorld.record(commandBuffer);
+    viewportDebugRenderer.record(commandBuffer);
+    checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end viewport secondary command buffer.");
+}
+
+void VulkanContext::recordUiSecondaryCommandBuffer(
+    const VkCommandBuffer commandBuffer,
+    const std::uint32_t imageIndex,
+    VulkanRenderer2D& renderer2D,
+    VulkanTextRenderer& textRenderer) const
+{
+    VkCommandBufferInheritanceInfo inheritanceInfo{};
+    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+    inheritanceInfo.renderPass = m_renderPass;
+    inheritanceInfo.subpass = 0;
+    inheritanceInfo.framebuffer = m_swapchainFramebuffers[imageIndex];
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+    beginInfo.pInheritanceInfo = &inheritanceInfo;
+
+    checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin UI secondary command buffer.");
     std::vector<std::uint64_t> renderOrders;
     renderer2D.appendRenderOrders(renderOrders);
     textRenderer.appendRenderOrders(renderOrders);
@@ -786,9 +992,7 @@ void VulkanContext::recordCommandBuffer(
         renderer2D.record(commandBuffer, renderOrder);
         textRenderer.record(commandBuffer, renderOrder);
     }
-    vkCmdEndRenderPass(commandBuffer);
-
-    checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end command buffer.");
+    checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end UI secondary command buffer.");
 }
 
 VulkanContext::QueueFamilyIndices VulkanContext::findQueueFamilies(VkPhysicalDevice device) const

@@ -14,9 +14,12 @@ void Scene2DSubmitter::submit(const Scene& scene, Renderer2DWorld& renderer2DWor
         }
 
         const Sprite2DComponent& sprite = *object.sprite2D;
-        TextureHandle texture = sprite.texturePath.empty()
-            ? resources.whiteTexture()
-            : resources.loadTexture(sprite.texturePath);
+        TextureHandle texture = sprite.textureHandle;
+        if (!texture) {
+            texture = sprite.texturePath.empty()
+                ? resources.whiteTexture()
+                : resources.loadTexture(sprite.texturePath);
+        }
 
         if (!texture) {
             texture = resources.missingTexture();

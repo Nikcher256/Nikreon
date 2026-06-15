@@ -25,6 +25,7 @@ struct TransformComponent {
 
 struct Sprite2DComponent {
     std::string texturePath;
+    TextureHandle textureHandle{};
     glm::vec2 size{32.0f, 32.0f};
     glm::vec2 origin{0.5f, 0.5f};
     glm::vec2 uvMin{0.0f, 0.0f};

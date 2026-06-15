@@ -928,6 +928,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .width(hierarchyWidth)
         .visible(m_hierarchyVisible)
         .vertical()
+        .scrollable(true)
         .padding({16.0f, 8.0f, 16.0f, 20.0f})
         .gap(12.0f);
 
@@ -1245,6 +1246,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .browseButtonWidth(78.0f)
                 .onTextChanged([sprite](const std::string_view value) {
                     sprite->texturePath = std::string(value);
+                    sprite->textureHandle = TextureHandle::invalid();
                 });
 
             m_ui.panel("sceneObject.size-grid")
@@ -1612,13 +1614,16 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
         if (asset.handle) {
             const TextureResource* texture = resources.tryTexture(asset.handle);
             if (texture != nullptr && !texture->pixels.rgba8.empty()) {
-                renderer2D.uploadImage(
-                    asset.handle.value(),
-                    texture->pixels.width,
-                    texture->pixels.height,
-                    texture->pixels.rgba8.data(),
-                    texture->pixels.rgba8.size());
-                renderer2D.drawImage(asset.handle.value(), item.previewPosition, item.previewSize);
+                const std::uint64_t previewTextureId = asset.handle.value();
+                if (!renderer2D.hasImage(previewTextureId)) {
+                    renderer2D.uploadImage(
+                        previewTextureId,
+                        texture->pixels.width,
+                        texture->pixels.height,
+                        texture->pixels.rgba8.data(),
+                        texture->pixels.rgba8.size());
+                }
+                renderer2D.drawImage(previewTextureId, item.previewPosition, item.previewSize);
             }
         }
     }
@@ -1791,6 +1796,7 @@ void EditorUI::createSceneSpriteFromAsset(const TextureAssetInfo& asset, Resourc
         const float scale = maxDimension > 128.0f ? 128.0f / maxDimension : 1.0f;
 
         if (object.sprite2D) {
+            object.sprite2D->textureHandle = handle;
             object.sprite2D->size = {width * scale, height * scale};
         }
     }

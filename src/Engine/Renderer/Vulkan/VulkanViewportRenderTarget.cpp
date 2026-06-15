@@ -111,7 +111,7 @@ void VulkanViewportRenderTarget::recordClear(const VkCommandBuffer commandBuffer
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 }
 
-void VulkanViewportRenderTarget::recordBeginRenderPass(const VkCommandBuffer commandBuffer) const
+void VulkanViewportRenderTarget::recordBeginRenderPass(const VkCommandBuffer commandBuffer, const VkSubpassContents contents) const
 {
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -121,7 +121,7 @@ void VulkanViewportRenderTarget::recordBeginRenderPass(const VkCommandBuffer com
     renderPassInfo.renderArea.extent = {m_size.x, m_size.y};
     renderPassInfo.clearValueCount = 0;
     renderPassInfo.pClearValues = nullptr;
-    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, contents);
 }
 
 void VulkanViewportRenderTarget::recordEndRenderPass(const VkCommandBuffer commandBuffer) const
@@ -190,6 +190,11 @@ glm::uvec2 VulkanViewportRenderTarget::size() const
 VkRenderPass VulkanViewportRenderTarget::renderPass() const
 {
     return m_renderPass;
+}
+
+VkFramebuffer VulkanViewportRenderTarget::framebuffer() const
+{
+    return m_framebuffer;
 }
 
 void VulkanViewportRenderTarget::createRenderPass()

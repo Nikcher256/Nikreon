@@ -75,13 +75,31 @@ private:
         VkDescriptorSet descriptorSet{VK_NULL_HANDLE};
     };
 
+    struct TextureBatchKey {
+        std::array<std::uint64_t, 16> textures{};
+        WorldSamplerMode samplerMode{};
+
+        [[nodiscard]] friend bool operator==(const TextureBatchKey& left, const TextureBatchKey& right)
+        {
+            return left.textures == right.textures && left.samplerMode == right.samplerMode;
+        }
+    };
+
+    struct TextureBatchKeyHash {
+        [[nodiscard]] std::size_t operator()(const TextureBatchKey& key) const noexcept;
+    };
+
     std::vector<DrawCommand> m_drawCommands;
     void createDescriptorResources();
     void createFallbackTexture();
     void destroyFallbackTexture();
     void destroyTextureResource(GpuTextureResource& texture);
     void destroyUploadedTextures();
-    [[nodiscard]] VkDescriptorSet descriptorSetForTexture(std::uint64_t texture, WorldSamplerMode samplerMode, ResourceManager& resources);
+    [[nodiscard]] VkDescriptorSet descriptorSetForTextures(
+        const std::vector<std::uint64_t>& textures,
+        WorldSamplerMode samplerMode,
+        ResourceManager& resources);
+    [[nodiscard]] GpuTextureResource& textureResourceForTexture(std::uint64_t texture, WorldSamplerMode samplerMode, ResourceManager& resources);
     GpuTextureResource createTextureResource(
         const std::uint8_t* rgba8,
         std::uint32_t width,
@@ -126,6 +144,7 @@ private:
     VkPipeline m_additivePipeline{VK_NULL_HANDLE};
     VkBuffer m_instanceBuffer{VK_NULL_HANDLE};
     VkDeviceMemory m_instanceBufferMemory{VK_NULL_HANDLE};
+    void* m_instanceBufferMapped{nullptr};
     VkDeviceSize m_instanceBufferSize{0};
     glm::uvec2 m_viewportSize{1U, 1U};
     glm::mat4 m_viewProjection{1.0f};
@@ -139,6 +158,7 @@ private:
     VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
     GpuTextureResource m_fallbackTexture{};
     std::unordered_map<std::uint64_t, GpuTextureResource> m_uploadedTextures;
+    std::unordered_map<TextureBatchKey, VkDescriptorSet, TextureBatchKeyHash> m_textureBatchDescriptors;
 };
 
 } // namespace Engine

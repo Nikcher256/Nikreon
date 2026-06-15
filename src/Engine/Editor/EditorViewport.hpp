@@ -32,6 +32,8 @@ enum class EditorViewOrientation {
 [[nodiscard]] std::string_view editorViewportModeName(EditorViewportMode mode);
 [[nodiscard]] std::string_view editorViewOrientationName(EditorViewOrientation orientation);
 [[nodiscard]] bool editorViewOrientationIsPerspective(EditorViewOrientation orientation);
+[[nodiscard]] glm::vec3 editorViewOrientationRightAxis(EditorViewOrientation orientation);
+[[nodiscard]] glm::vec3 editorViewOrientationUpAxis(EditorViewOrientation orientation);
 
 struct EditorViewportPresentation {
     glm::vec2 position{0.0f, 0.0f};

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -20,6 +21,7 @@ class VulkanViewportRenderTarget;
 class RenderPipeline;
 struct RenderFrameContext;
 class Window;
+class CommandBufferWorker;
 
 class VulkanContext {
 public:
@@ -80,6 +82,13 @@ private:
         std::vector<VkPresentModeKHR> presentModes;
     };
 
+    struct SecondaryCommandResources {
+        VkCommandPool viewportCommandPool{VK_NULL_HANDLE};
+        VkCommandBuffer viewportCommandBuffer{VK_NULL_HANDLE};
+        VkCommandPool uiCommandPool{VK_NULL_HANDLE};
+        VkCommandBuffer uiCommandBuffer{VK_NULL_HANDLE};
+    };
+
     void initialize();
     void shutdown();
 
@@ -94,6 +103,7 @@ private:
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffers();
+    void createSecondaryCommandResources();
     void createSyncObjects();
     void createRenderFinishedSemaphores();
     void destroyRenderFinishedSemaphores();
@@ -102,6 +112,7 @@ private:
 
     void cleanupSwapchain();
     void cleanupSwapchainImageResources();
+    void destroySecondaryCommandResources();
 
     void recordCommandBuffer(
         VkCommandBuffer commandBuffer,
@@ -112,6 +123,15 @@ private:
         VulkanTextRenderer& textRenderer,
         RenderPipeline& renderPipeline,
         const RenderFrameContext& frameContext);
+    void recordViewportSecondaryCommandBuffer(
+        VkCommandBuffer commandBuffer,
+        VulkanRenderer2DWorld& viewportRenderer2DWorld,
+        VulkanDebugRenderer& viewportDebugRenderer) const;
+    void recordUiSecondaryCommandBuffer(
+        VkCommandBuffer commandBuffer,
+        std::uint32_t imageIndex,
+        VulkanRenderer2D& renderer2D,
+        VulkanTextRenderer& textRenderer) const;
 
     [[nodiscard]] QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
     [[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
@@ -152,6 +172,8 @@ private:
     std::vector<VkFramebuffer> m_swapchainFramebuffers;
     VkCommandPool m_commandPool{VK_NULL_HANDLE};
     std::vector<VkCommandBuffer> m_commandBuffers;
+    std::vector<SecondaryCommandResources> m_secondaryCommandResources;
+    std::array<std::unique_ptr<CommandBufferWorker>, 2> m_commandBufferWorkers;
     std::vector<VkSemaphore> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::vector<VkFence> m_inFlightFences;

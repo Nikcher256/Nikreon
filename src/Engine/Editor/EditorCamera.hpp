@@ -20,6 +20,8 @@ struct EditorCameraInput {
     float speedScale{1.0f};
     bool focusRequested{false};
     bool perspective3D{false};
+    glm::vec3 orthographicRightAxis{1.0f, 0.0f, 0.0f};
+    glm::vec3 orthographicUpAxis{0.0f, 1.0f, 0.0f};
     glm::vec3 focusPosition{0.0f, 0.0f, 0.0f};
     float focusRadius{64.0f};
 };

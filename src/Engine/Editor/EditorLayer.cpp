@@ -43,9 +43,7 @@ void EditorLayer::onRender(
     handleDeleteSelectionInput(input);
     
     Renderer2DWorldCamera worldCamera;
-    worldCamera.mode = editorViewOrientationIsPerspective(m_viewport.viewOrientation())
-        ? Renderer2DWorldCameraMode::Perspective3D
-        : Renderer2DWorldCameraMode::Orthographic2D;
+    worldCamera.mode = Renderer2DWorldCameraMode::Perspective3D;
 
     worldCamera.camera2D.position = {
         m_viewport.editorCameraPosition().x,
@@ -137,6 +135,8 @@ void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
         .speedScale = shiftDown ? 3.0f : 1.0f,
         .focusRequested = focusRequested && focusTarget.valid,
         .perspective3D = perspective3D,
+        .orthographicRightAxis = editorViewOrientationRightAxis(m_viewport.viewOrientation()),
+        .orthographicUpAxis = editorViewOrientationUpAxis(m_viewport.viewOrientation()),
         .focusPosition = focusTarget.position,
         .focusRadius = focusTarget.radius,
     });

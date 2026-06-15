@@ -231,12 +231,22 @@ ResourceManager::ResourceManager()
 
 TextureHandle ResourceManager::loadTexture(const std::filesystem::path& path)
 {
+    const std::string requestPath = path.lexically_normal().generic_string();
+    if (!requestPath.empty()) {
+        if (const auto found = m_textureRequestCache.find(requestPath); found != m_textureRequestCache.end()) {
+            return found->second;
+        }
+    }
+
     const std::string normalizedPath = normalizePath(path);
     if (normalizedPath.empty()) {
         return m_missingTexture;
     }
 
     if (const auto found = m_texturesByPath.find(normalizedPath); found != m_texturesByPath.end()) {
+        if (!requestPath.empty()) {
+            m_textureRequestCache[requestPath] = found->second;
+        }
         return found->second;
     }
 
@@ -268,7 +278,11 @@ TextureHandle ResourceManager::loadTexture(const std::filesystem::path& path)
     resource.pixels.rgba8 = std::move(rgba8);
     resource.pixels.loadedFromDisk = true;
 
-    return registerTexture(std::move(resource));
+    const TextureHandle handle = registerTexture(std::move(resource));
+    if (!requestPath.empty()) {
+        m_textureRequestCache[requestPath] = handle;
+    }
+    return handle;
 }
 
 ModelHandle ResourceManager::loadModel(const std::filesystem::path& path)

@@ -43,6 +43,18 @@ std::uint64_t textureCacheKey(const std::uint64_t texture, const WorldSamplerMod
 
 } // namespace
 
+std::size_t VulkanRenderer2DWorld::TextureBatchKeyHash::operator()(const TextureBatchKey& key) const noexcept
+{
+    std::size_t hash = 1469598103934665603ull;
+    for (const std::uint64_t texture : key.textures) {
+        hash ^= static_cast<std::size_t>(texture);
+        hash *= 1099511628211ull;
+    }
+    hash ^= static_cast<std::size_t>(key.samplerMode);
+    hash *= 1099511628211ull;
+    return hash;
+}
+
 VulkanRenderer2DWorld::VulkanRenderer2DWorld(
     VkDevice device,
     VkPhysicalDevice physicalDevice,
@@ -118,29 +130,12 @@ void VulkanRenderer2DWorld::submit(const Renderer2DWorld& worldRenderer, Resourc
             continue;
         }
 
-        std::size_t runFirst = batch.firstQuad;
-        float runTextureIndex = m_instances[runFirst].textureIndex;
-
-        for (std::size_t local = 1U; local <= batchInstanceCount; ++local) {
-            const std::size_t instanceIndex = batch.firstQuad + local;
-            const bool atEnd = local == batchInstanceCount;
-            const float textureIndex = atEnd ? runTextureIndex : m_instances[instanceIndex].textureIndex;
-            if (!atEnd && textureIndex == runTextureIndex) {
-                continue;
-            }
-
-            const std::size_t slot = static_cast<std::size_t>(std::max(runTextureIndex, 0.0f));
-            const std::uint64_t texture = slot < batch.textures.size() ? batch.textures[slot] : 0U;
-            m_drawCommands.push_back(DrawCommand{
-                static_cast<std::uint32_t>(runFirst),
-                static_cast<std::uint32_t>(instanceIndex - runFirst),
-                batch.key.blendMode,
-                descriptorSetForTexture(texture, batch.key.samplerMode, resources),
-            });
-
-            runFirst = instanceIndex;
-            runTextureIndex = textureIndex;
-        }
+        m_drawCommands.push_back(DrawCommand{
+            static_cast<std::uint32_t>(batch.firstQuad),
+            static_cast<std::uint32_t>(batchInstanceCount),
+            batch.key.blendMode,
+            descriptorSetForTextures(batch.textures, batch.key.samplerMode, resources),
+        });
     }
 }
 
@@ -435,18 +430,16 @@ void VulkanRenderer2DWorld::createInstanceBuffer()
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         m_instanceBuffer,
         m_instanceBufferMemory);
+    checkVk(vkMapMemory(m_device, m_instanceBufferMemory, 0, m_instanceBufferSize, 0, &m_instanceBufferMapped), "Failed to map VulkanRenderer2DWorld instance buffer.");
 }
 
 void VulkanRenderer2DWorld::uploadInstances()
 {
-    if (m_instanceBufferMemory == VK_NULL_HANDLE || m_instances.empty()) {
+    if (m_instanceBufferMapped == nullptr || m_instances.empty()) {
         return;
     }
 
-    void* mapped = nullptr;
-    checkVk(vkMapMemory(m_device, m_instanceBufferMemory, 0, m_instanceBufferSize, 0, &mapped), "Failed to map VulkanRenderer2DWorld instance buffer.");
-    std::memcpy(mapped, m_instances.data(), m_instances.size() * sizeof(Instance));
-    vkUnmapMemory(m_device, m_instanceBufferMemory);
+    std::memcpy(m_instanceBufferMapped, m_instances.data(), m_instances.size() * sizeof(Instance));
 }
 
 void VulkanRenderer2DWorld::createDescriptorResources()
@@ -454,7 +447,7 @@ void VulkanRenderer2DWorld::createDescriptorResources()
     VkDescriptorSetLayoutBinding textureBinding{};
     textureBinding.binding = 0;
     textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    textureBinding.descriptorCount = 1;
+    textureBinding.descriptorCount = WorldTextureSlotCount;
     textureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -465,7 +458,7 @@ void VulkanRenderer2DWorld::createDescriptorResources()
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSize.descriptorCount = 512U;
+    poolSize.descriptorCount = 512U * WorldTextureSlotCount;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -481,29 +474,78 @@ void VulkanRenderer2DWorld::createFallbackTexture()
     m_fallbackTexture = createTextureResource(whitePixel.data(), 1U, 1U, WorldSamplerMode::Linear);
 }
 
-VkDescriptorSet VulkanRenderer2DWorld::descriptorSetForTexture(
+VkDescriptorSet VulkanRenderer2DWorld::descriptorSetForTextures(
+    const std::vector<std::uint64_t>& textures,
+    const WorldSamplerMode samplerMode,
+    ResourceManager& resources)
+{
+    TextureBatchKey key{};
+    key.samplerMode = samplerMode;
+    const std::size_t textureCount = std::min(textures.size(), key.textures.size());
+    for (std::size_t index = 0; index < textureCount; ++index) {
+        key.textures[index] = textures[index];
+    }
+
+    if (const auto found = m_textureBatchDescriptors.find(key); found != m_textureBatchDescriptors.end()) {
+        return found->second;
+    }
+
+    std::array<VkDescriptorImageInfo, WorldTextureSlotCount> imageInfos{};
+    for (std::size_t index = 0; index < imageInfos.size(); ++index) {
+        GpuTextureResource& texture = textureResourceForTexture(key.textures[index], samplerMode, resources);
+        imageInfos[index] = {
+            texture.sampler,
+            texture.imageView,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+    }
+
+    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+    VkDescriptorSetAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = m_descriptorPool;
+    allocateInfo.descriptorSetCount = 1;
+    allocateInfo.pSetLayouts = &m_descriptorSetLayout;
+    checkVk(vkAllocateDescriptorSets(m_device, &allocateInfo, &descriptorSet), "Failed to allocate VulkanRenderer2DWorld texture batch descriptor set.");
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = descriptorSet;
+    write.dstBinding = 0;
+    write.descriptorCount = static_cast<std::uint32_t>(imageInfos.size());
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = imageInfos.data();
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+
+    m_textureBatchDescriptors.emplace(key, descriptorSet);
+    return descriptorSet;
+}
+
+VulkanRenderer2DWorld::GpuTextureResource& VulkanRenderer2DWorld::textureResourceForTexture(
     const std::uint64_t texture,
     const WorldSamplerMode samplerMode,
     ResourceManager& resources)
 {
     if (texture == 0U) {
-        return m_fallbackTexture.descriptorSet;
+        return m_fallbackTexture;
     }
 
     const std::uint64_t key = textureCacheKey(texture, samplerMode);
     if (const auto found = m_uploadedTextures.find(key); found != m_uploadedTextures.end()) {
-        return found->second.descriptorSet;
+        return found->second;
     }
 
     const TextureResource* resource = resources.tryTexture(TextureHandle::fromValue(texture));
     if (resource == nullptr || resource->pixels.rgba8.empty()) {
-        return m_fallbackTexture.descriptorSet;
+        return m_fallbackTexture;
     }
 
     auto [inserted, _] = m_uploadedTextures.emplace(
         key,
         createTextureResource(resource->pixels.rgba8.data(), resource->pixels.width, resource->pixels.height, samplerMode));
-    return inserted->second.descriptorSet != VK_NULL_HANDLE ? inserted->second.descriptorSet : m_fallbackTexture.descriptorSet;
+    return inserted->second.imageView != VK_NULL_HANDLE && inserted->second.sampler != VK_NULL_HANDLE
+        ? inserted->second
+        : m_fallbackTexture;
 }
 
 VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureResource(
@@ -561,27 +603,6 @@ VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureRe
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.maxLod = 0.0f;
     checkVk(vkCreateSampler(m_device, &samplerInfo, nullptr, &texture.sampler), "Failed to create VulkanRenderer2DWorld texture sampler.");
-
-    VkDescriptorSetAllocateInfo allocateInfo{};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocateInfo.descriptorPool = m_descriptorPool;
-    allocateInfo.descriptorSetCount = 1;
-    allocateInfo.pSetLayouts = &m_descriptorSetLayout;
-    checkVk(vkAllocateDescriptorSets(m_device, &allocateInfo, &texture.descriptorSet), "Failed to allocate VulkanRenderer2DWorld texture descriptor set.");
-
-    VkDescriptorImageInfo imageInfo{};
-    imageInfo.sampler = texture.sampler;
-    imageInfo.imageView = texture.imageView;
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    VkWriteDescriptorSet write{};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = texture.descriptorSet;
-    write.dstBinding = 0;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = &imageInfo;
-    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
 
     return texture;
 }
@@ -729,6 +750,10 @@ void VulkanRenderer2DWorld::destroy()
     }
 
     if (m_instanceBufferMemory != VK_NULL_HANDLE) {
+        if (m_instanceBufferMapped != nullptr) {
+            vkUnmapMemory(m_device, m_instanceBufferMemory);
+            m_instanceBufferMapped = nullptr;
+        }
         vkFreeMemory(m_device, m_instanceBufferMemory, nullptr);
         m_instanceBufferMemory = VK_NULL_HANDLE;
     }
@@ -748,6 +773,7 @@ void VulkanRenderer2DWorld::destroyFallbackTexture()
 
 void VulkanRenderer2DWorld::destroyUploadedTextures()
 {
+    m_textureBatchDescriptors.clear();
     for (auto& [_, texture] : m_uploadedTextures) {
         destroyTextureResource(texture);
     }

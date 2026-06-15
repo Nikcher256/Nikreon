@@ -18,7 +18,7 @@ public:
 
     void resize(const glm::uvec2& size);
     void recordClear(VkCommandBuffer commandBuffer, const glm::vec4& clearColor) const;
-    void recordBeginRenderPass(VkCommandBuffer commandBuffer) const;
+    void recordBeginRenderPass(VkCommandBuffer commandBuffer, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE) const;
     void recordEndRenderPass(VkCommandBuffer commandBuffer) const;
     void recordCopyTo(
         VkCommandBuffer commandBuffer,
@@ -28,6 +28,7 @@ public:
 
     [[nodiscard]] glm::uvec2 size() const;
     [[nodiscard]] VkRenderPass renderPass() const;
+    [[nodiscard]] VkFramebuffer framebuffer() const;
 
 private:
     void createRenderPass();

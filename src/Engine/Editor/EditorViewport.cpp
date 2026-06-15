@@ -3,6 +3,8 @@
 #include <algorithm>
 
 #include <glm/ext/scalar_constants.hpp>
+#include <glm/gtc/constants.hpp>
+
 
 namespace Engine {
 
@@ -11,6 +13,39 @@ namespace {
 float degreesToRadians(const float degrees)
 {
     return degrees * glm::pi<float>() / 180.0f;
+}
+
+struct OrthographicDirectionView {
+    float yawRadians{0.0f};
+    float pitchRadians{0.0f};
+    glm::vec3 rightAxis{1.0f, 0.0f, 0.0f};
+    glm::vec3 upAxis{0.0f, 1.0f, 0.0f};
+};
+
+OrthographicDirectionView orthographicDirectionView(const EditorViewOrientation orientation)
+{
+    // Nikreon editor camera math is Z-up. View names describe the side the
+    // editor camera sits on while looking back at the scene center:
+    // Top +Z -> -Z, Bottom -Z -> +Z, Front -Y -> +Y, Back +Y -> -Y,
+    // Right -X -> +X, Left +X -> -X.
+    switch (orientation) {
+    case EditorViewOrientation::Top:
+        return {0.0f, -glm::half_pi<float>(), {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
+    case EditorViewOrientation::Bottom:
+        return {0.0f, glm::half_pi<float>(), {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}};
+    case EditorViewOrientation::Front:
+        return {0.0f, 0.0f, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    case EditorViewOrientation::Back:
+        return {glm::pi<float>(), 0.0f, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    case EditorViewOrientation::Right:
+        return {glm::half_pi<float>(), 0.0f, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    case EditorViewOrientation::Left:
+        return {-glm::half_pi<float>(), 0.0f, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}};
+    case EditorViewOrientation::Perspective:
+        break;
+    }
+
+    return {};
 }
 
 } // namespace
@@ -45,6 +80,16 @@ std::string_view editorViewOrientationName(const EditorViewOrientation orientati
 bool editorViewOrientationIsPerspective(const EditorViewOrientation orientation)
 {
     return orientation == EditorViewOrientation::Perspective;
+}
+
+glm::vec3 editorViewOrientationRightAxis(const EditorViewOrientation orientation)
+{
+    return orthographicDirectionView(orientation).rightAxis;
+}
+
+glm::vec3 editorViewOrientationUpAxis(const EditorViewOrientation orientation)
+{
+    return orthographicDirectionView(orientation).upAxis;
 }
 
 void EditorViewport::updateInteraction(
@@ -124,10 +169,24 @@ void EditorViewport::setCameraSettings(const EditorViewportCameraSettings& setti
 Camera3D EditorViewport::worldCamera3D(const float aspectRatio) const
 {
     Camera3D camera = m_editorCamera.camera3D(aspectRatio);
-    camera.verticalFovRadians = degreesToRadians(m_cameraSettings.verticalFovDegrees);
+    camera.aspectRatio = std::max(aspectRatio, 0.001f);
     camera.nearPlane = m_cameraSettings.nearPlane;
     camera.farPlane = m_cameraSettings.farPlane;
-    camera.infiniteFarPlane = m_cameraSettings.infiniteFarPlane;
+
+    if (editorViewOrientationIsPerspective(m_viewOrientation)) {
+        camera.verticalFovRadians = degreesToRadians(m_cameraSettings.verticalFovDegrees);
+        camera.infiniteFarPlane = m_cameraSettings.infiniteFarPlane;
+        return camera;
+    }
+
+    const OrthographicDirectionView directionView = orthographicDirectionView(m_viewOrientation);
+    camera.yawRadians = directionView.yawRadians;
+    camera.pitchRadians = directionView.pitchRadians;
+    camera.position = m_editorCamera.position() - camera.forward() * 1000.0f;
+    camera.projectionMode = Camera3DProjection::Orthographic;
+    camera.orthographicHeight = std::max(m_presentation.size.y, 1.0f) / std::max(m_editorCamera.zoom(), 0.001f);
+    camera.farPlane = std::max(m_cameraSettings.farPlane, 2000.0f);
+    camera.infiniteFarPlane = false;
     return camera;
 }
 

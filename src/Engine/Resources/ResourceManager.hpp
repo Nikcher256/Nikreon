@@ -79,6 +79,7 @@ private:
     std::vector<TextureResource> m_textures;
     std::unordered_map<std::uint64_t, std::size_t> m_textureIndexByHandle;
     std::unordered_map<std::string, TextureHandle> m_texturesByPath;
+    std::unordered_map<std::string, TextureHandle> m_textureRequestCache;
 
     std::vector<MeshResource> m_meshes;
     std::unordered_map<std::uint64_t, std::size_t> m_meshIndexByHandle;
