@@ -23,14 +23,21 @@ struct TransformComponent {
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 };
 
+// Kept under the Sprite2DComponent compatibility name for now, but this is a
+// 3D sprite component: TransformComponent owns world placement and the fixed
+// plane selects the quad's local orientation.
 struct SpriteRendererComponent {
     std::string texturePath;
     TextureHandle textureHandle{};
     glm::vec2 size{32.0f, 32.0f};
     glm::vec2 origin{0.5f, 0.5f};
+    WorldSpriteFixedPlane fixedPlane{WorldSpriteFixedPlane::FixedXY};
     glm::vec2 uvMin{0.0f, 0.0f};
     glm::vec2 uvMax{1.0f, 1.0f};
     glm::vec4 tint{1.0f, 1.0f, 1.0f, 1.0f};
+    int renderOrder{0};
+    // Legacy 2D compatibility bridge. Do not use layer as physical depth;
+    // place sprites with TransformComponent position/rotation/scale instead.
     int layer{0};
     WorldSpriteRenderState renderState{};
 };

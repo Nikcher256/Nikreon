@@ -163,6 +163,4 @@ private:
     std::unordered_map<TextureBatchKey, VkDescriptorSet, TextureBatchKeyHash> m_textureBatchDescriptors;
 };
 
-using VulkanRenderer2DWorld = VulkanSpriteRenderer;
-
 } // namespace Engine

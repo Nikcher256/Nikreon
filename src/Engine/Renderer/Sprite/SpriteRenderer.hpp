@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -32,9 +33,9 @@ enum class WorldSpritePipeline {
 };
 
 enum class WorldBlendMode {
-    Opaque, // for solid sprites, no transparency blending
-    Alpha, // normal sprite transparency
-    Additive, // glow/fire/light/particles style blending
+    Opaque, // solid/masked sprites: depth test + depth write once the world target has depth
+    Alpha, // translucent sprites: depth test, no depth write, view-sorted when needed
+    Additive, // additive sprites: depth test, no depth write, view-sorted when needed
 };
 
 enum class WorldSamplerMode {
@@ -42,6 +43,14 @@ enum class WorldSamplerMode {
     Linear, // smooth texture filtering
 };
 
+enum class WorldSpriteFixedPlane {
+    FixedXY,
+    FixedXZ,
+    FixedYZ,
+};
+
+// TODO: Camera-facing billboard sprites should live in a material/shader feature
+// or renderer view-facing mode because they depend on the active camera/view.
 struct WorldSpriteRenderState {
     WorldSpritePipeline pipeline{WorldSpritePipeline::Sprite};
     WorldBlendMode blendMode{WorldBlendMode::Alpha};
@@ -52,6 +61,8 @@ struct WorldBatchKey {
     WorldSpritePipeline pipeline{WorldSpritePipeline::Sprite};
     WorldBlendMode blendMode{WorldBlendMode::Alpha};
     WorldSamplerMode samplerMode{WorldSamplerMode::Linear};
+    // Legacy 2D compatibility bridge only. Physical depth comes from
+    // TransformComponent/world placement, not from layer.
     int layer{0};
 
     [[nodiscard]] friend bool operator==(const WorldBatchKey& left, const WorldBatchKey& right)
@@ -66,10 +77,17 @@ struct WorldBatchKey {
 struct WorldSpriteTransform {
     glm::vec3 position{0.0f, 0.0f, 0.0f};
     glm::vec2 size{1.0f, 1.0f};
-    float rotationRadians{0.0f};
+    glm::vec3 rotationRadians{0.0f, 0.0f, 0.0f};
+    glm::vec3 scale{1.0f, 1.0f, 1.0f};
     glm::vec2 origin{0.5f, 0.5f};
+    WorldSpriteFixedPlane fixedPlane{WorldSpriteFixedPlane::FixedXY};
+    int renderOrder{0};
     int layer{0};
 };
+
+using WorldSpriteQuadCorners = std::array<glm::vec3, 4>;
+
+[[nodiscard]] WorldSpriteQuadCorners buildWorldSpriteQuadCorners(const WorldSpriteTransform& transform);
 
 struct WorldSpriteUV {
     glm::vec2 minimum{0.0f, 0.0f};
@@ -250,10 +268,5 @@ private:
     std::uint64_t m_nextSequence{0};
     bool m_recording{false};
 };
-
-using Renderer2DWorld = SpriteRenderer;
-using Renderer2DWorldCameraMode = SpriteRendererCameraMode;
-using Renderer2DWorldCamera = SpriteRendererCamera;
-using Renderer2DWorldStats = SpriteRendererStats;
 
 } // namespace Engine

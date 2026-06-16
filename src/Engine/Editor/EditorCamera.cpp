@@ -93,11 +93,11 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
 
         if (orbiting) {
             m_yawRadians = wrapRadians(m_yawRadians - input.orbitDelta.x * m_lookSensitivity);
-            m_pitchRadians = wrapRadians(m_pitchRadians + input.orbitDelta.y * m_lookSensitivity);
+            m_pitchRadians = wrapRadians(m_pitchRadians - input.orbitDelta.y * m_lookSensitivity);
         } else if (looking) {
             m_yawRadians = wrapRadians(m_yawRadians + input.lookDelta.x * m_lookSensitivity);
             m_pitchRadians = std::clamp(
-                m_pitchRadians + input.lookDelta.y * m_lookSensitivity,
+                m_pitchRadians - input.lookDelta.y * m_lookSensitivity,
                 -FreeLookPitchLimit,
                 FreeLookPitchLimit);
         }
@@ -131,7 +131,7 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
             const float trackScale = std::max(m_perspectiveOrbitDistance * 0.0025f, 0.05f);
             const glm::vec3 movement =
                 -right * input.trackDelta.x * trackScale +
-                -up * input.trackDelta.y * trackScale;
+                up * input.trackDelta.y * trackScale;
             m_perspectivePosition += movement;
             m_perspectivePivot += movement;
         }
@@ -162,7 +162,7 @@ void EditorCamera::update(const float deltaTime, const EditorCameraInput& input)
 
     const float safeZoom = std::max(m_zoom, 0.001f);
     m_position -= orthographicRight * input.panDelta.x * m_panSensitivity / safeZoom;
-    m_position -= orthographicUp * input.panDelta.y * m_panSensitivity / safeZoom;
+    m_position += orthographicUp * input.panDelta.y * m_panSensitivity / safeZoom;
 
     if (input.zoomDelta != 0.0f) {
         const float zoomScale = std::pow(1.0f + m_zoomStep, input.zoomDelta);

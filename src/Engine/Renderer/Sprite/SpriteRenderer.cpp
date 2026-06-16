@@ -5,6 +5,7 @@
 #include <limits>
 
 #include <glm/common.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include <glm/trigonometric.hpp>
 
 namespace Engine {
@@ -15,18 +16,76 @@ constexpr std::size_t VerticesPerQuad = 4;
 constexpr std::size_t IndicesPerQuad = 6;
 constexpr WorldTextureId WhiteTexture = 0;
 
-[[nodiscard]] glm::vec2 rotatedOffset(const glm::vec2& offset, const float radians)
+[[nodiscard]] glm::vec3 localSpriteCorner(const WorldSpriteFixedPlane fixedPlane, const glm::vec2& corner)
 {
-    const float cosine = std::cos(radians);
-    const float sine = std::sin(radians);
-    return {
-        offset.x * cosine - offset.y * sine,
-        offset.x * sine + offset.y * cosine,
-    };
+    switch (fixedPlane) {
+    case WorldSpriteFixedPlane::FixedXY:
+        return {corner.x, corner.y, 0.0f};
+    case WorldSpriteFixedPlane::FixedXZ:
+        return {corner.x, 0.0f, corner.y};
+    case WorldSpriteFixedPlane::FixedYZ:
+        return {0.0f, corner.x, corner.y};
+    }
+
+    return {corner.x, corner.y, 0.0f};
+}
+
+[[nodiscard]] glm::vec3 spritePlaneOffset(const WorldSpriteFixedPlane fixedPlane, const glm::vec2& offset)
+{
+    return localSpriteCorner(fixedPlane, offset);
+}
+
+[[nodiscard]] bool isTransparentBlend(const WorldBlendMode blendMode)
+{
+    return blendMode == WorldBlendMode::Alpha || blendMode == WorldBlendMode::Additive;
+}
+
+[[nodiscard]] glm::mat4 spriteTransformMatrix(const WorldSpriteTransform& transform)
+{
+    glm::mat4 matrix{1.0f};
+    matrix = glm::translate(matrix, transform.position);
+    matrix = glm::rotate(matrix, transform.rotationRadians.x, {1.0f, 0.0f, 0.0f});
+    matrix = glm::rotate(matrix, transform.rotationRadians.y, {0.0f, 1.0f, 0.0f});
+    matrix = glm::rotate(matrix, transform.rotationRadians.z, {0.0f, 0.0f, 1.0f});
+    matrix = glm::scale(matrix, transform.scale);
+    return matrix;
+}
+
+[[nodiscard]] glm::vec3 transformPoint(const glm::mat4& matrix, const glm::vec3& point)
+{
+    const glm::vec4 transformed = matrix * glm::vec4{point, 1.0f};
+    return glm::vec3{transformed} / std::max(std::abs(transformed.w), 0.0001f);
+}
+
+[[nodiscard]] float viewDepthFor(const WorldRenderView& view, const WorldSpriteTransform& transform)
+{
+    const WorldSpriteQuadCorners corners = buildWorldSpriteQuadCorners(transform);
+    const glm::vec3 center = (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25f;
+    const glm::vec4 viewPosition = view.view * glm::vec4{center, 1.0f};
+    const float depth = -viewPosition.z;
+    return std::isfinite(depth) ? depth : 0.0f;
 }
 
 } // namespace
 
+WorldSpriteQuadCorners buildWorldSpriteQuadCorners(const WorldSpriteTransform& transform)
+{
+    const glm::vec2 originOffset = transform.size * transform.origin;
+    const glm::vec2 localCorners[4] = {
+        {-originOffset.x, -originOffset.y},
+        {transform.size.x - originOffset.x, -originOffset.y},
+        {transform.size.x - originOffset.x, transform.size.y - originOffset.y},
+        {-originOffset.x, transform.size.y - originOffset.y},
+    };
+
+    const glm::mat4 matrix = spriteTransformMatrix(transform);
+    return {
+        transformPoint(matrix, localSpriteCorner(transform.fixedPlane, localCorners[0])),
+        transformPoint(matrix, localSpriteCorner(transform.fixedPlane, localCorners[1])),
+        transformPoint(matrix, localSpriteCorner(transform.fixedPlane, localCorners[2])),
+        transformPoint(matrix, localSpriteCorner(transform.fixedPlane, localCorners[3])),
+    };
+}
 
 WorldSpriteUV WorldSpriteAnimation::frameUV(const float elapsedSeconds) const
 {
@@ -235,7 +294,7 @@ void SpriteRenderer::drawDebugLine(
         {
             .position = start,
             .size = {length, safeThickness},
-            .rotationRadians = std::atan2(delta.y, delta.x),
+            .rotationRadians = {0.0f, 0.0f, std::atan2(delta.y, delta.x)},
             .origin = {0.0f, 0.5f},
         },
         {},
@@ -368,13 +427,46 @@ void SpriteRenderer::rebuildBatches()
     m_batches.clear();
     m_textureSlotFlushCount = 0;
 
-    std::stable_sort(m_pendingQuads.begin(), m_pendingQuads.end(), [](const PendingQuad& left, const PendingQuad& right) {
+    const auto adjustedTransformFor = [this](const PendingQuad& quad) {
+        WorldSpriteTransform adjustedTransform = quad.transform;
+        const glm::vec2 scaledCameraOffset = m_camera.camera2D.position * (glm::vec2{1.0f, 1.0f} - quad.parallaxFactor);
+        adjustedTransform.position += spritePlaneOffset(adjustedTransform.fixedPlane, scaledCameraOffset);
+        return adjustedTransform;
+    };
+
+    const auto viewDepth = [this, &adjustedTransformFor](const PendingQuad& quad) {
+        return viewDepthFor(m_camera.renderView, adjustedTransformFor(quad));
+    };
+
+    // Sprite ordering is view-aware instead of being a separate 2D z model.
+    // Opaque sprites submit before translucent/additive sprites and use normal
+    // depth test/write in the viewport world target. Translucent/additive
+    // sprites depth-test without writing depth and are sorted back-to-front
+    // from the active WorldRenderView. layer remains only as a legacy 2D
+    // compatibility tie-break; renderOrder is the future manual ordering knob.
+    std::stable_sort(m_pendingQuads.begin(), m_pendingQuads.end(), [&viewDepth](const PendingQuad& left, const PendingQuad& right) {
+        const bool leftTransparent = isTransparentBlend(left.renderState.blendMode);
+        const bool rightTransparent = isTransparentBlend(right.renderState.blendMode);
+        if (leftTransparent != rightTransparent) {
+            return !leftTransparent;
+        }
+
+        const float leftDepth = viewDepth(left);
+        const float rightDepth = viewDepth(right);
+        if (leftDepth != rightDepth) {
+            return leftTransparent
+                ? leftDepth > rightDepth
+                : leftDepth < rightDepth;
+        }
+
         if (left.transform.layer != right.transform.layer) {
             return left.transform.layer < right.transform.layer;
         }
-        if (left.transform.position.z != right.transform.position.z) {
-            return left.transform.position.z < right.transform.position.z;
+
+        if (left.transform.renderOrder != right.transform.renderOrder) {
+            return left.transform.renderOrder < right.transform.renderOrder;
         }
+
         return left.sequence < right.sequence;
     });
 
@@ -403,25 +495,20 @@ void SpriteRenderer::appendQuadVertices(const PendingQuad& quad, const float tex
 {
     const std::uint32_t firstVertex = static_cast<std::uint32_t>(m_vertices.size());
     const glm::vec2 scaledCameraOffset = m_camera.camera2D.position * (glm::vec2{1.0f, 1.0f} - quad.parallaxFactor);
-    const glm::vec2 basePosition{quad.transform.position.x + scaledCameraOffset.x, quad.transform.position.y + scaledCameraOffset.y};
-    const glm::vec2 originOffset = quad.transform.size * quad.transform.origin;
-    const glm::vec2 localCorners[4] = {
-        {-originOffset.x, -originOffset.y},
-        {quad.transform.size.x - originOffset.x, -originOffset.y},
-        {quad.transform.size.x - originOffset.x, quad.transform.size.y - originOffset.y},
-        {-originOffset.x, quad.transform.size.y - originOffset.y},
-    };
+    WorldSpriteTransform adjustedTransform = quad.transform;
+    adjustedTransform.position += spritePlaneOffset(adjustedTransform.fixedPlane, scaledCameraOffset);
+    const WorldSpriteQuadCorners corners = buildWorldSpriteQuadCorners(adjustedTransform);
+    const bool flipSpriteV = m_camera.mode == SpriteRendererCameraMode::Perspective3D;
     const glm::vec2 uvs[4] = {
-        {quad.uv.minimum.x, quad.uv.minimum.y},
-        {quad.uv.maximum.x, quad.uv.minimum.y},
-        {quad.uv.maximum.x, quad.uv.maximum.y},
-        {quad.uv.minimum.x, quad.uv.maximum.y},
+        {quad.uv.minimum.x, flipSpriteV ? quad.uv.maximum.y : quad.uv.minimum.y},
+        {quad.uv.maximum.x, flipSpriteV ? quad.uv.maximum.y : quad.uv.minimum.y},
+        {quad.uv.maximum.x, flipSpriteV ? quad.uv.minimum.y : quad.uv.maximum.y},
+        {quad.uv.minimum.x, flipSpriteV ? quad.uv.minimum.y : quad.uv.maximum.y},
     };
 
     for (std::size_t index = 0; index < 4; ++index) {
-        const glm::vec2 worldPosition = basePosition + rotatedOffset(localCorners[index], quad.transform.rotationRadians);
         m_vertices.push_back({
-            {worldPosition.x, worldPosition.y, quad.transform.position.z},
+            corners[index],
             quad.tint,
             uvs[index],
             textureIndex,

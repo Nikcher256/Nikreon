@@ -35,14 +35,19 @@ private:
     void create();
     void destroy();
     void destroyRenderPass();
+    [[nodiscard]] VkFormat findDepthFormat() const;
     [[nodiscard]] std::uint32_t findMemoryType(std::uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 
     VkDevice m_device{VK_NULL_HANDLE};
     VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
     VkFormat m_format{VK_FORMAT_UNDEFINED};
+    VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
     VkImage m_image{VK_NULL_HANDLE};
     VkDeviceMemory m_memory{VK_NULL_HANDLE};
     VkImageView m_imageView{VK_NULL_HANDLE};
+    VkImage m_depthImage{VK_NULL_HANDLE};
+    VkDeviceMemory m_depthMemory{VK_NULL_HANDLE};
+    VkImageView m_depthImageView{VK_NULL_HANDLE};
     VkRenderPass m_renderPass{VK_NULL_HANDLE};
     VkFramebuffer m_framebuffer{VK_NULL_HANDLE};
     glm::uvec2 m_size{1U, 1U};

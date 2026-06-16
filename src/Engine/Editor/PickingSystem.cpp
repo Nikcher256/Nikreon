@@ -66,22 +66,15 @@ PickingSystem::SpriteQuadCorners PickingSystem::spriteQuadCorners(const SceneObj
     }
 
     const SpriteRendererComponent& sprite = *object.spriteRenderer;
-    const glm::vec2 originOffset = sprite.size * sprite.origin;
-
-    const glm::vec3 localCorners[4] = {
-        {-originOffset.x, -originOffset.y, 0.0f},
-        {sprite.size.x - originOffset.x, -originOffset.y, 0.0f},
-        {sprite.size.x - originOffset.x, sprite.size.y - originOffset.y, 0.0f},
-        {-originOffset.x, sprite.size.y - originOffset.y, 0.0f},
-    };
-
-    const glm::mat4 matrix = transformMatrix(object.transform);
-    return {
-        transformPoint(matrix, localCorners[0]),
-        transformPoint(matrix, localCorners[1]),
-        transformPoint(matrix, localCorners[2]),
-        transformPoint(matrix, localCorners[3]),
-    };
+    return buildWorldSpriteQuadCorners({
+        .position = object.transform.position,
+        .size = sprite.size,
+        .rotationRadians = object.transform.rotationRadians,
+        .scale = object.transform.scale,
+        .origin = sprite.origin,
+        .fixedPlane = sprite.fixedPlane,
+        .layer = sprite.layer,
+    });
 }
 
 std::optional<PickHit> PickingSystem::pickSprite(const SceneObject& object, const Ray3D& ray)

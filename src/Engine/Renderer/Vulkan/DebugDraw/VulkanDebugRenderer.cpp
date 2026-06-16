@@ -224,6 +224,12 @@ void VulkanDebugRenderer::createPipeline(const VkRenderPass renderPass)
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_FALSE;
+    depthStencil.depthWriteEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.blendEnable = VK_TRUE;
     colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -262,6 +268,7 @@ void VulkanDebugRenderer::createPipeline(const VkRenderPass renderPass)
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = m_pipelineLayout;
@@ -309,6 +316,7 @@ void VulkanDebugRenderer::createPipeline(const VkRenderPass renderPass)
     gridPipelineInfo.pViewportState = &viewportState;
     gridPipelineInfo.pRasterizationState = &rasterizer;
     gridPipelineInfo.pMultisampleState = &multisampling;
+    gridPipelineInfo.pDepthStencilState = &depthStencil;
     gridPipelineInfo.pColorBlendState = &colorBlending;
     gridPipelineInfo.pDynamicState = &dynamicState;
     gridPipelineInfo.layout = m_gridPipelineLayout;

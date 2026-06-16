@@ -74,6 +74,12 @@ glm::mat4 infinitePerspectiveRH_ZO(const float fovRadians, const float aspectRat
     return projection;
 }
 
+glm::mat4 vulkanClipSpace(glm::mat4 projection)
+{
+    projection[1][1] *= -1.0f;
+    return projection;
+}
+
 } //namespace
 
 glm::mat4 Camera3D::projection() const
@@ -85,15 +91,15 @@ glm::mat4 Camera3D::projection() const
     if (projectionMode == Camera3DProjection::Orthographic) {
         const float halfHeight = std::max(orthographicHeight, 0.001f) * 0.5f;
         const float halfWidth = halfHeight * safeAspect;
-        return glm::orthoRH_ZO(-halfWidth, halfWidth, -halfHeight, halfHeight, safeNear, safeFar);
+        return vulkanClipSpace(glm::orthoRH_ZO(-halfWidth, halfWidth, -halfHeight, halfHeight, safeNear, safeFar));
     }
 
     const float safeFov = std::clamp(verticalFovRadians, 0.05f, glm::pi<float>() - 0.05f);
     if (infiniteFarPlane) {
-        return infinitePerspectiveRH_ZO(safeFov, safeAspect, safeNear);
+        return vulkanClipSpace(infinitePerspectiveRH_ZO(safeFov, safeAspect, safeNear));
     }
 
-    return glm::perspectiveRH_ZO(safeFov, safeAspect, safeNear, safeFar);
+    return vulkanClipSpace(glm::perspectiveRH_ZO(safeFov, safeAspect, safeNear, safeFar));
 }
 
 glm::mat4 Camera3D::view() const
@@ -129,7 +135,8 @@ Ray3D Camera3D::screenPointToRay(const glm::vec2& screenPosition, const glm::vec
     };
 
     const float x = (2.0f * screenPosition.x) / safeViewport.x - 1.0f;
-    const float y = 1.0f - (2.0f * screenPosition.y) / safeViewport.y;
+    const float clipY = (2.0f * screenPosition.y) / safeViewport.y - 1.0f;
+    const float cameraY = -clipY;
 
     if (projectionMode == Camera3DProjection::Perspective) {
         const float safeAspect = std::max(aspectRatio, 0.001f);
@@ -138,17 +145,17 @@ Ray3D Camera3D::screenPointToRay(const glm::vec2& screenPosition, const glm::vec
         const glm::vec3 rayDirection = safeNormalize(
             forward() +
                 right() * (x * tanHalfFov * safeAspect) +
-                up() * (y * tanHalfFov),
+                up() * (cameraY * tanHalfFov),
             forward());
         return {position, rayDirection};
     }
 
     const glm::mat4 inverseViewProjection = glm::inverse(viewProjection());
-    const glm::vec4 nearPoint = inverseViewProjection * glm::vec4{x, y, -1.0f, 1.0f};
-    const glm::vec4 farPoint = inverseViewProjection * glm::vec4{x, y, 1.0f, 1.0f};
+    const glm::vec4 nearPoint = inverseViewProjection * glm::vec4{x, clipY, 0.0f, 1.0f};
+    const glm::vec4 farPoint = inverseViewProjection * glm::vec4{x, clipY, 1.0f, 1.0f};
 
-    const glm::vec3 nearWorld = glm::vec3{nearPoint} / std::max(nearPoint.w, 0.0001f);
-    const glm::vec3 farWorld = glm::vec3{farPoint} / std::max(farPoint.w, 0.0001f);
+    const glm::vec3 nearWorld = glm::vec3{nearPoint} / std::max(std::abs(nearPoint.w), 0.0001f);
+    const glm::vec3 farWorld = glm::vec3{farPoint} / std::max(std::abs(farPoint.w), 0.0001f);
 
     return {nearWorld, forward()};
 }

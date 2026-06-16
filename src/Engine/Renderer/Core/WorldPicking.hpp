@@ -21,10 +21,9 @@ namespace Engine {
 
     const float x = (2.0f * screenPosition.x) / safeViewport.x - 1.0f;
 
-    // Nikreon's editor viewport uses top-left screen coordinates, and the
-    // current world sprite path visually matches Camera2D's Y-down screen
-    // convention. Keep picking in that same convention so Top/Bottom views hit
-    // the sprite where it is drawn.
+    // The Vulkan viewport uses top-left screen coordinates with positive
+    // height, so screen Y maps directly to clip-space Y here. Camera3D applies
+    // the matching projection Y flip so world +Z still appears upward.
     const float y = (2.0f * screenPosition.y) / safeViewport.y - 1.0f;
 
     const glm::mat4 inverseViewProjection = glm::inverse(view.viewProjection);

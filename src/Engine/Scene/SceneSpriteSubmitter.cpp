@@ -29,9 +29,12 @@ void SceneSpriteSubmitter::submit(const Scene& scene, SpriteRenderer& spriteRend
             worldTextureId(texture),
             {
                 .position = object.transform.position,
-                .size = sprite.size * glm::vec2{object.transform.scale.x, object.transform.scale.y},
-                .rotationRadians = object.transform.rotationRadians.z,
+                .size = sprite.size,
+                .rotationRadians = object.transform.rotationRadians,
+                .scale = object.transform.scale,
                 .origin = sprite.origin,
+                .fixedPlane = sprite.fixedPlane,
+                .renderOrder = sprite.renderOrder,
                 .layer = sprite.layer,
             },
             {

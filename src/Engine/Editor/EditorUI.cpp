@@ -167,6 +167,20 @@ std::string_view samplerModeName(const WorldSamplerMode mode)
     return "Linear";
 }
 
+std::string_view spriteFixedPlaneName(const WorldSpriteFixedPlane fixedPlane)
+{
+    switch (fixedPlane) {
+    case WorldSpriteFixedPlane::FixedXY:
+        return "FixedXY";
+    case WorldSpriteFixedPlane::FixedXZ:
+        return "FixedXZ";
+    case WorldSpriteFixedPlane::FixedYZ:
+        return "FixedYZ";
+    }
+
+    return "FixedXY";
+}
+
 void applyUiCursorRequest(const UIContext& context, const Input& input)
 {
     if (const glm::vec2* requestedMousePosition = context.requestedMousePosition()) {
@@ -1279,6 +1293,32 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                     sprite->size.y = value;
                 });
 
+            m_ui.numberFloat("sceneObject.renderOrder")
+                .parent("inspector")
+                .styleClass("inspector")
+                .label("Render Order")
+                .labelStyle("control-label")
+                .value(static_cast<float>(sprite->renderOrder))
+                .range(-10000.0f, 10000.0f)
+                .precision(0)
+                .sensitivity(1.0f)
+                .onChanged([sprite](const float value) {
+                    sprite->renderOrder = static_cast<int>(std::round(value));
+                });
+
+            m_ui.numberFloat("sceneObject.layer")
+                .parent("inspector")
+                .styleClass("inspector")
+                .label("Layer")
+                .labelStyle("control-label")
+                .value(static_cast<float>(sprite->layer))
+                .range(-1000.0f, 1000.0f)
+                .precision(0)
+                .sensitivity(1.0f)
+                .onChanged([sprite](const float value) {
+                    sprite->layer = static_cast<int>(std::round(value));
+                });
+
             m_ui.colorPicker("sceneObject.tint")
                 .parent("inspector")
                 .label("Tint")
@@ -1287,6 +1327,34 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .onColorChanged([sprite](const glm::vec4& color) {
                     sprite->tint = color;
                 });
+
+            m_ui.dropdown("sceneObject.fixedPlane")
+                .parent("inspector")
+                .styleClass("inspector")
+                .label("Plane")
+                .labelStyle("control-label")
+                .text(spriteFixedPlaneName(sprite->fixedPlane))
+                .popupSize({180.0f, 112.0f})
+                .padding(UIEdgeInsets::all(8.0f))
+                .gap(4.0f);
+
+            const auto addFixedPlaneOption = [this, sprite](const std::string_view id, const WorldSpriteFixedPlane fixedPlane) {
+                m_ui.button(id)
+                    .parent("sceneObject.fixedPlane")
+                    .styleClass("hierarchy-row")
+                    .text(spriteFixedPlaneName(fixedPlane))
+                    .textStyle("hierarchy-row")
+                    .height(28.0f)
+                    .selected(sprite->fixedPlane == fixedPlane)
+                    .onClick([this, sprite, fixedPlane]() {
+                        sprite->fixedPlane = fixedPlane;
+                        m_ui.closeDropdown("sceneObject.fixedPlane");
+                    });
+            };
+
+            addFixedPlaneOption("sceneObject.fixedPlane.xy", WorldSpriteFixedPlane::FixedXY);
+            addFixedPlaneOption("sceneObject.fixedPlane.xz", WorldSpriteFixedPlane::FixedXZ);
+            addFixedPlaneOption("sceneObject.fixedPlane.yz", WorldSpriteFixedPlane::FixedYZ);
 
             m_ui.dropdown("sceneObject.blendMode")
                 .parent("inspector")
