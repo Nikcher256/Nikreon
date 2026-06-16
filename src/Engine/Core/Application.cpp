@@ -89,7 +89,7 @@ void Application::render()
     if (m_renderer.beginFrame()) {
         m_layers.render(
             m_renderer.renderer2D(),
-            m_renderer.renderer2DWorld(),
+            m_renderer.spriteRenderer(),
             m_renderer.renderer3D(),
             m_renderer.debugRenderer(),
             m_renderer.textRenderer(),

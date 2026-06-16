@@ -15,13 +15,18 @@ SceneObject& Scene::createObject(std::string name)
     return m_objects.back();
 }
 
-SceneObject& Scene::createSprite2D(std::string name, std::string texturePath)
+SceneObject& Scene::createSprite(std::string name, std::string texturePath)
 {
     SceneObject& object = createObject(std::move(name));
-    object.sprite2D = Sprite2DComponent{
+    object.spriteRenderer = SpriteRendererComponent{
         .texturePath  = std::move(texturePath),
     };
     return object;
+}
+
+SceneObject& Scene::createSprite2D(std::string name, std::string texturePath)
+{
+    return createSprite(std::move(name), std::move(texturePath));
 }
 
 bool Scene::destroyObject(const SceneObjectId id)
@@ -83,16 +88,21 @@ std::size_t Scene::objectCount() const noexcept
     return m_objects.size();
 }
 
-std::size_t Scene::sprite2DCount() const noexcept
+std::size_t Scene::spriteRendererCount() const noexcept
 {
     std::size_t count = 0;
     for (const SceneObject& object : m_objects) {
-        if (object.sprite2D) {
+        if (object.spriteRenderer) {
             ++count;
         }
     }
 
     return count;
+}
+
+std::size_t Scene::sprite2DCount() const noexcept
+{
+    return spriteRendererCount();
 }
 
 }//namespace Engine

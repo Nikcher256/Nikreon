@@ -100,7 +100,7 @@ void drawViewGrid(DebugRenderer& debugRenderer, const ViewGridDescription& grid,
 void EditorViewportOverlayController::draw(
     DebugRenderer& debugRenderer,
     const EditorViewport& viewport,
-    const Renderer2DWorldCamera& camera) const
+    const SpriteRendererCamera& camera) const
 {
     if (!viewport.gridVisible() || viewport.mode() == EditorViewportMode::Play) {
         return;
@@ -119,9 +119,6 @@ void EditorViewportOverlayController::draw(
         .fadeEnd = 3100.0f,
         .fadeMinimumAlpha = 0.005f,
     });
-
-    debugRenderer.drawLine({-3100.0f, 0.0f, 0.0f}, {3100.0f, 0.0f, 0.0f}, XAxisColor);
-    debugRenderer.drawLine({0.0f, -3100.0f, 0.0f}, {0.0f, 3100.0f, 0.0f}, YAxisColor);
 }
 
 } // namespace Engine

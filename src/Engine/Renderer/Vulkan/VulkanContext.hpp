@@ -13,7 +13,7 @@ namespace Engine {
 
 enum class EditorViewportMode;
 struct EditorViewportPresentation;
-class VulkanRenderer2DWorld;
+class VulkanSpriteRenderer;
 class VulkanRenderer2D;
 class VulkanDebugRenderer;
 class VulkanTextRenderer;
@@ -46,7 +46,7 @@ public:
 
     FrameResult drawFrame(
         VulkanRenderer2D& renderer2D,
-        VulkanRenderer2DWorld& viewportRenderer2DWorld,
+        VulkanSpriteRenderer& viewportSpriteRenderer,
         VulkanDebugRenderer& viewportDebugRenderer,
         VulkanTextRenderer& textRenderer,
         RenderPipeline& renderPipeline,
@@ -118,14 +118,14 @@ private:
         VkCommandBuffer commandBuffer,
         const std::uint32_t imageIndex,
         VulkanRenderer2D& renderer2D,
-        VulkanRenderer2DWorld& viewportRenderer2DWorld,
+        VulkanSpriteRenderer& viewportSpriteRenderer,
         VulkanDebugRenderer& viewportDebugRenderer,
         VulkanTextRenderer& textRenderer,
         RenderPipeline& renderPipeline,
         const RenderFrameContext& frameContext);
     void recordViewportSecondaryCommandBuffer(
         VkCommandBuffer commandBuffer,
-        VulkanRenderer2DWorld& viewportRenderer2DWorld,
+        VulkanSpriteRenderer& viewportSpriteRenderer,
         VulkanDebugRenderer& viewportDebugRenderer) const;
     void recordUiSecondaryCommandBuffer(
         VkCommandBuffer commandBuffer,

@@ -4,7 +4,7 @@
 #include "Engine/Editor/EditorUI.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/Scene/Scene.hpp"
-#include "Engine/Scene/Scene2DSubmitter.hpp"
+#include "Engine/Scene/SceneSpriteSubmitter.hpp"
 #include "Engine/Renderer/Camera/Camera2D.hpp"
 #include "Engine/Editor/EditorSelectionState.hpp"
 #include "Engine/Editor/EditorViewportSelectionController.hpp"
@@ -20,7 +20,7 @@ class Input;
 class DebugRenderer;
 class Renderer2D;
 class Renderer3D;
-class Renderer2DWorld;
+class SpriteRenderer;
 class TextRenderer;
 
 class EditorLayer : public Layer {
@@ -30,7 +30,7 @@ public:
     void onUpdate(float deltaTime, const Input& input) override;
     void onRender(
         Renderer2D& renderer2D,
-        Renderer2DWorld& renderer2DWorld,
+        SpriteRenderer& spriteRenderer,
         Renderer3D& renderer3D,
         DebugRenderer& debugRenderer,
         TextRenderer& textRenderer,
@@ -56,7 +56,7 @@ private:
     
     EditorViewport m_viewport;
     Scene m_scene;
-    Scene2DSubmitter m_scene2DSubmitter;
+    SceneSpriteSubmitter m_sceneSpriteSubmitter;
     EditorSelectionState m_selection;
     EditorViewportSelectionController m_selectionController;
     EditorViewportOverlayController m_overlayController;

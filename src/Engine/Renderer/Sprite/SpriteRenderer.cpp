@@ -1,4 +1,4 @@
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -45,7 +45,7 @@ WorldSpriteUV WorldSpriteAnimation::frameUV(const float elapsedSeconds) const
     };
 }
 
-Renderer2DWorld::Renderer2DWorld(const std::size_t maxQuadsPerBatch, const std::size_t maxTextureSlots)
+SpriteRenderer::SpriteRenderer(const std::size_t maxQuadsPerBatch, const std::size_t maxTextureSlots)
     : m_maxQuadsPerBatch(std::max(maxQuadsPerBatch, std::size_t{1}))
     , m_maxTextureSlots(std::max(maxTextureSlots, std::size_t{1}))
 {
@@ -54,19 +54,19 @@ Renderer2DWorld::Renderer2DWorld(const std::size_t maxQuadsPerBatch, const std::
     m_indices.reserve(m_maxQuadsPerBatch * IndicesPerQuad);
 }
 
-std::string_view Renderer2DWorld::name() const
+std::string_view SpriteRenderer::name() const
 {
-    return "Renderer2DWorld";
+    return "SpriteRenderer";
 }
 
-RenderStage Renderer2DWorld::stage() const
+RenderStage SpriteRenderer::stage() const
 {
-    return RenderStage::World2D;
+    return RenderStage::Sprites;
 }
 
-void Renderer2DWorld::beginFrame(const RenderFrameContext& context)
+void SpriteRenderer::beginFrame(const RenderFrameContext& context)
 {
-    Renderer2DWorldCamera frameCamera = m_camera;
+    SpriteRendererCamera frameCamera = m_camera;
     const glm::vec2 viewportSize = {
         std::max(context.editorViewport.size.x, 1.0f),
         std::max(context.editorViewport.size.y, 1.0f),
@@ -74,7 +74,7 @@ void Renderer2DWorld::beginFrame(const RenderFrameContext& context)
 
     frameCamera.camera2D.viewportSize = viewportSize;
     frameCamera.camera3D.aspectRatio = viewportSize.x / viewportSize.y;
-    if (frameCamera.mode == Renderer2DWorldCameraMode::Perspective3D) {
+    if (frameCamera.mode == SpriteRendererCameraMode::Perspective3D) {
         frameCamera.renderView = worldRenderViewFromCamera3D(frameCamera.camera3D, viewportSize);
     } else {
         frameCamera.renderView = worldRenderViewFromCamera2D(frameCamera.camera2D);
@@ -84,12 +84,12 @@ void Renderer2DWorld::beginFrame(const RenderFrameContext& context)
     begin(frameCamera);
 }
 
-void Renderer2DWorld::resize(const glm::uvec2& swapchainSize)
+void SpriteRenderer::resize(const glm::uvec2& swapchainSize)
 {
     m_lastResize = swapchainSize;
 }
 
-void Renderer2DWorld::recordCommands(RenderCommandRecorder& recorder, const RenderFrameContext& context)
+void SpriteRenderer::recordCommands(RenderCommandRecorder& recorder, const RenderFrameContext& context)
 {
     (void)context;
     if (m_recording) {
@@ -100,14 +100,14 @@ void Renderer2DWorld::recordCommands(RenderCommandRecorder& recorder, const Rend
     recorder.endStage(stage());
 }
 
-void Renderer2DWorld::endFrame()
+void SpriteRenderer::endFrame()
 {
     if (m_recording) {
         end();
     }
 }
 
-void Renderer2DWorld::releaseResources()
+void SpriteRenderer::releaseResources()
 {
     m_pendingQuads.clear();
     m_vertices.clear();
@@ -118,11 +118,11 @@ void Renderer2DWorld::releaseResources()
     m_recording = false;
 }
 
-void Renderer2DWorld::begin(const Renderer2DWorldCamera& camera)
+void SpriteRenderer::begin(const SpriteRendererCamera& camera)
 {
     m_camera = camera;
     if (!m_camera.hasRenderView) {
-        m_camera.renderView = m_camera.mode == Renderer2DWorldCameraMode::Perspective3D
+        m_camera.renderView = m_camera.mode == SpriteRendererCameraMode::Perspective3D
             ? worldRenderViewFromCamera3D(m_camera.camera3D, m_camera.camera2D.viewportSize)
             : worldRenderViewFromCamera2D(m_camera.camera2D);
         m_camera.hasRenderView = true;
@@ -137,19 +137,19 @@ void Renderer2DWorld::begin(const Renderer2DWorldCamera& camera)
     m_recording = true;
 }
 
-void Renderer2DWorld::begin(const WorldRenderView& view)
+void SpriteRenderer::begin(const WorldRenderView& view)
 {
-    Renderer2DWorldCamera camera;
+    SpriteRendererCamera camera;
     camera.mode = view.projectionMode == WorldRenderProjection::Perspective
-        ? Renderer2DWorldCameraMode::Perspective3D
-        : Renderer2DWorldCameraMode::Orthographic2D;
+        ? SpriteRendererCameraMode::Perspective3D
+        : SpriteRendererCameraMode::Orthographic2D;
     camera.camera2D.viewportSize = view.viewportSize;
     camera.renderView = view;
     camera.hasRenderView = true;
     begin(camera);
 }
 
-void Renderer2DWorld::drawSprite(
+void SpriteRenderer::drawSprite(
     const WorldTextureId texture,
     const WorldSpriteTransform& transform,
     const WorldSpriteUV& uv,
@@ -160,7 +160,7 @@ void Renderer2DWorld::drawSprite(
     queueQuad(texture, transform, uv, tint, {1.0f, 1.0f}, entityId, renderState);
 }
 
-void Renderer2DWorld::drawParallaxSprite(
+void SpriteRenderer::drawParallaxSprite(
     const WorldTextureId texture,
     const WorldSpriteTransform& transform,
     const glm::vec2& parallaxFactor,
@@ -172,7 +172,7 @@ void Renderer2DWorld::drawParallaxSprite(
     queueQuad(texture, transform, uv, tint, parallaxFactor, entityId, renderState);
 }
 
-void Renderer2DWorld::drawAnimatedSprite(
+void SpriteRenderer::drawAnimatedSprite(
     const WorldSpriteAnimation& animation,
     const float elapsedSeconds,
     const WorldSpriteTransform& transform,
@@ -182,7 +182,7 @@ void Renderer2DWorld::drawAnimatedSprite(
     drawSprite(animation.texture, transform, animation.frameUV(elapsedSeconds), tint, entityId, animation.renderState);
 }
 
-void Renderer2DWorld::drawTilemap(const WorldTilemap& tilemap, const WorldSpriteTransform& transform)
+void SpriteRenderer::drawTilemap(const WorldTilemap& tilemap, const WorldSpriteTransform& transform)
 {
     if (tilemap.columns == 0U || tilemap.rows == 0U || tilemap.tileSize.x <= 0.0f || tilemap.tileSize.y <= 0.0f) {
         return;
@@ -208,14 +208,14 @@ void Renderer2DWorld::drawTilemap(const WorldTilemap& tilemap, const WorldSprite
     }
 }
 
-void Renderer2DWorld::drawParticles(const std::span<const WorldParticle> particles)
+void SpriteRenderer::drawParticles(const std::span<const WorldParticle> particles)
 {
     for (const WorldParticle& particle : particles) {
         drawSprite(particle.texture, particle.transform, particle.uv, particle.tint, particle.entityId, particle.renderState);
     }
 }
 
-void Renderer2DWorld::drawDebugLine(
+void SpriteRenderer::drawDebugLine(
     const glm::vec3& start,
     const glm::vec3& end,
     const glm::vec4& color,
@@ -248,7 +248,7 @@ void Renderer2DWorld::drawDebugLine(
         });
 }
 
-void Renderer2DWorld::drawDebugRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color, const float thickness)
+void SpriteRenderer::drawDebugRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color, const float thickness)
 {
     const glm::vec3 topLeft{position, 0.0f};
     const glm::vec3 topRight{position.x + size.x, position.y, 0.0f};
@@ -260,12 +260,12 @@ void Renderer2DWorld::drawDebugRect(const glm::vec2& position, const glm::vec2& 
     drawDebugLine(bottomLeft, topLeft, color, thickness);
 }
 
-void Renderer2DWorld::drawDebugFilledRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
+void SpriteRenderer::drawDebugFilledRect(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
 {
     drawSprite(WhiteTexture, {.position = {position, 0.0f}, .size = size, .origin = {0.0f, 0.0f}}, {}, color);
 }
 
-void Renderer2DWorld::drawDebugCircle(
+void SpriteRenderer::drawDebugCircle(
     const glm::vec2& center,
     const float radius,
     const glm::vec4& color,
@@ -285,43 +285,43 @@ void Renderer2DWorld::drawDebugCircle(
     }
 }
 
-void Renderer2DWorld::end()
+void SpriteRenderer::end()
 {
     rebuildBatches();
     m_recording = false;
 }
 
-const Renderer2DWorldCamera& Renderer2DWorld::camera() const
+const SpriteRendererCamera& SpriteRenderer::camera() const
 {
     return m_camera;
 }
 
-const WorldRenderView& Renderer2DWorld::renderView() const
+const WorldRenderView& SpriteRenderer::renderView() const
 {
     return m_camera.renderView;
 }
 
-std::span<const WorldQuadVertex> Renderer2DWorld::vertices() const
+std::span<const WorldQuadVertex> SpriteRenderer::vertices() const
 {
     return m_vertices;
 }
 
-std::span<const std::uint32_t> Renderer2DWorld::indices() const
+std::span<const std::uint32_t> SpriteRenderer::indices() const
 {
     return m_indices;
 }
 
-std::span<const WorldDrawBatch> Renderer2DWorld::batches() const
+std::span<const WorldDrawBatch> SpriteRenderer::batches() const
 {
     return m_batches;
 }
 
-std::span<const WorldDebugLine> Renderer2DWorld::debugLines() const
+std::span<const WorldDebugLine> SpriteRenderer::debugLines() const
 {
     return m_debugLines;
 }
 
-Renderer2DWorldStats Renderer2DWorld::stats() const
+SpriteRendererStats SpriteRenderer::stats() const
 {
     return {
         m_pendingQuads.size(),
@@ -336,7 +336,7 @@ Renderer2DWorldStats Renderer2DWorld::stats() const
     };
 }
 
-void Renderer2DWorld::queueQuad(
+void SpriteRenderer::queueQuad(
     const WorldTextureId texture,
     const WorldSpriteTransform& transform,
     const WorldSpriteUV& uv,
@@ -361,7 +361,7 @@ void Renderer2DWorld::queueQuad(
     });
 }
 
-void Renderer2DWorld::rebuildBatches()
+void SpriteRenderer::rebuildBatches()
 {
     m_vertices.clear();
     m_indices.clear();
@@ -399,7 +399,7 @@ void Renderer2DWorld::rebuildBatches()
     }
 }
 
-void Renderer2DWorld::appendQuadVertices(const PendingQuad& quad, const float textureIndex)
+void SpriteRenderer::appendQuadVertices(const PendingQuad& quad, const float textureIndex)
 {
     const std::uint32_t firstVertex = static_cast<std::uint32_t>(m_vertices.size());
     const glm::vec2 scaledCameraOffset = m_camera.camera2D.position * (glm::vec2{1.0f, 1.0f} - quad.parallaxFactor);
@@ -437,7 +437,7 @@ void Renderer2DWorld::appendQuadVertices(const PendingQuad& quad, const float te
     m_indices.push_back(firstVertex + 0U);
 }
 
-WorldBatchKey Renderer2DWorld::batchKeyFor(const PendingQuad& quad) const
+WorldBatchKey SpriteRenderer::batchKeyFor(const PendingQuad& quad) const
 {
     return {
         quad.renderState.pipeline,
@@ -447,7 +447,7 @@ WorldBatchKey Renderer2DWorld::batchKeyFor(const PendingQuad& quad) const
     };
 }
 
-float Renderer2DWorld::resolveTextureSlot(WorldDrawBatch& batch, const WorldTextureId texture) const
+float SpriteRenderer::resolveTextureSlot(WorldDrawBatch& batch, const WorldTextureId texture) const
 {
     const auto found = std::find(batch.textures.begin(), batch.textures.end(), texture);
     if (found != batch.textures.end()) {
@@ -458,7 +458,7 @@ float Renderer2DWorld::resolveTextureSlot(WorldDrawBatch& batch, const WorldText
     return static_cast<float>(batch.textures.size() - 1U);
 }
 
-bool Renderer2DWorld::currentBatchCanFit(const WorldDrawBatch& batch, const PendingQuad& quad) const
+bool SpriteRenderer::currentBatchCanFit(const WorldDrawBatch& batch, const PendingQuad& quad) const
 {
     if (batch.key != batchKeyFor(quad)) {
         return false;

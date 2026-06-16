@@ -28,8 +28,8 @@ set(NIKREON_ENGINE_SHADERS
     debug_line.frag
     debug_grid.vert
     debug_grid.frag
-    world2d_instanced.vert
-    world2d_instanced.frag
+    sprite_instanced.vert
+    sprite_instanced.frag
 )
 
 foreach(SHADER ${NIKREON_ENGINE_SHADERS})
@@ -56,7 +56,7 @@ add_executable(NikreonEngine
     src/Engine/Core/Log.cpp
     src/Engine/Core/Time.cpp
     src/Engine/Core/Window.cpp
-    src/Engine/Scene/Scene2DSubmitter.cpp
+    src/Engine/Scene/SceneSpriteSubmitter.cpp
     src/Engine/Scene/Scene.cpp
     src/Engine/Editor/EditorSelectionState.hpp
     src/Engine/Editor/EditorViewportSelectionController.cpp
@@ -73,12 +73,12 @@ add_executable(NikreonEngine
     src/Engine/Renderer/Core/RenderPipeline.cpp
     src/Engine/Renderer/Core/Renderer.cpp
     src/Engine/Renderer/Vulkan/DebugDraw/VulkanDebugRenderer.cpp
-    src/Engine/Renderer/World2D/Renderer2DWorld.cpp
+    src/Engine/Renderer/Sprite/SpriteRenderer.cpp
     src/Engine/Renderer/World3D/Renderer3D.cpp
     src/Engine/Renderer/Shadow/ShadowRenderer.cpp
     src/Engine/Renderer/Skybox/SkyboxRenderer.cpp
     src/Engine/Renderer/Vulkan/VulkanContext.cpp
-    src/Engine/Renderer/Vulkan/World2D/VulkanRenderer2DWorld.cpp
+    src/Engine/Renderer/Vulkan/Sprite/VulkanSpriteRenderer.cpp
     src/Engine/Renderer/Vulkan/VulkanViewportRenderTarget.cpp
     src/main.cpp
 )

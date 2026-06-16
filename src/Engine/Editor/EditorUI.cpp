@@ -896,8 +896,8 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         const std::string id = "assets.texture." + std::to_string(index);
         const bool selected =
             selectedObject != nullptr &&
-            selectedObject->sprite2D &&
-            std::filesystem::path{selectedObject->sprite2D->texturePath}.lexically_normal() == asset.path.lexically_normal();
+            selectedObject->spriteRenderer &&
+            std::filesystem::path{selectedObject->spriteRenderer->texturePath}.lexically_normal() == asset.path.lexically_normal();
 
         m_ui.button(id)
             .parent("assets.list")
@@ -1030,7 +1030,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
     if (selectedObject != nullptr) {
         m_ui.label("sceneObject.title")
             .parent("inspector")
-            .text(selectedObject->hasSprite2D() ? "Selected Sprite" : "Selected Object")
+            .text(selectedObject->hasSpriteRenderer() ? "Selected Sprite" : "Selected Object")
             .textStyle("heading")
             .height(18.0f);
 
@@ -1233,8 +1233,8 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 selectedObject->transform.scale.z = value;
             });
 
-        if (selectedObject->sprite2D) {
-            Sprite2DComponent* sprite = &*selectedObject->sprite2D;
+        if (selectedObject->spriteRenderer) {
+            SpriteRendererComponent* sprite = &*selectedObject->spriteRenderer;
 
             m_ui.filePathInput("sceneObject.spritePath")
                 .parent("inspector")
@@ -1782,8 +1782,8 @@ void EditorUI::createSceneSpriteFromAsset(const TextureAssetInfo& asset, Resourc
     const std::string displayPath = asset.displayPath;
     const TextureHandle handle = resources.loadTexture(texturePath);
 
-    SceneObject& object = m_scene.createSprite2D(
-        "Sprite " + std::to_string(m_scene.sprite2DCount() + 1U),
+    SceneObject& object = m_scene.createSprite(
+        "Sprite " + std::to_string(m_scene.spriteRendererCount() + 1U),
         texturePath.string());
 
     object.transform.position = {0.0f, 0.0f, 0.0f};
@@ -1795,9 +1795,9 @@ void EditorUI::createSceneSpriteFromAsset(const TextureAssetInfo& asset, Resourc
         const float maxDimension = std::max(width, height);
         const float scale = maxDimension > 128.0f ? 128.0f / maxDimension : 1.0f;
 
-        if (object.sprite2D) {
-            object.sprite2D->textureHandle = handle;
-            object.sprite2D->size = {width * scale, height * scale};
+        if (object.spriteRenderer) {
+            object.spriteRenderer->textureHandle = handle;
+            object.spriteRenderer->size = {width * scale, height * scale};
         }
     }
 

@@ -43,7 +43,7 @@ std::optional<PickHit> PickingSystem::pickScene(const Scene& scene, const Ray3D&
     for (const SceneObject& object : objects) {
         std::optional<PickHit> hit;
 
-        if (object.sprite2D) {
+        if (object.spriteRenderer) {
             hit = pickSprite(object, ray);
         }
 
@@ -61,11 +61,11 @@ std::optional<PickHit> PickingSystem::pickScene(const Scene& scene, const Ray3D&
 
 PickingSystem::SpriteQuadCorners PickingSystem::spriteQuadCorners(const SceneObject& object)
 {
-    if (!object.sprite2D) {
+    if (!object.spriteRenderer) {
         return {};
     }
 
-    const Sprite2DComponent& sprite = *object.sprite2D;
+    const SpriteRendererComponent& sprite = *object.spriteRenderer;
     const glm::vec2 originOffset = sprite.size * sprite.origin;
 
     const glm::vec3 localCorners[4] = {

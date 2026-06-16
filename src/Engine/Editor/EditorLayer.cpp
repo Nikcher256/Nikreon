@@ -2,7 +2,7 @@
 #include "Engine/Renderer/Camera/Camera2D.hpp"
 #include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
 #include "Engine/Renderer/World3D/Renderer3D.hpp"
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 #include "Engine/Core/Input.hpp"
 
 #include <algorithm>
@@ -33,7 +33,7 @@ const EditorViewport& EditorLayer::viewport() const
 // Draws the editor layer after the renderer has started a frame.
 void EditorLayer::onRender(
     Renderer2D& renderer2D,
-    Renderer2DWorld& renderer2DWorld,
+    SpriteRenderer& spriteRenderer,
     Renderer3D& renderer3D,
     DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
@@ -44,8 +44,8 @@ void EditorLayer::onRender(
     m_ui.render(renderer2D, textRenderer, resources, viewportSize, input);
     handleDeleteSelectionInput(input);
     
-    Renderer2DWorldCamera worldCamera;
-    worldCamera.mode = Renderer2DWorldCameraMode::Perspective3D;
+    SpriteRendererCamera worldCamera;
+    worldCamera.mode = SpriteRendererCameraMode::Perspective3D;
 
     worldCamera.camera2D.position = {
         m_viewport.editorCameraPosition().x,
@@ -60,7 +60,7 @@ void EditorLayer::onRender(
     worldCamera.renderView = activeView;
     worldCamera.hasRenderView = true;
 
-    Renderer2DWorldCamera safeCamera = worldCamera;
+    SpriteRendererCamera safeCamera = worldCamera;
     safeCamera.camera2D.viewportSize = glm::max(safeCamera.camera2D.viewportSize, glm::vec2{1.0f, 1.0f});
     safeCamera.camera3D.aspectRatio = std::max(safeCamera.camera3D.aspectRatio, 0.001f);
     safeCamera.renderView = activeView;
@@ -69,11 +69,11 @@ void EditorLayer::onRender(
     m_selectionController.update(input, m_viewport, safeCamera.camera2D, m_scene, m_selection);
 
     renderer3D.setView(activeView);
-    renderer2DWorld.begin(safeCamera);
+    spriteRenderer.begin(safeCamera);
     m_overlayController.draw(debugRenderer, m_viewport, safeCamera);
-    m_scene2DSubmitter.submit(m_scene, renderer2DWorld, resources);
-    m_selectionController.drawOverlay(renderer2DWorld, debugRenderer, m_scene, safeCamera.camera2D, m_selection);
-    renderer2DWorld.end();
+    m_sceneSpriteSubmitter.submit(m_scene, spriteRenderer, resources);
+    m_selectionController.drawOverlay(spriteRenderer, debugRenderer, m_scene, safeCamera.camera2D, m_selection);
+    spriteRenderer.end();
 }
 
 void EditorLayer::updateEditorCamera(const float deltaTime, const Input& input)
@@ -181,8 +181,8 @@ EditorLayer::CameraFocusTarget EditorLayer::selectedCameraFocusTarget() const
     target.position = object->transform.position;
     target.radius = 64.0f;
 
-    if (object->sprite2D) {
-        const Sprite2DComponent& sprite = *object->sprite2D;
+    if (object->spriteRenderer) {
+        const SpriteRendererComponent& sprite = *object->spriteRenderer;
         const glm::vec2 size = sprite.size * glm::vec2{
             std::abs(object->transform.scale.x),
             std::abs(object->transform.scale.y),

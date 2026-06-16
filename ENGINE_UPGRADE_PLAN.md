@@ -26,7 +26,8 @@ The next work should not jump directly into complex PBR rendering. The safer pat
 - UI and game-world 2D rendering are separate responsibilities. Do not combine them into one catch-all renderer.
 - `NikreonUI` is the shared UI/HUD/menu system. Use it for editor UI, in-game HUD, game menus, pause menus, inventory UI, dialogue boxes, buttons, sliders, text inputs, panels, layouts, text, styles, progress bars, icons, crosshairs, and nine-slice panels.
 - `NikreonUI` must not become the engine's sprite, tilemap, or particle renderer.
-- The engine 2D world renderer handles game-world sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing.
+- The engine sprite/world-quad renderer handles game-world sprites, tilemaps, particles, parallax layers, sprite animations, 2D camera/world transforms, and 2D debug drawing as quads in the unified 3D world.
+- Transitional naming: the current code name is `SpriteRenderer`; the intended future name is `SpriteRenderer`. The Vulkan backend should move from `VulkanSpriteRenderer` to `VulkanSpriteRenderer`, and `SpriteRendererComponent` should become `SpriteRendererComponent` later. Delay the full rename until camera, picking, and material ownership are stable.
 - `EditorUI` and `GameHUD` are separate composition layers that can both use `NikreonUI`.
 - Do not use ImGui. Editor UI, game HUD, menus, debug panels, and tools should be engine-native and GPU-rendered through `NikreonUI`.
 - Every feature phase should add a small editor debug/test UI surface for that feature as soon as the feature can be meaningfully exercised. These controls can be practical and temporary at first; the polished editor layout, asset browser flow, and final UX pass can happen after the core engine features are proven.
@@ -137,7 +138,7 @@ Scene render feature configuration should look more like this than a hard projec
 
 ```cpp
 struct SceneRenderFeatures {
-    bool world2D;
+    bool Sprites;
     bool world3D;
     bool depth;
     bool lighting;
@@ -149,9 +150,9 @@ struct SceneRenderFeatures {
 
 Examples:
 
-- 2D platformer level: `world2D`, `gameHUD`, optional `postProcess`.
+- 2D platformer level: `Sprites`, `gameHUD`, optional `postProcess`.
 - 3D level: `world3D`, `depth`, `lighting`, `shadows`, `postProcess`, `gameHUD`.
-- Mixed game: `world3D`, `depth`, `lighting`, plus `world2D` for foreground sprites, particles, markers, or 2D level sections.
+- Mixed game: `world3D`, `depth`, `lighting`, plus `Sprites` for foreground sprites, particles, markers, or 2D level sections.
 - Menu scene: `gameHUD` only.
 
 ## Editor Debug UI During Feature Phases
@@ -170,7 +171,7 @@ Rules:
 - Temporary debug controls may be grouped by phase or subsystem, for example `2D World`, `Debug Draw`, `GLB Import`, `Materials`, `Lighting`, `Shadows`, and `Post`.
 - Debug controls should call engine systems through clean APIs. They should not bypass renderer/resource ownership just to make a demo work.
 - `NikreonUI` remains responsible for the controls themselves: buttons, text input, file/path input, combo boxes, checkboxes, sliders, color pickers, image preview widgets, lists, and tabs.
-- The engine-world renderers remain responsible for world content. Loading a sprite from a debug UI button should submit to `Renderer2DWorld`, not draw the sprite through `NikreonUI`.
+- The engine-world renderers remain responsible for world content. Loading a sprite from a debug UI button should submit to `SpriteRenderer`/`SpriteRenderer`, not draw the sprite through `NikreonUI`.
 - Early import controls can use simple path text input plus a `Load` button. A proper asset browser, file picker, drag/drop import workflow, previews, and persistent asset database belong to the resource/editor phases.
 - Once the major features are working, add a dedicated editor-layout cleanup phase to restructure the temporary debug controls into a cleaner, production-style editor UI.
 
@@ -189,7 +190,7 @@ Engine/
     Renderer
     RenderGraph or RenderPipeline
     Renderer3D
-    Renderer2DWorld
+    SpriteRenderer (current code name: SpriteRenderer)
     NikreonUIAdapter
     DebugRenderer
     ShadowRenderer
@@ -614,7 +615,7 @@ Goal: introduce the architecture and render pass order without breaking existing
 Tasks:
 
 - Add or prepare the main renderer orchestration layer.
-- Add empty or minimal modules for `Renderer3D`, `Renderer2DWorld`, the `NikreonUI` rendering adapter, `DebugRenderer`, `ShadowRenderer`, `SkyboxRenderer`, and `PostProcessRenderer`.
+- Add empty or minimal modules for `Renderer3D`, `SpriteRenderer`, the `NikreonUI` rendering adapter, `DebugRenderer`, `ShadowRenderer`, `SkyboxRenderer`, and `PostProcessRenderer`.
 - Define a frame render sequence matching the target render order.
 - Add clear interfaces for per-frame begin/end, resize, resource cleanup, and command buffer recording.
 - Prepare separate placeholders for `EditorUI`, viewport-local `GameHUD`, engine 2D world rendering, world-space UI/billboards, editor overlays, and debug labels.
@@ -629,7 +630,7 @@ Build gate:
 Completed note:
 
 - Added a backend-neutral render frame context, command-recorder interface, and `RenderPipeline` coordinator with an explicit stage order: shadows, skybox, 3D world, 2D world, world-space UI, viewport-local `GameHUD`, editor overlays, debug, post-process, and editor UI.
-- Added placeholder modules for `Renderer3D`, `Renderer2DWorld`, `NikreonUIRenderAdapter`, `DebugRenderer`, `ShadowRenderer`, `SkyboxRenderer`, and `PostProcessRenderer` with per-frame begin/end, resize, resource cleanup, and command recording hooks.
+- Added placeholder modules for `Renderer3D`, `SpriteRenderer`, `NikreonUIRenderAdapter`, `DebugRenderer`, `ShadowRenderer`, `SkyboxRenderer`, and `PostProcessRenderer` with per-frame begin/end, resize, resource cleanup, and command recording hooks.
 - Wired the main `Renderer` and Vulkan command-buffer recording path through the new pipeline while keeping existing `NikreonUI` editor UI/text rendering intact.
 - Added a focused non-GPU render pipeline test for stage order and command recording sequence. The test compiled and passed via direct `cl.exe`; full MSBuild is currently blocked in this shell by duplicate `Path`/`PATH` environment variables before compilation starts.
 
@@ -640,7 +641,7 @@ Goal: make the editor viewport display a real scene render target, then build th
 Phase 8 is not the HUD/menu renderer:
 
 - `NikreonUI` owns editor UI, `GameHUD`, menus, text input, panels, icons, and reusable widgets.
-- `Renderer2DWorld` owns game-world sprites, tilemaps, particles, parallax, sprite animation, world debug primitives, and 2D world transforms.
+- `SpriteRenderer` owns game-world sprites, tilemaps, particles, parallax, sprite animation, world debug primitives, and 2D world transforms as world quads. This is the future `SpriteRenderer`; keep the old symbol until the larger renderer rename can be staged safely.
 - Real file texture loading is a resource-system responsibility. Temporary Phase 8 controls may accept a path or asset id, but actual PNG/JPG upload/caching belongs to ResourceManager unless this phase is explicitly expanded.
 
 ### Phase 8A: Viewport Render Target Pipeline
@@ -669,7 +670,7 @@ Progress note:
 
 - Upgraded the editor viewport target from clear/copy-only into a real offscreen color-attachment render target with its own image view, render pass, and framebuffer.
 - Phase 8 test content is now rendered into that viewport target first, then copied into the editor viewport panel.
-- The viewport target now records engine world content through `VulkanRenderer2DWorld`, not through the editor/UI `VulkanRenderer2D` primitive backend.
+- The viewport target now records engine world-quad content through `VulkanSpriteRenderer`/future `VulkanSpriteRenderer`, not through the editor/UI `VulkanRenderer2D` primitive backend.
 - The old viewport-side UI renderer bridge was removed; the main editor UI renderer remains only for panels, widgets, text, and editor chrome.
 
 ### Phase 8B: Camera Foundation
@@ -707,7 +708,7 @@ Progress note:
 - Added `Camera2D` and `Camera3D` types with view/projection helpers and Vulkan zero-to-one depth projection.
 - Added editor camera mode selection for `2D Camera` vs `3D Perspective` and a reusable `NikreonUI` dropdown path in the toolbar.
 - Added editor camera controls for 2D pan/zoom and 3D orbit/pan/dolly-style zoom, with viewport focus/hover gating.
-- `Renderer2DWorld` now carries either a 2D orthographic camera or 3D perspective camera so world sprites can be viewed through both camera modes.
+- `SpriteRenderer`/future `SpriteRenderer` now carries either a 2D orthographic camera or 3D perspective camera so world sprite quads can be viewed through both camera modes.
 - Remaining work: runtime `GameCameraComponent`, final camera selection rules for play mode, picking ray integration, focus/fly/focus-target polish, and tests.
 
 ### Phase 8C: Engine 2D World Renderer GPU Path
@@ -734,12 +735,12 @@ Required features:
 Suggested API:
 
 ```cpp
-renderer2DWorld.begin(camera);
-renderer2DWorld.drawSprite(texture, transform, uv, tint);
-renderer2DWorld.drawTilemap(tilemap, transform);
-renderer2DWorld.drawParticles(particleSystem);
-renderer2DWorld.drawDebugLine(start, end, color, thickness);
-renderer2DWorld.end();
+spriteRenderer.begin(camera);
+spriteRenderer.drawSprite(texture, transform, uv, tint);
+spriteRenderer.drawTilemap(tilemap, transform);
+spriteRenderer.drawParticles(particleSystem);
+spriteRenderer.drawDebugLine(start, end, color, thickness);
+spriteRenderer.end();
 ```
 
 Core vertex:
@@ -770,7 +771,7 @@ Implementation notes:
 Build gate:
 
 - Many game-world sprites render in batches through a dedicated world pipeline.
-- A tilemap renders through `Renderer2DWorld`.
+- A tilemap renders through `SpriteRenderer`/future `SpriteRenderer`.
 - Particle and parallax paths exist or are cleanly prepared.
 - Sprite animation and 2D camera/world transform paths exist or are cleanly prepared.
 - 2D debug drawing works without using `NikreonUI`.
@@ -778,11 +779,11 @@ Build gate:
 
 Progress note:
 
-- Replaced the Phase 7 `Renderer2DWorld` placeholder with an engine-world rendering core that records sprite, tilemap, particle, parallax, animated-sprite, and 2D debug primitive commands without using `NikreonUI`.
+- Replaced the Phase 7 `SpriteRenderer` placeholder with an engine-world rendering core that records sprite, tilemap, particle, parallax, animated-sprite, and 2D debug primitive commands as quads in the unified 3D world without using `NikreonUI`.
 - Added world camera/projection data, world transforms with rotation/origin/layer/z, sprite-sheet UVs, animation frame UV calculation, tilemap expansion, particle submission, parallax submission, debug lines/rects/filled rects/circles, stable sorting, quad vertices, shared quad indices, texture-slot batches, and batch flushing by max quads or texture slots.
 - Exposed the world renderer through `RenderPipeline` and `Renderer` so future scene/runtime layers can submit world content separately from editor UI and HUD/menu composition.
 - Added focused non-GPU tests for batching, texture-slot flushing, tilemaps, particles, parallax, animation UVs, and debug primitive submission.
-- Added a dedicated `VulkanRenderer2DWorld` path for viewport world content with an instanced colored-quad pipeline. It uses one instance per world quad and records through the viewport render target without using `NikreonUI`.
+- Added a dedicated `VulkanSpriteRenderer`/future `VulkanSpriteRenderer` path for viewport world content with an instanced colored-quad pipeline. It uses one instance per world quad and records through the viewport render target without using `NikreonUI`.
 - Added engine world shaders for instanced 2D quads and wired the renderer into `Renderer`/`VulkanContext`.
 - Removed the temporary viewport `VulkanRenderer2D` bridge so world content is no longer drawn through the UI primitive renderer.
 - Chosen texture batching direction: use 16 texture slots per batch now, add atlases for common 2D assets later, and keep bindless textures as an optional future path rather than the first implementation.
@@ -963,14 +964,14 @@ Tasks:
 
 This slice may happen before Phase 9/10 so Phase 8C can test real sprites without turning the world renderer into a resource manager.
 
-Goal: load project image assets through a small resource layer, show them in a temporary asset/files panel, and let `Renderer2DWorld` draw selected texture assets.
+Goal: load project image assets through a small resource layer, show them in a temporary asset/files panel, and let `SpriteRenderer`/future `SpriteRenderer` draw selected texture assets.
 
 Initial scope:
 
 - Define a stable `AssetHandle` or `TextureHandle` type for engine resources.
 - Add `ResourceManager` texture caching by normalized path.
 - Load PNG/JPG image pixels on the CPU through `stb_image`.
-- Own Vulkan texture upload/image/view/sampler lifetime outside `VulkanRenderer2DWorld`.
+- Own Vulkan texture upload/image/view/sampler lifetime outside `VulkanSpriteRenderer`/future `VulkanSpriteRenderer`.
 - Keep a missing-texture fallback and white fallback texture.
 - Let world sprites reference loaded texture handles instead of fake path hashes.
 - Add a temporary editor asset/file browser rooted at `assets/`.
@@ -979,7 +980,7 @@ Initial scope:
 
 Important boundary:
 
-- `Renderer2DWorld` records sprite commands and texture handles.
+- `SpriteRenderer`/future `SpriteRenderer` records sprite commands and texture handles.
 - `ResourceManager` owns loaded assets and caching.
 - The Vulkan world renderer binds GPU texture resources for each batch.
 - `NikreonUI` may render the asset browser UI, but it does not own game-world sprite textures or draw world sprites.
@@ -989,7 +990,7 @@ Build gate:
 - Loading the same logical resource twice returns the cached resource.
 - Missing resources return fallbacks.
 - Shutdown does not leak resource-owned objects.
-- A sprite selected from the temporary asset/file UI renders in the editor viewport through `Renderer2DWorld`.
+- A sprite selected from the temporary asset/file UI renders in the editor viewport through `SpriteRenderer`/future `SpriteRenderer`.
 
 ## Phase 12: Modern Model Loading
 

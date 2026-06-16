@@ -21,7 +21,7 @@ void LayerStack::update(const float deltaTime, const Input& input)
 // Renders layers in stack order.
 void LayerStack::render(
     Renderer2D& renderer2D,
-    Renderer2DWorld& renderer2DWorld,
+    SpriteRenderer& spriteRenderer,
     Renderer3D& renderer3D,
     DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
@@ -30,7 +30,7 @@ void LayerStack::render(
     const Input& input)
 {
     for (const auto& layer : m_layers) {
-        layer->onRender(renderer2D, renderer2DWorld, renderer3D, debugRenderer, textRenderer, resources, viewportSize, input);
+        layer->onRender(renderer2D, spriteRenderer, renderer3D, debugRenderer, textRenderer, resources, viewportSize, input);
     }
 }
 

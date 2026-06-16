@@ -12,7 +12,7 @@ namespace Engine {
 
 class DebugRenderer;
 class Input;
-class Renderer2DWorld;
+class SpriteRenderer;
 
 class EditorViewportSelectionController {
 public:
@@ -24,7 +24,7 @@ public:
         Scene& scene,
         EditorSelectionState& selection);
     void drawOverlay(
-        Renderer2DWorld& renderer2DWorld,
+        SpriteRenderer& spriteRenderer,
         DebugRenderer& debugRenderer,
         const Scene& scene,
         const Camera2D& camera,

@@ -6,7 +6,7 @@
 #include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
 #include "Engine/Renderer/UI/NikreonUIRenderAdapter.hpp"
 #include "Engine/Renderer/PostProcess/PostProcessRenderer.hpp"
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 #include "Engine/Renderer/World3D/Renderer3D.hpp"
 #include "Engine/Renderer/Shadow/ShadowRenderer.hpp"
 #include "Engine/Renderer/Skybox/SkyboxRenderer.hpp"
@@ -29,8 +29,8 @@ public:
     void endFrame();
     void releaseResources();
 
-    [[nodiscard]] Renderer2DWorld& renderer2DWorld();
-    [[nodiscard]] const Renderer2DWorld& renderer2DWorld() const;
+    [[nodiscard]] SpriteRenderer& spriteRenderer();
+    [[nodiscard]] const SpriteRenderer& spriteRenderer() const;
     [[nodiscard]] Renderer3D& renderer3D();
     [[nodiscard]] const Renderer3D& renderer3D() const;
     [[nodiscard]] DebugRenderer& debugRenderer();
@@ -43,7 +43,7 @@ private:
     ShadowRenderer m_shadowRenderer;
     SkyboxRenderer m_skyboxRenderer;
     Renderer3D m_renderer3D;
-    Renderer2DWorld m_renderer2DWorld;
+    SpriteRenderer m_spriteRenderer;
     DebugRenderer m_debugRenderer;
     PostProcessRenderer m_postProcessRenderer;
     NikreonUIRenderAdapter m_uiRenderAdapter;

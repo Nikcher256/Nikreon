@@ -56,7 +56,7 @@ void VulkanDebugRenderer::begin(const glm::uvec2& viewportSize)
     m_vertices.clear();
 }
 
-void VulkanDebugRenderer::submit(const DebugRenderer& debugRenderer, const Renderer2DWorldCamera& camera)
+void VulkanDebugRenderer::submit(const DebugRenderer& debugRenderer, const SpriteRendererCamera& camera)
 {
     m_viewProjection = viewProjectionFor(camera);
     m_gridRequest = debugRenderer.gridRequest();
@@ -435,13 +435,13 @@ std::uint32_t VulkanDebugRenderer::findMemoryType(const std::uint32_t typeFilter
     throw std::runtime_error("Failed to find VulkanDebugRenderer memory type.");
 }
 
-glm::mat4 VulkanDebugRenderer::viewProjectionFor(const Renderer2DWorldCamera& camera) const
+glm::mat4 VulkanDebugRenderer::viewProjectionFor(const SpriteRendererCamera& camera) const
 {
     return camera.renderView.viewProjection;
 }
 
 VulkanDebugRenderer::GridPushConstants VulkanDebugRenderer::gridPushConstantsFor(
-    const Renderer2DWorldCamera& camera,
+    const SpriteRendererCamera& camera,
     const DebugGridRequest& request) const
 {
     GridPushConstants pushConstants;

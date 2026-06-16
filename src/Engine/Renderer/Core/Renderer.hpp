@@ -16,7 +16,7 @@ class Renderer2D;
 class DebugRenderer;
 class Renderer3D;
 class VulkanDebugRenderer;
-class VulkanRenderer2DWorld;
+class VulkanSpriteRenderer;
 class TextRenderer;
 class VulkanRenderer2D;
 class VulkanTextRenderer;
@@ -36,7 +36,7 @@ public:
     void endFrame();
 
     [[nodiscard]] Renderer2D& renderer2D();
-    [[nodiscard]] Renderer2DWorld& renderer2DWorld();
+    [[nodiscard]] SpriteRenderer& spriteRenderer();
     [[nodiscard]] Renderer3D& renderer3D();
     [[nodiscard]] DebugRenderer& debugRenderer();
     [[nodiscard]] TextRenderer& textRenderer();
@@ -56,7 +56,7 @@ private:
     VulkanContext m_context;
     ResourceManager m_resources;
     RenderPipeline m_renderPipeline;
-    std::unique_ptr<VulkanRenderer2DWorld> m_viewportRenderer2DWorld;
+    std::unique_ptr<VulkanSpriteRenderer> m_viewportSpriteRenderer;
     std::unique_ptr<VulkanDebugRenderer> m_viewportDebugRenderer;
     std::unique_ptr<VulkanRenderer2D> m_renderer2D;
     std::unique_ptr<VulkanTextRenderer> m_textRenderer;

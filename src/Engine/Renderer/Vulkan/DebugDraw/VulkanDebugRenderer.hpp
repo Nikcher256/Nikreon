@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 
 #include <array>
 #include <cstddef>
@@ -26,7 +26,7 @@ public:
     VulkanDebugRenderer& operator=(VulkanDebugRenderer&&) = delete;
 
     void begin(const glm::uvec2& viewportSize);
-    void submit(const DebugRenderer& debugRenderer, const Renderer2DWorldCamera& camera);
+    void submit(const DebugRenderer& debugRenderer, const SpriteRendererCamera& camera);
     void end();
     void record(VkCommandBuffer commandBuffer) const;
 
@@ -71,8 +71,8 @@ private:
         VkDeviceMemory& memory);
     [[nodiscard]] VkShaderModule createShaderModule(const std::vector<char>& bytecode) const;
     [[nodiscard]] std::uint32_t findMemoryType(std::uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
-    [[nodiscard]] glm::mat4 viewProjectionFor(const Renderer2DWorldCamera& camera) const;
-    [[nodiscard]] GridPushConstants gridPushConstantsFor(const Renderer2DWorldCamera& camera, const DebugGridRequest& request) const;
+    [[nodiscard]] glm::mat4 viewProjectionFor(const SpriteRendererCamera& camera) const;
+    [[nodiscard]] GridPushConstants gridPushConstantsFor(const SpriteRendererCamera& camera, const DebugGridRequest& request) const;
 
     static std::vector<char> readFile(const char* path);
     static VkVertexInputBindingDescription vertexBindingDescription();

@@ -12,7 +12,7 @@ void Layer::onUpdate(const float deltaTime, const Input& input)
 // Provides a no-op render so logic-only layers can override only updating.
 void Layer::onRender(
     Renderer2D& renderer2D,
-    Renderer2DWorld& renderer2DWorld,
+    SpriteRenderer& spriteRenderer,
     Renderer3D& renderer3D,
     DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
@@ -21,7 +21,7 @@ void Layer::onRender(
     const Input& input)
 {
     (void)renderer2D;
-    (void)renderer2DWorld;
+    (void)spriteRenderer;
     (void)renderer3D;
     (void)debugRenderer;
     (void)textRenderer;

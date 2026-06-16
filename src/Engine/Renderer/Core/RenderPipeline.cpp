@@ -7,7 +7,7 @@ RenderPipeline::RenderPipeline()
         RenderStage::ShadowMaps,
         RenderStage::Skybox,
         RenderStage::World3D,
-        RenderStage::World2D,
+        RenderStage::Sprites,
         RenderStage::WorldSpaceUI,
         RenderStage::GameHUD,
         RenderStage::EditorOverlays,
@@ -71,14 +71,14 @@ void RenderPipeline::releaseResources()
     }
 }
 
-Renderer2DWorld& RenderPipeline::renderer2DWorld()
+SpriteRenderer& RenderPipeline::spriteRenderer()
 {
-    return m_renderer2DWorld;
+    return m_spriteRenderer;
 }
 
-const Renderer2DWorld& RenderPipeline::renderer2DWorld() const
+const SpriteRenderer& RenderPipeline::spriteRenderer() const
 {
-    return m_renderer2DWorld;
+    return m_spriteRenderer;
 }
 
 Renderer3D& RenderPipeline::renderer3D()
@@ -112,7 +112,7 @@ RenderModule* RenderPipeline::moduleForStage(const RenderStage stage)
     case RenderStage::ShadowMaps: return &m_shadowRenderer;
     case RenderStage::Skybox: return &m_skyboxRenderer;
     case RenderStage::World3D: return &m_renderer3D;
-    case RenderStage::World2D: return &m_renderer2DWorld;
+    case RenderStage::Sprites: return &m_spriteRenderer;
     case RenderStage::Debug: return &m_debugRenderer;
     case RenderStage::PostProcess: return &m_postProcessRenderer;
     case RenderStage::EditorUI: return &m_uiRenderAdapter;

@@ -1,6 +1,6 @@
-#include "Engine/Renderer/Vulkan/World2D/VulkanRenderer2DWorld.hpp"
+#include "Engine/Renderer/Vulkan/Sprite/VulkanSpriteRenderer.hpp"
 
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 #include "Engine/Resources/ResourceManager.hpp"
 #include "Engine/Resources/TextureResource.hpp"
 
@@ -43,7 +43,7 @@ std::uint64_t textureCacheKey(const std::uint64_t texture, const WorldSamplerMod
 
 } // namespace
 
-std::size_t VulkanRenderer2DWorld::TextureBatchKeyHash::operator()(const TextureBatchKey& key) const noexcept
+std::size_t VulkanSpriteRenderer::TextureBatchKeyHash::operator()(const TextureBatchKey& key) const noexcept
 {
     std::size_t hash = 1469598103934665603ull;
     for (const std::uint64_t texture : key.textures) {
@@ -55,7 +55,7 @@ std::size_t VulkanRenderer2DWorld::TextureBatchKeyHash::operator()(const Texture
     return hash;
 }
 
-VulkanRenderer2DWorld::VulkanRenderer2DWorld(
+VulkanSpriteRenderer::VulkanSpriteRenderer(
     VkDevice device,
     VkPhysicalDevice physicalDevice,
     VkQueue graphicsQueue,
@@ -76,12 +76,12 @@ VulkanRenderer2DWorld::VulkanRenderer2DWorld(
     createPipelines(renderPass);
 }
 
-VulkanRenderer2DWorld::~VulkanRenderer2DWorld()
+VulkanSpriteRenderer::~VulkanSpriteRenderer()
 {
     destroy();
 }
 
-void VulkanRenderer2DWorld::begin(const glm::uvec2& viewportSize)
+void VulkanSpriteRenderer::begin(const glm::uvec2& viewportSize)
 {
     m_viewportSize = glm::max(viewportSize, glm::uvec2{1U, 1U});
     m_instances.clear();
@@ -89,7 +89,7 @@ void VulkanRenderer2DWorld::begin(const glm::uvec2& viewportSize)
     m_viewProjection = glm::mat4{1.0f};
 }
 
-void VulkanRenderer2DWorld::submit(const Renderer2DWorld& worldRenderer, ResourceManager& resources)
+void VulkanSpriteRenderer::submit(const SpriteRenderer& worldRenderer, ResourceManager& resources)
 {
     m_viewProjection = worldViewProjection(worldRenderer);
 
@@ -139,12 +139,12 @@ void VulkanRenderer2DWorld::submit(const Renderer2DWorld& worldRenderer, Resourc
     }
 }
 
-void VulkanRenderer2DWorld::end()
+void VulkanSpriteRenderer::end()
 {
     uploadInstances();
 }
 
-void VulkanRenderer2DWorld::record(const VkCommandBuffer commandBuffer) const
+void VulkanSpriteRenderer::record(const VkCommandBuffer commandBuffer) const
 {
     if (m_drawCommands.empty() || m_pipelineLayout == VK_NULL_HANDLE || m_instances.empty()) {
         return;
@@ -207,22 +207,22 @@ void VulkanRenderer2DWorld::record(const VkCommandBuffer commandBuffer) const
     }
 }
 
-std::size_t VulkanRenderer2DWorld::instanceCount() const
+std::size_t VulkanSpriteRenderer::instanceCount() const
 {
     return m_instances.size();
 }
 
-std::size_t VulkanRenderer2DWorld::drawCommandCount() const
+std::size_t VulkanSpriteRenderer::drawCommandCount() const
 {
     return m_drawCommands.size();
 }
 
-std::size_t VulkanRenderer2DWorld::maxInstances() const
+std::size_t VulkanSpriteRenderer::maxInstances() const
 {
     return m_maxInstances;
 }
 
-void VulkanRenderer2DWorld::createPipelineLayout()
+void VulkanSpriteRenderer::createPipelineLayout()
 {
     VkPushConstantRange pushConstants{};
     pushConstants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -236,23 +236,23 @@ void VulkanRenderer2DWorld::createPipelineLayout()
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstants;
 
-    checkVk(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout), "Failed to create VulkanRenderer2DWorld pipeline layout.");
+    checkVk(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout), "Failed to create VulkanSpriteRenderer pipeline layout.");
 }
 
-void VulkanRenderer2DWorld::createPipelines(const VkRenderPass renderPass)
+void VulkanSpriteRenderer::createPipelines(const VkRenderPass renderPass)
 {
     createPipeline(renderPass, WorldBlendMode::Opaque, m_opaquePipeline);
     createPipeline(renderPass, WorldBlendMode::Alpha, m_alphaPipeline);
     createPipeline(renderPass, WorldBlendMode::Additive, m_additivePipeline);
 }
 
-void VulkanRenderer2DWorld::createPipeline(
+void VulkanSpriteRenderer::createPipeline(
     const VkRenderPass renderPass,
     const WorldBlendMode blendMode,
     VkPipeline& pipeline)
 {
-    const auto vertexShaderCode = readFile(NIKREON_ENGINE_SHADER_DIR "/world2d_instanced.vert.spv");
-    const auto fragmentShaderCode = readFile(NIKREON_ENGINE_SHADER_DIR "/world2d_instanced.frag.spv");
+    const auto vertexShaderCode = readFile(NIKREON_ENGINE_SHADER_DIR "/sprite_instanced.vert.spv");
+    const auto fragmentShaderCode = readFile(NIKREON_ENGINE_SHADER_DIR "/sprite_instanced.frag.spv");
 
     const VkShaderModule vertexShaderModule = createShaderModule(vertexShaderCode);
     const VkShaderModule fragmentShaderModule = createShaderModule(fragmentShaderCode);
@@ -339,13 +339,13 @@ const VkPipelineColorBlendAttachmentState colorBlendAttachment = blendAttachment
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
 
-    checkVk(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline), "Failed to create VulkanRenderer2DWorld pipeline.");
+    checkVk(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline), "Failed to create VulkanSpriteRenderer pipeline.");
 
     vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
     vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
 }
 
-VkPipeline VulkanRenderer2DWorld::pipelineFor(const WorldBlendMode blendMode) const
+VkPipeline VulkanSpriteRenderer::pipelineFor(const WorldBlendMode blendMode) const
 {
     switch (blendMode) {
     case WorldBlendMode::Opaque:
@@ -359,7 +359,7 @@ VkPipeline VulkanRenderer2DWorld::pipelineFor(const WorldBlendMode blendMode) co
     return m_alphaPipeline;
 }
 
-VkPipelineColorBlendAttachmentState VulkanRenderer2DWorld::blendAttachmentFor(const WorldBlendMode blendMode)
+VkPipelineColorBlendAttachmentState VulkanSpriteRenderer::blendAttachmentFor(const WorldBlendMode blendMode)
 {
     VkPipelineColorBlendAttachmentState attachment{};
     attachment.colorWriteMask =
@@ -403,7 +403,7 @@ VkPipelineColorBlendAttachmentState VulkanRenderer2DWorld::blendAttachmentFor(co
     return attachment;
 }
 
-void VulkanRenderer2DWorld::destroyPipelines()
+void VulkanSpriteRenderer::destroyPipelines()
 {
     if (m_opaquePipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(m_device, m_opaquePipeline, nullptr);
@@ -421,7 +421,7 @@ void VulkanRenderer2DWorld::destroyPipelines()
     }
 }
 
-void VulkanRenderer2DWorld::createInstanceBuffer()
+void VulkanSpriteRenderer::createInstanceBuffer()
 {
     m_instanceBufferSize = static_cast<VkDeviceSize>(m_maxInstances * sizeof(Instance));
     createBuffer(
@@ -430,10 +430,10 @@ void VulkanRenderer2DWorld::createInstanceBuffer()
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         m_instanceBuffer,
         m_instanceBufferMemory);
-    checkVk(vkMapMemory(m_device, m_instanceBufferMemory, 0, m_instanceBufferSize, 0, &m_instanceBufferMapped), "Failed to map VulkanRenderer2DWorld instance buffer.");
+    checkVk(vkMapMemory(m_device, m_instanceBufferMemory, 0, m_instanceBufferSize, 0, &m_instanceBufferMapped), "Failed to map VulkanSpriteRenderer instance buffer.");
 }
 
-void VulkanRenderer2DWorld::uploadInstances()
+void VulkanSpriteRenderer::uploadInstances()
 {
     if (m_instanceBufferMapped == nullptr || m_instances.empty()) {
         return;
@@ -442,7 +442,7 @@ void VulkanRenderer2DWorld::uploadInstances()
     std::memcpy(m_instanceBufferMapped, m_instances.data(), m_instances.size() * sizeof(Instance));
 }
 
-void VulkanRenderer2DWorld::createDescriptorResources()
+void VulkanSpriteRenderer::createDescriptorResources()
 {
     VkDescriptorSetLayoutBinding textureBinding{};
     textureBinding.binding = 0;
@@ -454,7 +454,7 @@ void VulkanRenderer2DWorld::createDescriptorResources()
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = 1;
     layoutInfo.pBindings = &textureBinding;
-    checkVk(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_descriptorSetLayout), "Failed to create VulkanRenderer2DWorld descriptor set layout.");
+    checkVk(vkCreateDescriptorSetLayout(m_device, &layoutInfo, nullptr, &m_descriptorSetLayout), "Failed to create VulkanSpriteRenderer descriptor set layout.");
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -465,16 +465,16 @@ void VulkanRenderer2DWorld::createDescriptorResources()
     poolInfo.maxSets = 512U;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
-    checkVk(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool), "Failed to create VulkanRenderer2DWorld descriptor pool.");
+    checkVk(vkCreateDescriptorPool(m_device, &poolInfo, nullptr, &m_descriptorPool), "Failed to create VulkanSpriteRenderer descriptor pool.");
 }
 
-void VulkanRenderer2DWorld::createFallbackTexture()
+void VulkanSpriteRenderer::createFallbackTexture()
 {
     const std::array<std::uint8_t, 4> whitePixel = {255U, 255U, 255U, 255U};
     m_fallbackTexture = createTextureResource(whitePixel.data(), 1U, 1U, WorldSamplerMode::Linear);
 }
 
-VkDescriptorSet VulkanRenderer2DWorld::descriptorSetForTextures(
+VkDescriptorSet VulkanSpriteRenderer::descriptorSetForTextures(
     const std::vector<std::uint64_t>& textures,
     const WorldSamplerMode samplerMode,
     ResourceManager& resources)
@@ -506,7 +506,7 @@ VkDescriptorSet VulkanRenderer2DWorld::descriptorSetForTextures(
     allocateInfo.descriptorPool = m_descriptorPool;
     allocateInfo.descriptorSetCount = 1;
     allocateInfo.pSetLayouts = &m_descriptorSetLayout;
-    checkVk(vkAllocateDescriptorSets(m_device, &allocateInfo, &descriptorSet), "Failed to allocate VulkanRenderer2DWorld texture batch descriptor set.");
+    checkVk(vkAllocateDescriptorSets(m_device, &allocateInfo, &descriptorSet), "Failed to allocate VulkanSpriteRenderer texture batch descriptor set.");
 
     VkWriteDescriptorSet write{};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -521,7 +521,7 @@ VkDescriptorSet VulkanRenderer2DWorld::descriptorSetForTextures(
     return descriptorSet;
 }
 
-VulkanRenderer2DWorld::GpuTextureResource& VulkanRenderer2DWorld::textureResourceForTexture(
+VulkanSpriteRenderer::GpuTextureResource& VulkanSpriteRenderer::textureResourceForTexture(
     const std::uint64_t texture,
     const WorldSamplerMode samplerMode,
     ResourceManager& resources)
@@ -548,7 +548,7 @@ VulkanRenderer2DWorld::GpuTextureResource& VulkanRenderer2DWorld::textureResourc
         : m_fallbackTexture;
 }
 
-VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureResource(
+VulkanSpriteRenderer::GpuTextureResource VulkanSpriteRenderer::createTextureResource(
     const std::uint8_t* rgba8,
     const std::uint32_t width,
     const std::uint32_t height,
@@ -570,7 +570,7 @@ VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureRe
         stagingMemory);
 
     void* mapped = nullptr;
-    checkVk(vkMapMemory(m_device, stagingMemory, 0, imageSize, 0, &mapped), "Failed to map VulkanRenderer2DWorld texture staging memory.");
+    checkVk(vkMapMemory(m_device, stagingMemory, 0, imageSize, 0, &mapped), "Failed to map VulkanSpriteRenderer texture staging memory.");
     std::memcpy(mapped, rgba8, static_cast<std::size_t>(imageSize));
     vkUnmapMemory(m_device, stagingMemory);
 
@@ -591,7 +591,7 @@ VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureRe
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.layerCount = 1;
-    checkVk(vkCreateImageView(m_device, &viewInfo, nullptr, &texture.imageView), "Failed to create VulkanRenderer2DWorld texture image view.");
+    checkVk(vkCreateImageView(m_device, &viewInfo, nullptr, &texture.imageView), "Failed to create VulkanSpriteRenderer texture image view.");
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -602,12 +602,12 @@ VulkanRenderer2DWorld::GpuTextureResource VulkanRenderer2DWorld::createTextureRe
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.maxLod = 0.0f;
-    checkVk(vkCreateSampler(m_device, &samplerInfo, nullptr, &texture.sampler), "Failed to create VulkanRenderer2DWorld texture sampler.");
+    checkVk(vkCreateSampler(m_device, &samplerInfo, nullptr, &texture.sampler), "Failed to create VulkanSpriteRenderer texture sampler.");
 
     return texture;
 }
 
-void VulkanRenderer2DWorld::createImage(
+void VulkanSpriteRenderer::createImage(
     const std::uint32_t width,
     const std::uint32_t height,
     const VkFormat format,
@@ -626,7 +626,7 @@ void VulkanRenderer2DWorld::createImage(
     imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    checkVk(vkCreateImage(m_device, &imageInfo, nullptr, &image), "Failed to create VulkanRenderer2DWorld image.");
+    checkVk(vkCreateImage(m_device, &imageInfo, nullptr, &image), "Failed to create VulkanSpriteRenderer image.");
 
     VkMemoryRequirements requirements{};
     vkGetImageMemoryRequirements(m_device, image, &requirements);
@@ -635,11 +635,11 @@ void VulkanRenderer2DWorld::createImage(
     allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocateInfo.allocationSize = requirements.size;
     allocateInfo.memoryTypeIndex = findMemoryType(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    checkVk(vkAllocateMemory(m_device, &allocateInfo, nullptr, &memory), "Failed to allocate VulkanRenderer2DWorld image memory.");
-    checkVk(vkBindImageMemory(m_device, image, memory, 0), "Failed to bind VulkanRenderer2DWorld image memory.");
+    checkVk(vkAllocateMemory(m_device, &allocateInfo, nullptr, &memory), "Failed to allocate VulkanSpriteRenderer image memory.");
+    checkVk(vkBindImageMemory(m_device, image, memory, 0), "Failed to bind VulkanSpriteRenderer image memory.");
 }
 
-void VulkanRenderer2DWorld::transitionImageLayout(
+void VulkanSpriteRenderer::transitionImageLayout(
     const VkImage image,
     const VkImageLayout oldLayout,
     const VkImageLayout newLayout)
@@ -668,14 +668,14 @@ void VulkanRenderer2DWorld::transitionImageLayout(
         sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     } else {
-        throw std::runtime_error("Unsupported VulkanRenderer2DWorld image layout transition.");
+        throw std::runtime_error("Unsupported VulkanSpriteRenderer image layout transition.");
     }
 
     vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
     endSingleUseCommands(commandBuffer);
 }
 
-void VulkanRenderer2DWorld::copyBufferToImage(
+void VulkanSpriteRenderer::copyBufferToImage(
     const VkBuffer buffer,
     const VkImage image,
     const std::uint32_t width,
@@ -692,7 +692,7 @@ void VulkanRenderer2DWorld::copyBufferToImage(
     endSingleUseCommands(commandBuffer);
 }
 
-VkCommandBuffer VulkanRenderer2DWorld::beginSingleUseCommands() const
+VkCommandBuffer VulkanSpriteRenderer::beginSingleUseCommands() const
 {
     VkCommandBufferAllocateInfo allocateInfo{};
     allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -701,31 +701,31 @@ VkCommandBuffer VulkanRenderer2DWorld::beginSingleUseCommands() const
     allocateInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    checkVk(vkAllocateCommandBuffers(m_device, &allocateInfo, &commandBuffer), "Failed to allocate VulkanRenderer2DWorld upload command buffer.");
+    checkVk(vkAllocateCommandBuffers(m_device, &allocateInfo, &commandBuffer), "Failed to allocate VulkanSpriteRenderer upload command buffer.");
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin VulkanRenderer2DWorld upload command buffer.");
+    checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin VulkanSpriteRenderer upload command buffer.");
 
     return commandBuffer;
 }
 
-void VulkanRenderer2DWorld::endSingleUseCommands(const VkCommandBuffer commandBuffer) const
+void VulkanSpriteRenderer::endSingleUseCommands(const VkCommandBuffer commandBuffer) const
 {
-    checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end VulkanRenderer2DWorld upload command buffer.");
+    checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end VulkanSpriteRenderer upload command buffer.");
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
-    checkVk(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE), "Failed to submit VulkanRenderer2DWorld upload command buffer.");
-    checkVk(vkQueueWaitIdle(m_graphicsQueue), "Failed to wait for VulkanRenderer2DWorld upload command buffer.");
+    checkVk(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE), "Failed to submit VulkanSpriteRenderer upload command buffer.");
+    checkVk(vkQueueWaitIdle(m_graphicsQueue), "Failed to wait for VulkanSpriteRenderer upload command buffer.");
 
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
 }
 
-void VulkanRenderer2DWorld::destroy()
+void VulkanSpriteRenderer::destroy()
 {
     if (m_device == VK_NULL_HANDLE) {
         return;
@@ -766,12 +766,12 @@ void VulkanRenderer2DWorld::destroy()
     }
 }
 
-void VulkanRenderer2DWorld::destroyFallbackTexture()
+void VulkanSpriteRenderer::destroyFallbackTexture()
 {
     destroyTextureResource(m_fallbackTexture);
 }
 
-void VulkanRenderer2DWorld::destroyUploadedTextures()
+void VulkanSpriteRenderer::destroyUploadedTextures()
 {
     m_textureBatchDescriptors.clear();
     for (auto& [_, texture] : m_uploadedTextures) {
@@ -780,7 +780,7 @@ void VulkanRenderer2DWorld::destroyUploadedTextures()
     m_uploadedTextures.clear();
 }
 
-void VulkanRenderer2DWorld::destroyTextureResource(GpuTextureResource& texture)
+void VulkanSpriteRenderer::destroyTextureResource(GpuTextureResource& texture)
 {
     if (texture.sampler != VK_NULL_HANDLE) {
         vkDestroySampler(m_device, texture.sampler, nullptr);
@@ -805,7 +805,7 @@ void VulkanRenderer2DWorld::destroyTextureResource(GpuTextureResource& texture)
     texture.descriptorSet = VK_NULL_HANDLE;
 }
 
-void VulkanRenderer2DWorld::createBuffer(
+void VulkanSpriteRenderer::createBuffer(
     const VkDeviceSize size,
     const VkBufferUsageFlags usage,
     const VkMemoryPropertyFlags properties,
@@ -818,7 +818,7 @@ void VulkanRenderer2DWorld::createBuffer(
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    checkVk(vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer), "Failed to create VulkanRenderer2DWorld buffer.");
+    checkVk(vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer), "Failed to create VulkanSpriteRenderer buffer.");
 
     VkMemoryRequirements memoryRequirements{};
     vkGetBufferMemoryRequirements(m_device, buffer, &memoryRequirements);
@@ -828,11 +828,11 @@ void VulkanRenderer2DWorld::createBuffer(
     allocateInfo.allocationSize = memoryRequirements.size;
     allocateInfo.memoryTypeIndex = findMemoryType(memoryRequirements.memoryTypeBits, properties);
 
-    checkVk(vkAllocateMemory(m_device, &allocateInfo, nullptr, &memory), "Failed to allocate VulkanRenderer2DWorld buffer memory.");
-    checkVk(vkBindBufferMemory(m_device, buffer, memory, 0), "Failed to bind VulkanRenderer2DWorld buffer memory.");
+    checkVk(vkAllocateMemory(m_device, &allocateInfo, nullptr, &memory), "Failed to allocate VulkanSpriteRenderer buffer memory.");
+    checkVk(vkBindBufferMemory(m_device, buffer, memory, 0), "Failed to bind VulkanSpriteRenderer buffer memory.");
 }
 
-VkShaderModule VulkanRenderer2DWorld::createShaderModule(const std::vector<char>& bytecode) const
+VkShaderModule VulkanSpriteRenderer::createShaderModule(const std::vector<char>& bytecode) const
 {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -840,11 +840,11 @@ VkShaderModule VulkanRenderer2DWorld::createShaderModule(const std::vector<char>
     createInfo.pCode = reinterpret_cast<const std::uint32_t*>(bytecode.data());
 
     VkShaderModule shaderModule = VK_NULL_HANDLE;
-    checkVk(vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule), "Failed to create VulkanRenderer2DWorld shader module.");
+    checkVk(vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule), "Failed to create VulkanSpriteRenderer shader module.");
     return shaderModule;
 }
 
-std::uint32_t VulkanRenderer2DWorld::findMemoryType(const std::uint32_t typeFilter, const VkMemoryPropertyFlags properties) const
+std::uint32_t VulkanSpriteRenderer::findMemoryType(const std::uint32_t typeFilter, const VkMemoryPropertyFlags properties) const
 {
     VkPhysicalDeviceMemoryProperties memoryProperties{};
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memoryProperties);
@@ -856,19 +856,19 @@ std::uint32_t VulkanRenderer2DWorld::findMemoryType(const std::uint32_t typeFilt
         }
     }
 
-    throw std::runtime_error("Failed to find VulkanRenderer2DWorld memory type.");
+    throw std::runtime_error("Failed to find VulkanSpriteRenderer memory type.");
 }
 
-glm::mat4 VulkanRenderer2DWorld::worldViewProjection(const Renderer2DWorld& worldRenderer) const
+glm::mat4 VulkanSpriteRenderer::worldViewProjection(const SpriteRenderer& worldRenderer) const
 {
     return worldRenderer.renderView().viewProjection;
 }
 
-std::vector<char> VulkanRenderer2DWorld::readFile(const char* path)
+std::vector<char> VulkanSpriteRenderer::readFile(const char* path)
 {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
-        throw std::runtime_error(std::string("Failed to open VulkanRenderer2DWorld shader file: ") + path);
+        throw std::runtime_error(std::string("Failed to open VulkanSpriteRenderer shader file: ") + path);
     }
 
     const std::streamsize size = file.tellg();
@@ -878,7 +878,7 @@ std::vector<char> VulkanRenderer2DWorld::readFile(const char* path)
     return buffer;
 }
 
-VkVertexInputBindingDescription VulkanRenderer2DWorld::instanceBindingDescription()
+VkVertexInputBindingDescription VulkanSpriteRenderer::instanceBindingDescription()
 {
     VkVertexInputBindingDescription binding{};
     binding.binding = 0;
@@ -887,7 +887,7 @@ VkVertexInputBindingDescription VulkanRenderer2DWorld::instanceBindingDescriptio
     return binding;
 }
 
-std::array<VkVertexInputAttributeDescription, 10> VulkanRenderer2DWorld::instanceAttributeDescriptions()
+std::array<VkVertexInputAttributeDescription, 10> VulkanSpriteRenderer::instanceAttributeDescriptions()
 {
     return {
         VkVertexInputAttributeDescription{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Instance, corner0)},

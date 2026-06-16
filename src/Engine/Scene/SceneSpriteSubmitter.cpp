@@ -1,19 +1,19 @@
-#include "Engine/Scene/Scene2DSubmitter.hpp"
+#include "Engine/Scene/SceneSpriteSubmitter.hpp"
 
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 #include "Engine/Resources/ResourceManager.hpp"
 #include "Engine/Scene/Scene.hpp"
 
 namespace Engine {
 
-void Scene2DSubmitter::submit(const Scene& scene, Renderer2DWorld& renderer2DWorld, ResourceManager& resources) const
+void SceneSpriteSubmitter::submit(const Scene& scene, SpriteRenderer& spriteRenderer, ResourceManager& resources) const
 {
     for (const SceneObject& object : scene.objects()) {
-        if (!object.sprite2D) {
+        if (!object.spriteRenderer) {
             continue;
         }
 
-        const Sprite2DComponent& sprite = *object.sprite2D;
+        const SpriteRendererComponent& sprite = *object.spriteRenderer;
         TextureHandle texture = sprite.textureHandle;
         if (!texture) {
             texture = sprite.texturePath.empty()
@@ -25,7 +25,7 @@ void Scene2DSubmitter::submit(const Scene& scene, Renderer2DWorld& renderer2DWor
             texture = resources.missingTexture();
         }
 
-        renderer2DWorld.drawSprite(
+        spriteRenderer.drawSprite(
             worldTextureId(texture),
             {
                 .position = object.transform.position,

@@ -8,7 +8,7 @@ std::string_view renderStageName(const RenderStage stage)
     case RenderStage::ShadowMaps: return "ShadowMaps";
     case RenderStage::Skybox: return "Skybox";
     case RenderStage::World3D: return "World3D";
-    case RenderStage::World2D: return "World2D";
+    case RenderStage::Sprites: return "Sprites";
     case RenderStage::WorldSpaceUI: return "WorldSpaceUI";
     case RenderStage::GameHUD: return "GameHUD";
     case RenderStage::EditorOverlays: return "EditorOverlays";

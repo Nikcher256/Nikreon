@@ -12,7 +12,7 @@ enum class RenderStage {
     ShadowMaps,
     Skybox,
     World3D,
-    World2D,
+    Sprites,
     WorldSpaceUI,
     GameHUD,
     EditorOverlays,

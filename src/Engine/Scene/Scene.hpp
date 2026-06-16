@@ -10,7 +10,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 
 namespace Engine {
 
@@ -23,7 +23,7 @@ struct TransformComponent {
     glm::vec3 scale{1.0f, 1.0f, 1.0f};
 };
 
-struct Sprite2DComponent {
+struct SpriteRendererComponent {
     std::string texturePath;
     TextureHandle textureHandle{};
     glm::vec2 size{32.0f, 32.0f};
@@ -35,21 +35,29 @@ struct Sprite2DComponent {
     WorldSpriteRenderState renderState{};
 };
 
+using Sprite2DComponent = SpriteRendererComponent;
+
 struct SceneObject {
     SceneObjectId id{InvalidSceneObjectId};
     std::string name;
     TransformComponent transform{};
-    std::optional<Sprite2DComponent> sprite2D{};
+    std::optional<SpriteRendererComponent> spriteRenderer{};
+
+    [[nodiscard]] bool hasSpriteRenderer() const noexcept
+    {
+        return spriteRenderer.has_value();
+    }
 
     [[nodiscard]] bool hasSprite2D() const noexcept
     {
-        return sprite2D.has_value();
+        return hasSpriteRenderer();
     }
 };
 
 class Scene {
 public:
     SceneObject& createObject(std::string name);
+    SceneObject& createSprite(std::string name, std::string texturePath);
     SceneObject& createSprite2D(std::string name, std::string texturePath);
     bool destroyObject(SceneObjectId id);
     void clear();
@@ -61,6 +69,7 @@ public:
     [[nodiscard]] const SceneObject* findObject(SceneObjectId id) const;
 
     [[nodiscard]] std::size_t objectCount() const noexcept;
+    [[nodiscard]] std::size_t spriteRendererCount() const noexcept;
     [[nodiscard]] std::size_t sprite2DCount() const noexcept;
 
 private:

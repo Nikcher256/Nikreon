@@ -9,7 +9,7 @@ class Input;
 class DebugRenderer;
 class Renderer3D;
 class Renderer2D;
-class Renderer2DWorld;
+class SpriteRenderer;
 class TextRenderer;
 
 class Layer {
@@ -19,7 +19,7 @@ public:
     virtual void onUpdate(float deltaTime, const Input& input);
     virtual void onRender(
         Renderer2D& renderer2D,
-        Renderer2DWorld& renderer2DWorld,
+        SpriteRenderer& spriteRenderer,
         Renderer3D& renderer3D,
         DebugRenderer& debugRenderer,
         TextRenderer& textRenderer,

@@ -3,7 +3,7 @@
 #include "Engine/Core/Input.hpp"
 #include "Engine/Renderer/Core/WorldPicking.hpp"
 #include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
-#include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
+#include "Engine/Renderer/Sprite/SpriteRenderer.hpp"
 
 #include <algorithm>
 #include <span>
@@ -48,7 +48,7 @@ void EditorViewportSelectionController::update(
     if (leftClick) {
         SceneObjectId targetObjectId = InvalidSceneObjectId;
         if (SceneObject* selected = scene.findObject(selection.selectedSceneObjectId())) {
-            if (selected->sprite2D && containsPoint(centerHandleBounds(*selected, camera), worldMouse)) {
+            if (selected->spriteRenderer && containsPoint(centerHandleBounds(*selected, camera), worldMouse)) {
                 targetObjectId = selected->id;
             }
         }
@@ -72,7 +72,7 @@ void EditorViewportSelectionController::update(
 
     if (m_draggingSelection) {
         SceneObject* dragged = scene.findObject(m_draggedObjectId);
-        if (dragged == nullptr || !dragged->sprite2D) {
+        if (dragged == nullptr || !dragged->spriteRenderer) {
             clearDrag();
             return;
         }
@@ -84,19 +84,19 @@ void EditorViewportSelectionController::update(
 }
 
 void EditorViewportSelectionController::drawOverlay(
-    Renderer2DWorld& renderer2DWorld,
+    SpriteRenderer& spriteRenderer,
     DebugRenderer& debugRenderer,
     const Scene& scene,
     const Camera2D& camera,
     const EditorSelectionState& selection) const
 {
     const SceneObject* selected = scene.findObject(selection.selectedSceneObjectId());
-    if (selected == nullptr || !selected->sprite2D) {
+    if (selected == nullptr || !selected->spriteRenderer) {
         return;
     }
 
     const PickingSystem::SpriteQuadCorners corners = PickingSystem::spriteQuadCorners(*selected);
-    (void)renderer2DWorld;
+    (void)spriteRenderer;
     (void)camera;
 
     debugRenderer.drawLine(corners[0], corners[1], {0.54f, 0.78f, 1.0f, 1.0f});

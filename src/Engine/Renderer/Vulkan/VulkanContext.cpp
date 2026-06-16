@@ -2,7 +2,7 @@
 
 #include "Engine/Core/Window.hpp"
 #include "Engine/Renderer/Vulkan/DebugDraw/VulkanDebugRenderer.hpp"
-#include "Engine/Renderer/Vulkan/World2D/VulkanRenderer2DWorld.hpp"
+#include "Engine/Renderer/Vulkan/Sprite/VulkanSpriteRenderer.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
 #include "Engine/Renderer/Core/RenderPipeline.hpp"
 #include "Engine/Renderer/Vulkan/VulkanRenderer2D.hpp"
@@ -199,7 +199,7 @@ VulkanContext::~VulkanContext()
 
 VulkanContext::FrameResult VulkanContext::drawFrame(
     VulkanRenderer2D& renderer2D,
-    VulkanRenderer2DWorld& viewportRenderer2DWorld,
+    VulkanSpriteRenderer& viewportSpriteRenderer,
     VulkanDebugRenderer& viewportDebugRenderer,
     VulkanTextRenderer& textRenderer,
     RenderPipeline& renderPipeline,
@@ -227,7 +227,7 @@ VulkanContext::FrameResult VulkanContext::drawFrame(
     vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
     prepareViewportRenderTarget();
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], 0);
-    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, viewportRenderer2DWorld, viewportDebugRenderer, textRenderer, renderPipeline, frameContext);
+    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex, renderer2D, viewportSpriteRenderer, viewportDebugRenderer, textRenderer, renderPipeline, frameContext);
 
     const VkSemaphore waitSemaphores[] = {m_imageAvailableSemaphores[m_currentFrame]};
     const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -887,7 +887,7 @@ void VulkanContext::recordCommandBuffer(
     VkCommandBuffer commandBuffer,
     const std::uint32_t imageIndex,
     VulkanRenderer2D& renderer2D,
-    VulkanRenderer2DWorld& viewportRenderer2DWorld,
+    VulkanSpriteRenderer& viewportSpriteRenderer,
     VulkanDebugRenderer& viewportDebugRenderer,
     VulkanTextRenderer& textRenderer,
     RenderPipeline& renderPipeline,
@@ -900,8 +900,8 @@ void VulkanContext::recordCommandBuffer(
     checkVk(vkResetCommandPool(m_device, secondary.viewportCommandPool, 0), "Failed to reset viewport secondary command pool.");
     checkVk(vkResetCommandPool(m_device, secondary.uiCommandPool, 0), "Failed to reset UI secondary command pool.");
 
-    m_commandBufferWorkers[0]->submit([this, &viewportRenderer2DWorld, &viewportDebugRenderer, commandBuffer = secondary.viewportCommandBuffer]() {
-        recordViewportSecondaryCommandBuffer(commandBuffer, viewportRenderer2DWorld, viewportDebugRenderer);
+    m_commandBufferWorkers[0]->submit([this, &viewportSpriteRenderer, &viewportDebugRenderer, commandBuffer = secondary.viewportCommandBuffer]() {
+        recordViewportSecondaryCommandBuffer(commandBuffer, viewportSpriteRenderer, viewportDebugRenderer);
     });
     m_commandBufferWorkers[1]->submit([this, &renderer2D, &textRenderer, imageIndex, commandBuffer = secondary.uiCommandBuffer]() {
         recordUiSecondaryCommandBuffer(commandBuffer, imageIndex, renderer2D, textRenderer);
@@ -945,7 +945,7 @@ void VulkanContext::recordCommandBuffer(
 
 void VulkanContext::recordViewportSecondaryCommandBuffer(
     const VkCommandBuffer commandBuffer,
-    VulkanRenderer2DWorld& viewportRenderer2DWorld,
+    VulkanSpriteRenderer& viewportSpriteRenderer,
     VulkanDebugRenderer& viewportDebugRenderer) const
 {
     VkCommandBufferInheritanceInfo inheritanceInfo{};
@@ -960,7 +960,7 @@ void VulkanContext::recordViewportSecondaryCommandBuffer(
     beginInfo.pInheritanceInfo = &inheritanceInfo;
 
     checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "Failed to begin viewport secondary command buffer.");
-    viewportRenderer2DWorld.record(commandBuffer);
+    viewportSpriteRenderer.record(commandBuffer);
     viewportDebugRenderer.record(commandBuffer);
     checkVk(vkEndCommandBuffer(commandBuffer), "Failed to end viewport secondary command buffer.");
 }
