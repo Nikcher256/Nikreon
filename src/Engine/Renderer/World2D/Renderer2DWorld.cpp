@@ -74,6 +74,12 @@ void Renderer2DWorld::beginFrame(const RenderFrameContext& context)
 
     frameCamera.camera2D.viewportSize = viewportSize;
     frameCamera.camera3D.aspectRatio = viewportSize.x / viewportSize.y;
+    if (frameCamera.mode == Renderer2DWorldCameraMode::Perspective3D) {
+        frameCamera.renderView = worldRenderViewFromCamera3D(frameCamera.camera3D, viewportSize);
+    } else {
+        frameCamera.renderView = worldRenderViewFromCamera2D(frameCamera.camera2D);
+    }
+    frameCamera.hasRenderView = true;
 
     begin(frameCamera);
 }
@@ -115,6 +121,12 @@ void Renderer2DWorld::releaseResources()
 void Renderer2DWorld::begin(const Renderer2DWorldCamera& camera)
 {
     m_camera = camera;
+    if (!m_camera.hasRenderView) {
+        m_camera.renderView = m_camera.mode == Renderer2DWorldCameraMode::Perspective3D
+            ? worldRenderViewFromCamera3D(m_camera.camera3D, m_camera.camera2D.viewportSize)
+            : worldRenderViewFromCamera2D(m_camera.camera2D);
+        m_camera.hasRenderView = true;
+    }
     m_pendingQuads.clear();
     m_vertices.clear();
     m_indices.clear();
@@ -123,6 +135,18 @@ void Renderer2DWorld::begin(const Renderer2DWorldCamera& camera)
     m_textureSlotFlushCount = 0;
     m_nextSequence = 0;
     m_recording = true;
+}
+
+void Renderer2DWorld::begin(const WorldRenderView& view)
+{
+    Renderer2DWorldCamera camera;
+    camera.mode = view.projectionMode == WorldRenderProjection::Perspective
+        ? Renderer2DWorldCameraMode::Perspective3D
+        : Renderer2DWorldCameraMode::Orthographic2D;
+    camera.camera2D.viewportSize = view.viewportSize;
+    camera.renderView = view;
+    camera.hasRenderView = true;
+    begin(camera);
 }
 
 void Renderer2DWorld::drawSprite(
@@ -270,6 +294,11 @@ void Renderer2DWorld::end()
 const Renderer2DWorldCamera& Renderer2DWorld::camera() const
 {
     return m_camera;
+}
+
+const WorldRenderView& Renderer2DWorld::renderView() const
+{
+    return m_camera.renderView;
 }
 
 std::span<const WorldQuadVertex> Renderer2DWorld::vertices() const

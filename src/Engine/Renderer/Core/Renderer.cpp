@@ -83,6 +83,11 @@ Renderer2DWorld& Renderer::renderer2DWorld()
     return m_renderPipeline.renderer2DWorld();
 }
 
+Renderer3D& Renderer::renderer3D()
+{
+    return m_renderPipeline.renderer3D();
+}
+
 DebugRenderer& Renderer::debugRenderer()
 {
     return m_renderPipeline.debugRenderer();

@@ -14,6 +14,7 @@ namespace Engine {
 
 class Renderer2D;
 class DebugRenderer;
+class Renderer3D;
 class VulkanDebugRenderer;
 class VulkanRenderer2DWorld;
 class TextRenderer;
@@ -36,6 +37,7 @@ public:
 
     [[nodiscard]] Renderer2D& renderer2D();
     [[nodiscard]] Renderer2DWorld& renderer2DWorld();
+    [[nodiscard]] Renderer3D& renderer3D();
     [[nodiscard]] DebugRenderer& debugRenderer();
     [[nodiscard]] TextRenderer& textRenderer();
     [[nodiscard]] ResourceManager& resources();

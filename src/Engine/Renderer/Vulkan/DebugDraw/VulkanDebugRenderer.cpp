@@ -437,11 +437,7 @@ std::uint32_t VulkanDebugRenderer::findMemoryType(const std::uint32_t typeFilter
 
 glm::mat4 VulkanDebugRenderer::viewProjectionFor(const Renderer2DWorldCamera& camera) const
 {
-    if (camera.mode == Renderer2DWorldCameraMode::Perspective3D) {
-        return camera.camera3D.viewProjection();
-    }
-
-    return camera.camera2D.viewProjection();
+    return camera.renderView.viewProjection;
 }
 
 VulkanDebugRenderer::GridPushConstants VulkanDebugRenderer::gridPushConstantsFor(
@@ -458,11 +454,11 @@ VulkanDebugRenderer::GridPushConstants VulkanDebugRenderer::gridPushConstantsFor
         static_cast<float>(std::max(m_viewportSize.y, 1U)),
     };
 
-    if (camera.mode == Renderer2DWorldCameraMode::Perspective3D) {
+    if (camera.renderView.projectionMode == WorldRenderProjection::Perspective) {
         pushConstants.cameraPosition = {
-            camera.camera3D.position.x,
-            camera.camera3D.position.y,
-            camera.camera3D.position.z,
+            camera.renderView.cameraPosition.x,
+            camera.renderView.cameraPosition.y,
+            camera.renderView.cameraPosition.z,
             1.0f,
         };
 
@@ -476,9 +472,9 @@ VulkanDebugRenderer::GridPushConstants VulkanDebugRenderer::gridPushConstantsFor
     }
 
     pushConstants.cameraPosition = {
-        camera.camera2D.position.x,
-        camera.camera2D.position.y,
-        0.0f,
+        camera.renderView.cameraPosition.x,
+        camera.renderView.cameraPosition.y,
+        camera.renderView.cameraPosition.z,
         1.0f,
     };
 

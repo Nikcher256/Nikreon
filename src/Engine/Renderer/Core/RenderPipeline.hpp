@@ -31,6 +31,8 @@ public:
 
     [[nodiscard]] Renderer2DWorld& renderer2DWorld();
     [[nodiscard]] const Renderer2DWorld& renderer2DWorld() const;
+    [[nodiscard]] Renderer3D& renderer3D();
+    [[nodiscard]] const Renderer3D& renderer3D() const;
     [[nodiscard]] DebugRenderer& debugRenderer();
     [[nodiscard]] const DebugRenderer& debugRenderer() const;
     [[nodiscard]] std::span<const RenderStage> stageSequence() const;

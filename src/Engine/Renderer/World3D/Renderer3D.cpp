@@ -12,4 +12,14 @@ RenderStage Renderer3D::stage() const
     return RenderStage::World3D;
 }
 
+void Renderer3D::setView(const WorldRenderView& view)
+{
+    m_view = view;
+}
+
+const WorldRenderView& Renderer3D::view() const
+{
+    return m_view;
+}
+
 } // namespace Engine

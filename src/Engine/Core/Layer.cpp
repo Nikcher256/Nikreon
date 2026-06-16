@@ -13,6 +13,7 @@ void Layer::onUpdate(const float deltaTime, const Input& input)
 void Layer::onRender(
     Renderer2D& renderer2D,
     Renderer2DWorld& renderer2DWorld,
+    Renderer3D& renderer3D,
     DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
     ResourceManager& resources,
@@ -21,6 +22,7 @@ void Layer::onRender(
 {
     (void)renderer2D;
     (void)renderer2DWorld;
+    (void)renderer3D;
     (void)debugRenderer;
     (void)textRenderer;
     (void)resources;

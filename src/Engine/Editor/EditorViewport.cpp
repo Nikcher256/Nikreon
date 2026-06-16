@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include <glm/common.hpp>
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/gtc/constants.hpp>
 
@@ -188,6 +189,18 @@ Camera3D EditorViewport::worldCamera3D(const float aspectRatio) const
     camera.farPlane = std::max(m_cameraSettings.farPlane, 2000.0f);
     camera.infiniteFarPlane = false;
     return camera;
+}
+
+WorldRenderView EditorViewport::worldRenderView(const glm::vec2& viewportSize) const
+{
+    const glm::vec2 safeViewportSize = glm::max(viewportSize, glm::vec2{1.0f, 1.0f});
+    const Camera3D camera = worldCamera3D(safeViewportSize.x / safeViewportSize.y);
+    return worldRenderViewFromCamera3D(camera, safeViewportSize);
+}
+
+Ray3D EditorViewport::worldRayFromViewportPoint(const glm::vec2& viewportPoint, const glm::vec2& viewportSize) const
+{
+    return worldRayFromScreenPoint(worldRenderView(viewportSize), viewportPoint);
 }
 
 const EditorViewportCameraSettings& EditorViewport::cameraSettings() const

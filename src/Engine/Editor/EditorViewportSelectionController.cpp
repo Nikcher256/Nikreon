@@ -1,6 +1,7 @@
 #include "Engine/Editor/EditorViewportSelectionController.hpp"
 
 #include "Engine/Core/Input.hpp"
+#include "Engine/Renderer/Core/WorldPicking.hpp"
 #include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
 #include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
 
@@ -33,9 +34,7 @@ void EditorViewportSelectionController::update(
         clearDrag();
     }
 
-    if ((!leftClick && !m_draggingSelection) ||
-        !viewport.hovered() ||
-        editorViewOrientationIsPerspective(viewport.viewOrientation())) {
+    if ((!leftClick && !m_draggingSelection) || !viewport.hovered()) {
         return;
     }
 
@@ -55,7 +54,11 @@ void EditorViewportSelectionController::update(
         }
 
         if (targetObjectId == InvalidSceneObjectId) {
-            targetObjectId = pickSpriteAt(scene, worldMouse);
+            const WorldRenderView activeView = viewport.worldRenderView(camera.viewportSize);
+            const Ray3D ray = worldRayFromScreenPoint(activeView, *localMouse);
+            if (const std::optional<PickHit> hit = PickingSystem::pickScene(scene, ray)) {
+                targetObjectId = hit->objectId;
+            }
         }
 
         selection.select(targetObjectId);
@@ -92,47 +95,16 @@ void EditorViewportSelectionController::drawOverlay(
         return;
     }
 
-    const SpriteBounds bounds = spriteBounds(*selected);
+    const PickingSystem::SpriteQuadCorners corners = PickingSystem::spriteQuadCorners(*selected);
+    (void)renderer2DWorld;
     (void)camera;
 
-    renderer2DWorld.drawDebugFilledRect(bounds.minimum, bounds.size, {0.32f, 0.62f, 1.0f, 0.08f});
-    debugRenderer.drawWireRect2D(bounds.minimum, bounds.size, {0.54f, 0.78f, 1.0f, 1.0f});
-    debugRenderer.drawWireRect2D(
-        bounds.minimum - glm::vec2{1.0f, 1.0f},
-        bounds.size + glm::vec2{2.0f, 2.0f},
-        {0.08f, 0.16f, 0.28f, 0.85f});
+    debugRenderer.drawLine(corners[0], corners[1], {0.54f, 0.78f, 1.0f, 1.0f});
+    debugRenderer.drawLine(corners[1], corners[2], {0.54f, 0.78f, 1.0f, 1.0f});
+    debugRenderer.drawLine(corners[2], corners[3], {0.54f, 0.78f, 1.0f, 1.0f});
+    debugRenderer.drawLine(corners[3], corners[0], {0.54f, 0.78f, 1.0f, 1.0f});
 }
 
-SceneObjectId EditorViewportSelectionController::pickSpriteAt(const Scene& scene, const glm::vec2& worldPosition) const
-{
-    const std::span<const SceneObject> objects = scene.objects();
-    for (auto iterator = objects.rbegin(); iterator != objects.rend(); ++iterator) {
-        const SceneObject& object = *iterator;
-        if (!object.sprite2D) {
-            continue;
-        }
-
-        if (containsPoint(spriteBounds(object), worldPosition)) {
-            return object.id;
-        }
-    }
-
-    return InvalidSceneObjectId;
-}
-
-EditorViewportSelectionController::SpriteBounds EditorViewportSelectionController::spriteBounds(const SceneObject& object) const
-{
-    if (!object.sprite2D) {
-        return {};
-    }
-
-    const Sprite2DComponent& sprite = *object.sprite2D;
-    const glm::vec2 size = sprite.size * glm::vec2{object.transform.scale.x, object.transform.scale.y};
-    return {
-        glm::vec2{object.transform.position.x, object.transform.position.y} - size * sprite.origin,
-        size,
-    };
-}
 
 EditorViewportSelectionController::SpriteBounds EditorViewportSelectionController::centerHandleBounds(
     const SceneObject& object,

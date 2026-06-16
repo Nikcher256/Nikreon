@@ -2,6 +2,8 @@
 
 #include "Engine/Editor/EditorCamera.hpp"
 #include "Engine/Renderer/Camera/Camera3D.hpp"
+#include "Engine/Renderer/Core/WorldRenderView.hpp"
+#include "Engine/Renderer/Core/WorldPicking.hpp"
 
 #include <optional>
 #include <string_view>
@@ -62,6 +64,8 @@ public:
     void setCameraSettings(const EditorViewportCameraSettings& settings);
 
     [[nodiscard]] Camera3D worldCamera3D(float aspectRatio) const;
+    [[nodiscard]] WorldRenderView worldRenderView(const glm::vec2& viewportSize) const;
+    [[nodiscard]] Ray3D worldRayFromViewportPoint(const glm::vec2& viewportPoint, const glm::vec2& viewportSize) const;
     [[nodiscard]] const EditorViewportCameraSettings& cameraSettings() const;
     [[nodiscard]] EditorViewOrientation viewOrientation() const;
     [[nodiscard]] bool gridVisible() const;

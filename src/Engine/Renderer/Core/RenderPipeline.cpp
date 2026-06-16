@@ -81,6 +81,16 @@ const Renderer2DWorld& RenderPipeline::renderer2DWorld() const
     return m_renderer2DWorld;
 }
 
+Renderer3D& RenderPipeline::renderer3D()
+{
+    return m_renderer3D;
+}
+
+const Renderer3D& RenderPipeline::renderer3D() const
+{
+    return m_renderer3D;
+}
+
 DebugRenderer& RenderPipeline::debugRenderer()
 {
     return m_debugRenderer;

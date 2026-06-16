@@ -861,12 +861,7 @@ std::uint32_t VulkanRenderer2DWorld::findMemoryType(const std::uint32_t typeFilt
 
 glm::mat4 VulkanRenderer2DWorld::worldViewProjection(const Renderer2DWorld& worldRenderer) const
 {
-    const Renderer2DWorldCamera& camera = worldRenderer.camera();
-    if (camera.mode == Renderer2DWorldCameraMode::Perspective3D) {
-        return camera.camera3D.viewProjection();
-    }
-
-    return camera.camera2D.viewProjection();
+    return worldRenderer.renderView().viewProjection;
 }
 
 std::vector<char> VulkanRenderer2DWorld::readFile(const char* path)

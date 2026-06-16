@@ -2,6 +2,7 @@
 
 #include "Engine/Editor/EditorSelectionState.hpp"
 #include "Engine/Editor/EditorViewport.hpp"
+#include "Engine/Editor/PickingSystem.hpp"
 #include "Engine/Renderer/Camera/Camera2D.hpp"
 #include "Engine/Scene/Scene.hpp"
 
@@ -35,8 +36,6 @@ private:
         glm::vec2 size{0.0f, 0.0f};
     };
 
-    [[nodiscard]] SceneObjectId pickSpriteAt(const Scene& scene, const glm::vec2& worldPosition) const;
-    [[nodiscard]] SpriteBounds spriteBounds(const SceneObject& object) const;
     [[nodiscard]] SpriteBounds centerHandleBounds(const SceneObject& object, const Camera2D& camera) const;
     [[nodiscard]] bool containsPoint(const SpriteBounds& bounds, const glm::vec2& worldPosition) const;
 

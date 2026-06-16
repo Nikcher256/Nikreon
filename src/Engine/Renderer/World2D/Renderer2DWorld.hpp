@@ -14,6 +14,7 @@
 #include "Engine/Renderer/Camera/Camera2D.hpp"
 #include "Engine/Renderer/Camera/Camera3D.hpp"
 #include "Engine/Renderer/Core/RenderModuleBase.hpp"
+#include "Engine/Renderer/Core/WorldRenderView.hpp"
 #include "Engine/Resources/ResourceHandle.hpp"
 
 namespace Engine {
@@ -84,6 +85,8 @@ struct Renderer2DWorldCamera {
     Renderer2DWorldCameraMode mode{Renderer2DWorldCameraMode::Orthographic2D};
     Camera2D camera2D{};
     Camera3D camera3D{};
+    WorldRenderView renderView{};
+    bool hasRenderView{false};
 };
 
 struct WorldQuadVertex {
@@ -168,6 +171,7 @@ public:
     void releaseResources() override;
 
     void begin(const Renderer2DWorldCamera& camera);
+    void begin(const WorldRenderView& view);
     void drawSprite(
         WorldTextureId texture,
         const WorldSpriteTransform& transform,
@@ -198,6 +202,7 @@ public:
     void end();
 
     [[nodiscard]] const Renderer2DWorldCamera& camera() const;
+    [[nodiscard]] const WorldRenderView& renderView() const;
     [[nodiscard]] std::span<const WorldQuadVertex> vertices() const;
     [[nodiscard]] std::span<const std::uint32_t> indices() const;
     [[nodiscard]] std::span<const WorldDrawBatch> batches() const;

@@ -19,6 +19,7 @@ class ResourceManager;
 class Input;
 class DebugRenderer;
 class Renderer2D;
+class Renderer3D;
 class Renderer2DWorld;
 class TextRenderer;
 
@@ -30,6 +31,7 @@ public:
     void onRender(
         Renderer2D& renderer2D,
         Renderer2DWorld& renderer2DWorld,
+        Renderer3D& renderer3D,
         DebugRenderer& debugRenderer,
         TextRenderer& textRenderer,
         ResourceManager& resources,

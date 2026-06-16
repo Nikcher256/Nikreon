@@ -60,6 +60,7 @@ add_executable(NikreonEngine
     src/Engine/Scene/Scene.cpp
     src/Engine/Editor/EditorSelectionState.hpp
     src/Engine/Editor/EditorViewportSelectionController.cpp
+    src/Engine/Editor/PickingSystem.cpp
     src/Engine/Resources/ResourceManager.cpp
     src/Engine/Renderer/Camera/Camera3D.cpp
     src/Engine/Renderer/Camera/Camera2D.cpp

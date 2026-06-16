@@ -1,6 +1,7 @@
 #include "Engine/Editor/EditorLayer.hpp"
 #include "Engine/Renderer/Camera/Camera2D.hpp"
 #include "Engine/Renderer/DebugDraw/DebugRenderer.hpp"
+#include "Engine/Renderer/World3D/Renderer3D.hpp"
 #include "Engine/Renderer/World2D/Renderer2DWorld.hpp"
 #include "Engine/Core/Input.hpp"
 
@@ -33,6 +34,7 @@ const EditorViewport& EditorLayer::viewport() const
 void EditorLayer::onRender(
     Renderer2D& renderer2D,
     Renderer2DWorld& renderer2DWorld,
+    Renderer3D& renderer3D,
     DebugRenderer& debugRenderer,
     TextRenderer& textRenderer,
     ResourceManager& resources,
@@ -53,14 +55,20 @@ void EditorLayer::onRender(
     worldCamera.camera2D.zoom = m_viewport.editorCameraZoom();
 
     const glm::vec2 viewportBoundsSize = glm::max(m_ui.viewportBounds().size, glm::vec2{1.0f, 1.0f});
+    const WorldRenderView activeView = m_viewport.worldRenderView(viewportBoundsSize);
     worldCamera.camera3D = m_viewport.worldCamera3D(viewportBoundsSize.x / viewportBoundsSize.y);
+    worldCamera.renderView = activeView;
+    worldCamera.hasRenderView = true;
 
     Renderer2DWorldCamera safeCamera = worldCamera;
     safeCamera.camera2D.viewportSize = glm::max(safeCamera.camera2D.viewportSize, glm::vec2{1.0f, 1.0f});
     safeCamera.camera3D.aspectRatio = std::max(safeCamera.camera3D.aspectRatio, 0.001f);
+    safeCamera.renderView = activeView;
+    safeCamera.hasRenderView = true;
 
     m_selectionController.update(input, m_viewport, safeCamera.camera2D, m_scene, m_selection);
 
+    renderer3D.setView(activeView);
     renderer2DWorld.begin(safeCamera);
     m_overlayController.draw(debugRenderer, m_viewport, safeCamera);
     m_scene2DSubmitter.submit(m_scene, renderer2DWorld, resources);
