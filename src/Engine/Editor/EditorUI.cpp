@@ -32,9 +32,17 @@ namespace Engine {
 #define NIKREON_ASSET_DIR "assets"
 #endif
 
+#ifndef NIKREON_UI_ASSET_DIR
+#define NIKREON_UI_ASSET_DIR "engineAssets"
+#endif
+
 namespace {
 
 constexpr float Pi = 3.14159265358979323846f;
+constexpr std::uint32_t ToolbarIconAtlasWidth = 160U;
+constexpr std::uint32_t ToolbarIconAtlasHeight = 32U;
+constexpr float ToolbarIconAtlasCellCount = 5.0f;
+constexpr UITextureId BuiltinToolbarIconAtlasTexture = 0x4E5549544F4F4C42ull;
 
 float radiansToDegrees(const float radians)
 {
@@ -141,6 +149,76 @@ void drawEditorBackgroundOutsideViewport(Renderer2D& renderer2D, const glm::vec2
     drawQuadIfPositive(renderer2D, {right, top}, {canvasSize.x - right, bottom - top}, color);
 }
 
+void setAtlasPixel(std::vector<std::uint8_t>& pixels, const int x, const int y, const std::uint8_t alpha)
+{
+    if (x < 0 || y < 0 || x >= static_cast<int>(ToolbarIconAtlasWidth) || y >= static_cast<int>(ToolbarIconAtlasHeight)) {
+        return;
+    }
+
+    const std::size_t offset = (static_cast<std::size_t>(y) * ToolbarIconAtlasWidth + static_cast<std::size_t>(x)) * 4U;
+    pixels[offset] = 232U;
+    pixels[offset + 1U] = 238U;
+    pixels[offset + 2U] = 248U;
+    pixels[offset + 3U] = alpha;
+}
+
+void fillAtlasRect(std::vector<std::uint8_t>& pixels, const int x, const int y, const int width, const int height)
+{
+    for (int row = y; row < y + height; ++row) {
+        for (int column = x; column < x + width; ++column) {
+            setAtlasPixel(pixels, column, row, 255U);
+        }
+    }
+}
+
+void fillAtlasPlay(std::vector<std::uint8_t>& pixels)
+{
+    for (int y = 8; y <= 24; ++y) {
+        const int distanceFromCenter = std::abs(y - 16);
+        const int rowWidth = 14 - distanceFromCenter;
+        for (int x = 9; x < 9 + rowWidth; ++x) {
+            setAtlasPixel(pixels, x, y, 255U);
+        }
+    }
+}
+
+void fillAtlasChevron(std::vector<std::uint8_t>& pixels, const int cell, const bool up)
+{
+    const int origin = cell * 32;
+    for (int step = 0; step < 8; ++step) {
+        for (int thickness = 0; thickness < 3; ++thickness) {
+            const int y = up ? 20 - step + thickness : 12 + step + thickness;
+            setAtlasPixel(pixels, origin + 9 + step, y, 255U);
+            setAtlasPixel(pixels, origin + 22 - step, y, 255U);
+        }
+    }
+}
+
+std::vector<std::uint8_t> builtinToolbarIconAtlasPixels()
+{
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(ToolbarIconAtlasWidth) * ToolbarIconAtlasHeight * 4U, 0U);
+    fillAtlasPlay(pixels);
+    fillAtlasRect(pixels, 43, 9, 4, 14);
+    fillAtlasRect(pixels, 53, 9, 4, 14);
+    fillAtlasRect(pixels, 73, 9, 14, 14);
+    fillAtlasChevron(pixels, 3, false);
+    fillAtlasChevron(pixels, 4, true);
+    return pixels;
+}
+
+UIIconImage toolbarIconImage(const UITextureId atlas, const bool atlasUploaded, const std::uint32_t column)
+{
+    const float cellWidthPixels = static_cast<float>(ToolbarIconAtlasWidth) / ToolbarIconAtlasCellCount;
+    const float u0 = (static_cast<float>(column) * cellWidthPixels + 0.5f) / static_cast<float>(ToolbarIconAtlasWidth);
+    const float u1 = ((static_cast<float>(column) + 1.0f) * cellWidthPixels - 0.5f) / static_cast<float>(ToolbarIconAtlasWidth);
+    return {
+        atlasUploaded ? atlas : 0U,
+        {u0, 0.5f / static_cast<float>(ToolbarIconAtlasHeight)},
+        {u1, 1.0f - 0.5f / static_cast<float>(ToolbarIconAtlasHeight)},
+        {1.0f, 1.0f, 1.0f, 1.0f},
+    };
+}
+
 std::string_view blendModeName(const WorldBlendMode mode)
 {
     switch (mode) {
@@ -207,63 +285,15 @@ void applyUiCursorRequest(const UIContext& context, const Input& input)
     }
 }
 
-std::string truncateAssetLabel(const std::string& label, const std::size_t maxCharacters)
-{
-    if (label.size() <= maxCharacters) {
-        return label;
-    }
-
-    if (maxCharacters <= 3U) {
-        return label.substr(0U, maxCharacters);
-    }
-
-    return label.substr(0U, maxCharacters - 3U) + "...";
-}
-
 std::string assetTileLabel(const std::string& label)
 {
     const std::filesystem::path path{label};
     const std::string filename = path.filename().generic_string();
     if (!filename.empty()) {
-        return truncateAssetLabel(filename, 44U);
+        return filename;
     }
 
-    return truncateAssetLabel(label, 44U);
-}
-
-void drawWrappedTextClipped(
-    TextRenderer& textRenderer,
-    std::string_view text,
-    const UIRect& bounds,
-    const UITextStyle& style,
-    const TextAlignment alignment = TextAlignment::Left,
-    const bool wordWrap = true)
-{
-    if (bounds.size.x <= 0.0f || bounds.size.y <= 0.0f || text.empty()) {
-        return;
-    }
-
-    constexpr float textClipTopPadding = 1.0f;
-    constexpr float textClipBottomPadding = 3.0f;
-    const UIClipRect clipBounds{
-        bounds.position - glm::vec2{0.0f, textClipTopPadding},
-        bounds.size + glm::vec2{0.0f, textClipTopPadding + textClipBottomPadding},
-    };
-
-    textRenderer.pushClipRect(clipBounds);
-    textRenderer.drawText(
-        text,
-        bounds.position,
-        style.color,
-        style.font,
-        style.scale,
-        alignment,
-        {
-            bounds.size.x,
-            1.0f,
-            wordWrap,
-        });
-    textRenderer.popClipRect();
+    return label;
 }
 
 int assetGridColumnsForWidth(const float width)
@@ -486,6 +516,7 @@ void EditorUI::render(Renderer2D& renderer2D, TextRenderer& textRenderer, Resour
     if (m_assetsDirty) {
         refreshAssets(resources);
     }
+    uploadEditorIconAtlas(renderer2D, resources);
 
     m_ui.begin(m_context, renderer2D, textRenderer, m_style, {{0.0f, 0.0f}, {width, height}});
     declareUI(width, height, resources);
@@ -574,9 +605,10 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
     m_ui.button("toolbar.play")
         .parent("toolbar")
         .styleClass("toolbar")
-        .text("Play")
-        .textStyle("toolbar-toggle")
-        .width(76.0f)
+        .icon(UIIcon::Play)
+        .iconImage(toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 0U))
+        .tooltip("Play")
+        .width(42.0f)
         .selected(m_runState == RunState::Playing)
         .onClick([this]() {
             m_runState = RunState::Playing;
@@ -587,9 +619,10 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
     m_ui.button("toolbar.pause")
         .parent("toolbar")
         .styleClass("toolbar")
-        .text("Pause")
-        .textStyle("toolbar-toggle")
-        .width(76.0f)
+        .icon(UIIcon::Pause)
+        .iconImage(toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 1U))
+        .tooltip("Pause")
+        .width(42.0f)
         .selected(m_runState == RunState::Paused)
         .onClick([this]() {
             m_runState = RunState::Paused;
@@ -599,9 +632,10 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
     m_ui.button("toolbar.stop")
         .parent("toolbar")
         .styleClass("toolbar")
-        .text("Stop")
-        .textStyle("toolbar-toggle")
-        .width(76.0f)
+        .icon(UIIcon::Stop)
+        .iconImage(toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 2U))
+        .tooltip("Stop")
+        .width(42.0f)
         .selected(m_runState == RunState::Stopped)
         .onClick([this]() {
             m_runState = RunState::Stopped;
@@ -642,6 +676,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         .textStyle("toolbar-toggle")
         .width(118.0f)
         .text(editorViewportModeName(m_viewport.mode()))
+        .dropdownIconImages(
+            toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 3U),
+            toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 4U))
         .popupSize({142.0f, 144.0f})
         .padding(UIEdgeInsets::all(8.0f))
         .gap(4.0f);
@@ -665,13 +702,16 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
     addViewportModeOption("toolbar.viewportMode.simulate", 2U, EditorViewportMode::Simulate);
     addViewportModeOption("toolbar.viewportMode.hudEdit", 3U, EditorViewportMode::HudEdit);
 
-    const std::string viewOptionsLabel = std::string(editorViewOrientationName(m_viewport.viewOrientation())) + " v";
+    const std::string viewOptionsLabel = std::string(editorViewOrientationName(m_viewport.viewOrientation()));
     m_ui.dropdown("toolbar.viewOptions")
         .parent("toolbar")
         .styleClass("toolbar")
         .textStyle("toolbar-toggle")
         .width(132.0f)
         .text(viewOptionsLabel)
+        .dropdownIconImages(
+            toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 3U),
+            toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 4U))
         .popupSize({300.0f, 450.0f})
         .padding(UIEdgeInsets::all(12.0f))
         .gap(6.0f);
@@ -919,8 +959,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .text("")
             .textStyle("hierarchy-row")
             .height(82.0f)
-            .selected(selected)
-            .tooltip(m_assetContextMenuOpen ? "" : asset.displayPath);
+            .selected(selected);
     }
 
     for (std::size_t index = 0; index < visibleModelCount; ++index) {
@@ -931,7 +970,6 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
             .text("")
             .textStyle("hierarchy-row")
             .height(82.0f)
-            .tooltip(m_assetContextMenuOpen ? "" : m_modelAssets[index].displayPath)
             .onClick([this, index, &resources]() {
                 loadModelAssetAt(index, resources);
             });
@@ -1101,6 +1139,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.position.x")
             .parent("sceneObject.position-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::X)
             .value(selectedObject->transform.position.x)
             .range(-10000.0f, 10000.0f)
             .precision(2)
@@ -1112,6 +1151,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.position.y")
             .parent("sceneObject.position-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::Y)
             .value(selectedObject->transform.position.y)
             .range(-10000.0f, 10000.0f)
             .precision(2)
@@ -1123,6 +1163,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.position.z")
             .parent("sceneObject.position-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::Z)
             .value(selectedObject->transform.position.z)
             .range(-10000.0f, 10000.0f)
             .precision(2)
@@ -1159,6 +1200,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.rotation.x")
             .parent("sceneObject.rotation-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::X)
             .value(radiansToDegrees(selectedObject->transform.rotationRadians.x))
             .range(-360.0f, 360.0f)
             .precision(1)
@@ -1170,6 +1212,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.rotation.y")
             .parent("sceneObject.rotation-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::Y)
             .value(radiansToDegrees(selectedObject->transform.rotationRadians.y))
             .range(-360.0f, 360.0f)
             .precision(1)
@@ -1181,6 +1224,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.rotation.z")
             .parent("sceneObject.rotation-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::Z)
             .value(radiansToDegrees(selectedObject->transform.rotationRadians.z))
             .range(-360.0f, 360.0f)
             .precision(1)
@@ -1217,6 +1261,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.scale.x")
             .parent("sceneObject.scale-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::X)
             .value(selectedObject->transform.scale.x)
             .range(0.01f, 100.0f)
             .precision(2)
@@ -1228,6 +1273,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.scale.y")
             .parent("sceneObject.scale-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::Y)
             .value(selectedObject->transform.scale.y)
             .range(0.01f, 100.0f)
             .precision(2)
@@ -1239,6 +1285,7 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
         m_ui.numberFloat("sceneObject.scale.z")
             .parent("sceneObject.scale-grid")
             .styleClass("plain")
+            .axis(UINumberAxis::Z)
             .value(selectedObject->transform.scale.z)
             .range(0.01f, 100.0f)
             .precision(2)
@@ -1334,6 +1381,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .label("Plane")
                 .labelStyle("control-label")
                 .text(spriteFixedPlaneName(sprite->fixedPlane))
+                .dropdownIconImages(
+                    toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 3U),
+                    toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 4U))
                 .popupSize({180.0f, 112.0f})
                 .padding(UIEdgeInsets::all(8.0f))
                 .gap(4.0f);
@@ -1362,6 +1412,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .label("Blend")
                 .labelStyle("control-label")
                 .text(blendModeName(sprite->renderState.blendMode))
+                .dropdownIconImages(
+                    toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 3U),
+                    toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 4U))
                 .popupSize({180.0f, 112.0f})
                 .padding(UIEdgeInsets::all(8.0f))
                 .gap(4.0f);
@@ -1390,6 +1443,9 @@ void EditorUI::declareUI(const float width, const float height, ResourceManager&
                 .label("Sampler")
                 .labelStyle("control-label")
                 .text(samplerModeName(sprite->renderState.samplerMode))
+                .dropdownIconImages(
+                    toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 3U),
+                    toolbarIconImage(m_editorIconAtlasTexture, m_editorIconAtlasUploaded, 4U))
                 .popupSize({180.0f, 80.0f})
                 .padding(UIEdgeInsets::all(8.0f))
                 .gap(4.0f);
@@ -1531,6 +1587,54 @@ void EditorUI::setViewportModeFromIndex(const std::size_t index)
     }
 }
 
+void EditorUI::uploadEditorIconAtlas(Renderer2D& renderer2D, ResourceManager& resources)
+{
+    m_editorIconAtlasUploaded = false;
+    m_editorIconAtlasTexture = 0U;
+
+    if (!m_editorIconAtlas) {
+        m_editorIconAtlas = resources.loadTexture(NIKREON_UI_ASSET_DIR "/icons/editor-toolbar.png");
+    }
+
+    if (m_editorIconAtlas && m_editorIconAtlas != resources.missingTexture()) {
+        const UITextureId textureId = static_cast<UITextureId>(m_editorIconAtlas.value());
+        if (!renderer2D.hasImage(textureId)) {
+            const TextureResource* texture = resources.tryTexture(m_editorIconAtlas);
+            if (texture != nullptr && !texture->pixels.rgba8.empty()) {
+                renderer2D.uploadImage(
+                    textureId,
+                    texture->pixels.width,
+                    texture->pixels.height,
+                    texture->pixels.rgba8.data(),
+                    texture->pixels.rgba8.size());
+            }
+        }
+
+        if (renderer2D.hasImage(textureId)) {
+            m_editorIconAtlasTexture = textureId;
+            m_editorIconAtlasUploaded = true;
+            return;
+        }
+    } else {
+        m_editorIconAtlas = TextureHandle::invalid();
+    }
+
+    if (!renderer2D.hasImage(BuiltinToolbarIconAtlasTexture)) {
+        const std::vector<std::uint8_t> pixels = builtinToolbarIconAtlasPixels();
+        renderer2D.uploadImage(
+            BuiltinToolbarIconAtlasTexture,
+            ToolbarIconAtlasWidth,
+            ToolbarIconAtlasHeight,
+            pixels.data(),
+            pixels.size());
+    }
+
+    if (renderer2D.hasImage(BuiltinToolbarIconAtlasTexture)) {
+        m_editorIconAtlasTexture = BuiltinToolbarIconAtlasTexture;
+        m_editorIconAtlasUploaded = true;
+    }
+}
+
 void EditorUI::handleAssetContextActions(ResourceManager&, const Input& input)
 {
     const bool rightMousePressed = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
@@ -1560,7 +1664,7 @@ void EditorUI::handleAssetContextActions(ResourceManager&, const Input& input)
 UIRect EditorUI::assetContextMenuBounds() const
 {
     const glm::vec2 size{156.0f, 28.0f};
-    glm::vec2 position = m_assetContextMenuPosition + glm::vec2{6.0f, 6.0f};
+    glm::vec2 position = m_assetContextMenuPosition;
 
     position.x = std::clamp(position.x, 4.0f, std::max(4.0f, m_renderSize.x - size.x - 4.0f));
     position.y = std::clamp(position.y, 4.0f, std::max(4.0f, m_renderSize.y - size.y - 4.0f));
@@ -1605,6 +1709,16 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
     const UITextStyle& mutedText = m_style.resolveText("muted");
     UITextStyle metadataText = mutedText;
     metadataText.scale = std::min(metadataText.scale, labelText.scale);
+    UITextStyle assetLabelText = labelText;
+    assetLabelText.wrap = UITextWrap::Word;
+    assetLabelText.overflow = UIOverflow::Ellipsis;
+    assetLabelText.maxLines = 2;
+    assetLabelText.verticalAlignment = UITextVerticalAlignment::Top;
+    UITextStyle assetMetadataText = metadataText;
+    assetMetadataText.wrap = UITextWrap::None;
+    assetMetadataText.overflow = UIOverflow::Ellipsis;
+    assetMetadataText.maxLines = 1;
+    assetMetadataText.verticalAlignment = UITextVerticalAlignment::Top;
     const std::size_t visibleTextureCount = m_textureAssets.size();
     const std::size_t visibleModelCount = m_modelAssets.size();
     UIFrame frame{m_context, renderer2D, textRenderer, m_style};
@@ -1672,6 +1786,18 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
     renderer2D.pushClipRect({listBounds.position, listBounds.size});
     textRenderer.pushClipRect({listBounds.position, listBounds.size});
 
+    const auto drawAssetText = [this, &frame](
+        const std::string_view text,
+        const UIRect& bounds,
+        const UITextStyle& style,
+        const std::string_view tooltip = {}) {
+        if (m_assetContextMenuOpen) {
+            frame.drawText(text, {bounds.position, bounds.size}, style);
+        } else {
+            frame.drawTextWithTooltip(text, {bounds.position, bounds.size}, style, tooltip);
+        }
+    };
+
     for (const TexturePreviewItem& item : textureItems) {
         renderer2D.drawSdfRect(item.previewPosition, item.previewSize, 3.0f, m_style.field.fill, m_style.field.border, 1.0f);
     }
@@ -1715,24 +1841,21 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
             }
         }
 
-        drawWrappedTextClipped(
-            textRenderer,
+        drawAssetText(
             label,
             {
                 item.bounds.position + glm::vec2{74.0f, 10.0f},
                 {std::max(0.0f, item.bounds.size.x - 84.0f), 38.0f},
             },
-            labelText);
-        drawWrappedTextClipped(
-            textRenderer,
+            assetLabelText,
+            asset.displayPath);
+        drawAssetText(
             sizeText,
             {
                 item.bounds.position + glm::vec2{74.0f, 56.0f},
                 {std::max(0.0f, item.bounds.size.x - 84.0f), 20.0f},
             },
-            metadataText,
-            TextAlignment::Left,
-            false);
+            assetMetadataText);
     }
 
     for (const ModelPreviewItem& item : modelItems) {
@@ -1774,34 +1897,28 @@ void EditorUI::renderAssetPreviews(ResourceManager& resources, Renderer2D& rende
             }
         }
 
-        drawWrappedTextClipped(
-            textRenderer,
+        drawAssetText(
             label,
             {
                 item.bounds.position + glm::vec2{74.0f, 8.0f},
                 {std::max(0.0f, item.bounds.size.x - 84.0f), 34.0f},
             },
-            labelText);
-        drawWrappedTextClipped(
-            textRenderer,
+            assetLabelText,
+            asset.displayPath);
+        drawAssetText(
             summary,
             {
                 item.bounds.position + glm::vec2{74.0f, 44.0f},
                 {std::max(0.0f, item.bounds.size.x - 84.0f), 20.0f},
             },
-            metadataText,
-            TextAlignment::Left,
-            false);
-        drawWrappedTextClipped(
-            textRenderer,
+            assetMetadataText);
+        drawAssetText(
             bounds,
             {
                 item.bounds.position + glm::vec2{74.0f, 61.0f},
                 {std::max(0.0f, item.bounds.size.x - 84.0f), 20.0f},
             },
-            metadataText,
-            TextAlignment::Left,
-            false);
+            assetMetadataText);
     }
 
     textRenderer.popClipRect();

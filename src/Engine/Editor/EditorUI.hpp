@@ -45,6 +45,7 @@ private:
     void syncBuilderBounds();
     [[nodiscard]] bool updatePanelSplitters();
     void renderPanelSplitters(Renderer2D& renderer2D);
+    void uploadEditorIconAtlas(Renderer2D& renderer2D, ResourceManager& resources);
     void setViewportModeFromIndex(std::size_t index);
     void refreshAssets(ResourceManager& resources);
     void loadSpriteAsset(ResourceManager& resources);
@@ -82,7 +83,7 @@ private:
     UIRect m_consoleSplitterBounds;
     float m_toolbarHeight{48.0f};
     float m_hierarchyWidth{192.0f};
-    float m_inspectorWidth{230.0f};
+    float m_inspectorWidth{300.0f};
     float m_consoleHeight{220.0f};
     glm::vec2 m_previousMousePosition{0.0f, 0.0f};
     glm::vec2 m_renderSize{1.0f, 1.0f};
@@ -98,6 +99,9 @@ private:
     float m_lastLoggedExposure{0.65f};
     float m_lightIntensity{4.0f};
     VulkanContext::PresentMode m_presentMode{VulkanContext::PresentMode::Mailbox};
+    TextureHandle m_editorIconAtlas{};
+    UITextureId m_editorIconAtlasTexture{0};
+    bool m_editorIconAtlasUploaded{false};
     std::vector<TextureAssetInfo> m_textureAssets;
     std::vector<ModelAssetInfo> m_modelAssets;
     bool m_assetsDirty{true};

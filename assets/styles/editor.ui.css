@@ -48,6 +48,8 @@ button.toolbar {
     pressed-fill: 0.10, 0.14, 0.20, 1.0;
     selected-fill: 0.24, 0.52, 0.86, 1.0;
     selected-border-color: 0.44, 0.70, 1.0, 1.0;
+    icon-size: 30;
+    dropdown-icon-size: 16;
 }
 
 button.toolbar#toolbar.stop {
